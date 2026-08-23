@@ -17,6 +17,45 @@ const BAR_GAIN = [0.72, 0.9, 1, 0.9, 0.72];
 const BAR_MIN = 8;
 const BAR_MAX = 30;
 
+/** Carita pixel-art angustiada: cejas preocupadas, ojos temblorosos,
+ *  boca en zigzag y gota de sudor. Para cuando no se entendió nada. */
+function PixelFace() {
+  return (
+    <svg
+      viewBox="0 0 26 18"
+      shapeRendering="crispEdges"
+      className="pf-in h-8 w-auto"
+    >
+      {/* cejas de angustia: suben hacia el centro */}
+      <g fill="currentColor">
+        <rect x="2.5" y="3.6" width="2.2" height="1.4" />
+        <rect x="4.7" y="2.2" width="2.2" height="1.4" />
+        <rect x="12.1" y="2.2" width="2.2" height="1.4" />
+        <rect x="14.3" y="3.6" width="2.2" height="1.4" />
+      </g>
+      {/* ojos temblorosos */}
+      <g className="pf-tremble" fill="currentColor">
+        <rect x="3.6" y="6.2" width="2.6" height="3.6" />
+        <rect x="12.8" y="6.2" width="2.6" height="3.6" />
+      </g>
+      {/* boca en zigzag */}
+      <g fill="currentColor">
+        <rect x="4" y="13.2" width="2.4" height="1.6" />
+        <rect x="6.4" y="14.4" width="2.4" height="1.6" />
+        <rect x="8.8" y="13.2" width="2.4" height="1.6" />
+        <rect x="11.2" y="14.4" width="2.4" height="1.6" />
+        <rect x="13.6" y="13.2" width="2.4" height="1.6" />
+      </g>
+      {/* gota de sudor */}
+      <g className="pf-drop" fill="#38bdf8">
+        <rect x="20.4" y="2" width="1.6" height="1.6" />
+        <rect x="19.6" y="3.6" width="3.2" height="2.4" />
+        <rect x="20.4" y="6" width="1.6" height="1.2" />
+      </g>
+    </svg>
+  );
+}
+
 function MicIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className}>
@@ -100,14 +139,50 @@ export default function Hud() {
     return () => cancelAnimationFrame(raf);
   }, [rec.state]);
 
-  const pill = dark
-    ? "border-white/10 bg-slate-900/90 text-slate-200"
-    : "border-slate-200/80 bg-white/95 text-slate-700";
+  const empty = rec.state === "empty";
+  const pill = empty
+    ? dark
+      ? "border-orange-400/30 bg-slate-900/90 text-orange-200"
+      : "border-orange-200 bg-orange-50/95 text-orange-900"
+    : dark
+      ? "border-white/10 bg-slate-900/90 text-slate-200"
+      : "border-slate-200/80 bg-white/95 text-slate-700";
 
   return (
     <div className="flex h-screen w-screen items-center justify-center">
+      <style>{`
+        @keyframes hud-shake {
+          0%, 100% { transform: translateX(0); }
+          15% { transform: translateX(-5px); }
+          30% { transform: translateX(4px); }
+          45% { transform: translateX(-3px); }
+          60% { transform: translateX(2px); }
+          75% { transform: translateX(-1px); }
+        }
+        @keyframes pf-in {
+          0% { transform: scale(.5); opacity: 0; }
+          60% { transform: scale(1.12); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes pf-tremble {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-.5px); }
+          75% { transform: translateX(.5px); }
+        }
+        @keyframes pf-drop {
+          0% { transform: translateY(-1px); opacity: 0; }
+          25% { opacity: 1; }
+          100% { transform: translateY(2.5px); opacity: 0; }
+        }
+        .hud-shake { animation: hud-shake .55s ease-in-out; }
+        .pf-in { animation: pf-in .4s cubic-bezier(.34, 1.56, .64, 1) both; }
+        .pf-tremble { animation: pf-tremble .18s linear infinite; }
+        .pf-drop { animation: pf-drop 1.5s ease-in .3s infinite; }
+      `}</style>
       <div
-        className={`flex h-[64px] w-[336px] items-center gap-3 rounded-full border px-5 shadow-2xl shadow-blue-900/20 backdrop-blur ${pill}`}
+        className={`flex h-[64px] w-[336px] items-center gap-3 rounded-full border px-5 shadow-2xl shadow-blue-900/20 backdrop-blur transition-colors ${
+          empty ? "hud-shake" : ""
+        } ${pill}`}
       >
         {(rec.state === "recording" || rec.state === "processing") && (
           <>
@@ -145,6 +220,17 @@ export default function Hud() {
               ✓
             </span>
             <p className="min-w-0 flex-1 truncate text-sm">{rec.text}</p>
+          </>
+        )}
+
+        {rec.state === "empty" && (
+          <>
+            <span className={dark ? "text-orange-300" : "text-orange-500"}>
+              <PixelFace />
+            </span>
+            <p className="min-w-0 flex-1 text-xs font-medium">
+              No escuché nada, lo siento.
+            </p>
           </>
         )}
 

@@ -36,6 +36,8 @@ export type RecordingState =
   | { state: "recording" }
   | { state: "processing" }
   | { state: "done"; text: string }
+  /** Hubo grabación pero no se entendió nada. */
+  | { state: "empty" }
   | { state: "error"; message: string };
 
 /** Corrección del diccionario aplicada a un dictado. */

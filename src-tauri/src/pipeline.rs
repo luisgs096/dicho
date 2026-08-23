@@ -134,9 +134,10 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
 pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: Arc<Store>) {
     std::thread::spawn(move || {
         // El modelo local ocupa ~670 MB en RAM: se carga bajo demanda al
-        // dictar (en paralelo al habla) y se libera tras 5 min sin usarse.
-        const IDLE_UNLOAD: Duration = Duration::from_secs(5 * 60);
-        const IDLE_TICK: Duration = Duration::from_secs(60);
+        // dictar (en paralelo al habla, que suele durar más que la carga)
+        // y se libera a los pocos segundos de terminar el dictado.
+        const IDLE_UNLOAD: Duration = Duration::from_secs(10);
+        const IDLE_TICK: Duration = Duration::from_secs(5);
 
         let mut recorder: Option<AudioRecorder> = None;
         let mut started_at = Instant::now();
@@ -163,8 +164,8 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                     {
                         parakeet = None;
                         log::info!(
-                            "Parakeet liberado de RAM tras {} min sin dictar",
-                            IDLE_UNLOAD.as_secs() / 60
+                            "Parakeet liberado de RAM tras {} s sin dictar",
+                            IDLE_UNLOAD.as_secs()
                         );
                     }
                     continue;
@@ -251,13 +252,18 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                     let held = started_at.elapsed();
                     emit_state(&app, "processing", None);
 
-                    type DictadoListo =
-                        (String, String, &'static str, i64, Vec<polish::Correction>);
-                    let outcome = (|| -> anyhow::Result<Option<DictadoListo>> {
+                    enum StopResult {
+                        Done(String, String, &'static str, i64, Vec<polish::Correction>),
+                        /// Hubo grabación pero no se entendió nada: carita en el HUD.
+                        Empty,
+                        /// Toque accidental: sin feedback.
+                        Tap,
+                    }
+                    let outcome = (|| -> anyhow::Result<StopResult> {
                         let (samples, rate) = rec.stop()?;
                         // Toques accidentales: menos de 350 ms no se procesan.
                         if held < Duration::from_millis(350) {
-                            return Ok(None);
+                            return Ok(StopResult::Tap);
                         }
                         let t_rs = Instant::now();
                         let samples = resample_to_16k(samples, rate)?;
@@ -268,7 +274,7 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                             samples.len() as f32 / 16_000.0
                         );
                         if samples.len() < 16_000 / 4 {
-                            return Ok(None);
+                            return Ok(StopResult::Empty);
                         }
                         let (engine, polish_kind, language) = {
                             let s = settings.read().unwrap();
@@ -311,7 +317,7 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                         let stt_ms = t0.elapsed().as_millis() as i64;
                         log::info!("STT [{engine_name}] {stt_ms} ms: {raw}");
                         if raw.trim().is_empty() {
-                            return Ok(None);
+                            return Ok(StopResult::Empty);
                         }
 
                         let ctx = PolishCtx {
@@ -329,11 +335,11 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                                 }
                             },
                         };
-                        Ok(Some((raw, polished, engine_name, stt_ms, corrections)))
+                        Ok(StopResult::Done(raw, polished, engine_name, stt_ms, corrections))
                     })();
 
                     match outcome {
-                        Ok(Some((raw, polished, engine_name, stt_ms, corrections))) => {
+                        Ok(StopResult::Done(raw, polished, engine_name, stt_ms, corrections)) => {
                             if let Err(e) = inject_text(&polished) {
                                 emit_state(
                                     &app,
@@ -366,7 +372,12 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                             let _ = app.emit("history-changed", ());
                             hide_hud_later(&app, &hud_gen, 1400);
                         }
-                        Ok(None) => {
+                        Ok(StopResult::Empty) => {
+                            // Tiempo suficiente para la animación de la carita.
+                            emit_state(&app, "empty", None);
+                            hide_hud_later(&app, &hud_gen, 2600);
+                        }
+                        Ok(StopResult::Tap) => {
                             emit_state(&app, "idle", None);
                             hide_hud_later(&app, &hud_gen, 150);
                         }
