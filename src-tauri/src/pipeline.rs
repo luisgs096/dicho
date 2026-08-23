@@ -6,7 +6,7 @@ use crate::settings::{EngineKind, PolishKind, SettingsState};
 use crate::store::Store;
 use crate::stt::{groq::GroqStt, parakeet::ParakeetStt, Stt};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
@@ -14,8 +14,27 @@ use tauri::{AppHandle, Emitter, Manager};
 pub enum Cmd {
     Start,
     Stop,
-    /// El modelo terminó de descargarse: precarga en caliente.
+    /// El modelo terminó de descargarse; se cargará al dictar.
     ModelReady,
+}
+
+/// Incorpora una carga de Parakeet terminada (o la espera, si `block`).
+fn absorb_load(
+    parakeet: &mut Option<ParakeetStt>,
+    loading: &mut Option<std::thread::JoinHandle<anyhow::Result<ParakeetStt>>>,
+    block: bool,
+) -> anyhow::Result<()> {
+    if !block && !loading.as_ref().is_some_and(|h| h.is_finished()) {
+        return Ok(());
+    }
+    if let Some(handle) = loading.take() {
+        match handle.join() {
+            Ok(Ok(m)) => *parakeet = Some(m),
+            Ok(Err(e)) => return Err(e.context("No se pudo cargar el modelo local")),
+            Err(_) => anyhow::bail!("El hilo de carga del modelo falló"),
+        }
+    }
+    Ok(())
 }
 
 fn emit_state(app: &AppHandle, state: &str, extra: Option<serde_json::Value>) {
@@ -114,54 +133,87 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
 
 pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: Arc<Store>) {
     std::thread::spawn(move || {
+        // El modelo local ocupa ~670 MB en RAM: se carga bajo demanda al
+        // dictar (en paralelo al habla) y se libera tras 5 min sin usarse.
+        const IDLE_UNLOAD: Duration = Duration::from_secs(5 * 60);
+        const IDLE_TICK: Duration = Duration::from_secs(60);
+
         let mut recorder: Option<AudioRecorder> = None;
         let mut started_at = Instant::now();
         let mut parakeet: Option<ParakeetStt> = None;
+        let mut parakeet_loading: Option<
+            std::thread::JoinHandle<anyhow::Result<ParakeetStt>>,
+        > = None;
+        let mut last_use = Instant::now();
         let mut groq = GroqStt::new();
         // Generación de sesión HUD: invalida ocultados diferidos si llega una nueva.
         let hud_gen = Arc::new(AtomicU64::new(0));
 
-        // Precarga el modelo local si ya está en disco (arranque en caliente).
-        if matches!(models::status(&app), ModelStatus::Ready) {
-            log::info!("Precargando Parakeet...");
-            match ParakeetStt::load(&models::model_dir(&app)) {
-                Ok(m) => {
-                    parakeet = Some(m);
-                    log::info!("Parakeet listo");
+        loop {
+            let cmd = match rx.recv_timeout(IDLE_TICK) {
+                Ok(cmd) => cmd,
+                Err(RecvTimeoutError::Timeout) => {
+                    // Integra cargas que quedaron sin usar y libera por inactividad.
+                    if let Err(e) = absorb_load(&mut parakeet, &mut parakeet_loading, false) {
+                        log::error!("{e:#}");
+                    }
+                    if recorder.is_none()
+                        && parakeet.is_some()
+                        && last_use.elapsed() >= IDLE_UNLOAD
+                    {
+                        parakeet = None;
+                        log::info!(
+                            "Parakeet liberado de RAM tras {} min sin dictar",
+                            IDLE_UNLOAD.as_secs() / 60
+                        );
+                    }
+                    continue;
                 }
-                Err(e) => log::error!("Precarga de Parakeet falló: {e}"),
-            }
-        }
-
-        while let Ok(cmd) = rx.recv() {
+                Err(RecvTimeoutError::Disconnected) => break,
+            };
             match cmd {
                 Cmd::ModelReady => {
-                    if parakeet.is_none() {
-                        match ParakeetStt::load(&models::model_dir(&app)) {
-                            Ok(m) => parakeet = Some(m),
-                            Err(e) => log::error!("Carga de Parakeet falló: {e}"),
-                        }
-                    }
+                    log::info!("Modelo local disponible; se cargará al dictar");
                 }
                 Cmd::Start => {
                     if recorder.is_some() {
                         continue;
                     }
                     let engine = settings.read().map(|s| s.engine).unwrap_or(EngineKind::Parakeet);
-                    // Sin modelo local y sin motor cloud → guía al usuario.
                     if engine == EngineKind::Parakeet && parakeet.is_none() {
-                        let msg = match models::status(&app) {
-                            ModelStatus::Downloading => {
-                                "Descargando el modelo de voz… abre Configuración para ver el progreso".to_string()
+                        if matches!(models::status(&app), ModelStatus::Ready) {
+                            // Arranca la carga ya, en paralelo al habla; se
+                            // espera (si hace falta) justo antes de transcribir.
+                            if parakeet_loading.is_none() {
+                                let dir = models::model_dir(&app);
+                                parakeet_loading = Some(std::thread::spawn(move || {
+                                    let t = Instant::now();
+                                    let m = ParakeetStt::load(&dir);
+                                    if m.is_ok() {
+                                        log::info!(
+                                            "Parakeet cargado en {} ms",
+                                            t.elapsed().as_millis()
+                                        );
+                                    }
+                                    m
+                                }));
                             }
-                            _ => "Falta el modelo de voz: ábreme desde la bandeja y descárgalo".to_string(),
-                        };
-                        hud_gen.fetch_add(1, Ordering::SeqCst);
-                        show_hud(&app);
-                        emit_state(&app, "error", Some(serde_json::json!({ "message": msg })));
-                        hide_hud_later(&app, &hud_gen, 3200);
-                        continue;
+                        } else {
+                            // Sin modelo local descargado → guía al usuario.
+                            let msg = match models::status(&app) {
+                                ModelStatus::Downloading => {
+                                    "Descargando el modelo de voz… abre Configuración para ver el progreso"
+                                }
+                                _ => "Falta el modelo de voz: ábreme desde la bandeja y descárgalo",
+                            };
+                            hud_gen.fetch_add(1, Ordering::SeqCst);
+                            show_hud(&app);
+                            emit_state(&app, "error", Some(serde_json::json!({ "message": msg })));
+                            hide_hud_later(&app, &hud_gen, 3200);
+                            continue;
+                        }
                     }
+                    last_use = Instant::now();
                     hud_gen.fetch_add(1, Ordering::SeqCst);
                     let hud_enabled = settings.read().map(|s| s.hud_enabled).unwrap_or(true);
                     if hud_enabled {
@@ -226,6 +278,12 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                             "auto" | "" => None,
                             other => Some(other.to_string()),
                         };
+
+                        // El usuario ya habló: si la carga del modelo sigue en
+                        // curso, aquí se espera lo poco que le falte.
+                        if engine == EngineKind::Parakeet && parakeet.is_none() {
+                            absorb_load(&mut parakeet, &mut parakeet_loading, true)?;
+                        }
 
                         let t0 = Instant::now();
                         let (raw, engine_name) = match engine {
@@ -321,6 +379,7 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                             hide_hud_later(&app, &hud_gen, 3200);
                         }
                     }
+                    last_use = Instant::now();
                 }
             }
         }
