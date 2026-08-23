@@ -18,11 +18,17 @@ pub fn save_settings(
     new_settings: AppSettings,
 ) -> Result<(), String> {
     settings::save(&app, &new_settings).map_err(|e| e.to_string())?;
-    let autolaunch = app.autolaunch();
-    if new_settings.autostart {
-        let _ = autolaunch.enable();
+    // Solo release toca la entrada Run: un build dev registraría target/debug/mike.exe,
+    // que al arrancar Windows abre consola y busca un dev server que no existe.
+    if cfg!(debug_assertions) {
+        log::info!("autostart: ignorado en build debug (no se toca el registro)");
     } else {
-        let _ = autolaunch.disable();
+        let autolaunch = app.autolaunch();
+        if new_settings.autostart {
+            let _ = autolaunch.enable();
+        } else {
+            let _ = autolaunch.disable();
+        }
     }
     *state.write().unwrap() = new_settings;
     Ok(())
