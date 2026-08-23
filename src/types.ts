@@ -30,6 +30,13 @@ export type RecordingState =
   | { state: "done"; text: string }
   | { state: "error"; message: string };
 
+/** Corrección del diccionario aplicada a un dictado. */
+export interface Correction {
+  term: string;
+  replacement: string;
+  count: number;
+}
+
 export interface HistoryItem {
   id: number;
   ts: number;
@@ -37,6 +44,7 @@ export interface HistoryItem {
   polished: string;
   engine: string;
   duration_ms: number;
+  corrections: Correction[];
 }
 
 export interface DictItem {

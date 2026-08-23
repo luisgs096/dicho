@@ -17,6 +17,8 @@ pub struct HistoryItem {
     pub polished: String,
     pub engine: String,
     pub duration_ms: i64,
+    /// Correcciones del diccionario aplicadas: [{term, replacement, count}].
+    pub corrections: serde_json::Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -45,7 +47,8 @@ impl Store {
                 raw TEXT NOT NULL,
                 polished TEXT NOT NULL,
                 engine TEXT NOT NULL,
-                duration_ms INTEGER NOT NULL
+                duration_ms INTEGER NOT NULL,
+                corrections TEXT
             );
             CREATE TABLE IF NOT EXISTS dictionary (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,6 +56,8 @@ impl Store {
                 replacement TEXT
             );",
         )?;
+        // Migración desde v0.1: la columna no existía; si ya está, el ALTER falla y se ignora.
+        let _ = conn.execute("ALTER TABLE history ADD COLUMN corrections TEXT", []);
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -64,13 +69,15 @@ impl Store {
         polished: &str,
         engine: &str,
         duration_ms: i64,
+        corrections_json: Option<&str>,
     ) -> anyhow::Result<()> {
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_millis() as i64;
         self.conn.lock().unwrap().execute(
-            "INSERT INTO history (ts, raw, polished, engine, duration_ms) VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![ts, raw, polished, engine, duration_ms],
+            "INSERT INTO history (ts, raw, polished, engine, duration_ms, corrections)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ts, raw, polished, engine, duration_ms, corrections_json],
         )?;
         Ok(())
     }
@@ -90,13 +97,17 @@ impl Store {
                 polished: row.get(3)?,
                 engine: row.get(4)?,
                 duration_ms: row.get(5)?,
+                corrections: row
+                    .get::<_, Option<String>>(6)?
+                    .and_then(|s| serde_json::from_str(&s).ok())
+                    .unwrap_or_else(|| serde_json::Value::Array(Vec::new())),
             });
             Ok(())
         };
         if let Some(q) = search.filter(|q| !q.trim().is_empty()) {
             let pattern = format!("%{}%", q.trim());
             let mut stmt = conn.prepare(
-                "SELECT id, ts, raw, polished, engine, duration_ms FROM history
+                "SELECT id, ts, raw, polished, engine, duration_ms, corrections FROM history
                  WHERE polished LIKE ?1 OR raw LIKE ?1 ORDER BY ts DESC LIMIT ?2",
             )?;
             let mut rows = stmt.query(rusqlite::params![pattern, limit])?;
@@ -105,7 +116,7 @@ impl Store {
             }
         } else {
             let mut stmt = conn.prepare(
-                "SELECT id, ts, raw, polished, engine, duration_ms FROM history
+                "SELECT id, ts, raw, polished, engine, duration_ms, corrections FROM history
                  ORDER BY ts DESC LIMIT ?1",
             )?;
             let mut rows = stmt.query(rusqlite::params![limit])?;

@@ -199,7 +199,9 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                     let held = started_at.elapsed();
                     emit_state(&app, "processing", None);
 
-                    let outcome = (|| -> anyhow::Result<Option<(String, String, &'static str, i64)>> {
+                    type DictadoListo =
+                        (String, String, &'static str, i64, Vec<polish::Correction>);
+                    let outcome = (|| -> anyhow::Result<Option<DictadoListo>> {
                         let (samples, rate) = rec.stop()?;
                         // Toques accidentales: menos de 350 ms no se procesan.
                         if held < Duration::from_millis(350) {
@@ -258,6 +260,7 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                             language,
                             dictionary: store.dict_pairs(),
                         };
+                        let corrections = polish::corrections(&raw, &ctx);
                         let polished = match polish_kind {
                             PolishKind::Rules => polish::rules::polish(&raw, &ctx),
                             PolishKind::GroqLlm => match polish::groq::polish(&raw, &ctx) {
@@ -268,11 +271,11 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                                 }
                             },
                         };
-                        Ok(Some((raw, polished, engine_name, stt_ms)))
+                        Ok(Some((raw, polished, engine_name, stt_ms, corrections)))
                     })();
 
                     match outcome {
-                        Ok(Some((raw, polished, engine_name, stt_ms))) => {
+                        Ok(Some((raw, polished, engine_name, stt_ms, corrections))) => {
                             if let Err(e) = inject_text(&polished) {
                                 emit_state(
                                     &app,
@@ -282,11 +285,15 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                                 hide_hud_later(&app, &hud_gen, 3200);
                                 continue;
                             }
+                            let corrections_json = (!corrections.is_empty())
+                                .then(|| serde_json::to_string(&corrections).ok())
+                                .flatten();
                             let _ = store.add_history(
                                 &raw,
                                 &polished,
                                 engine_name,
                                 held.as_millis() as i64,
+                                corrections_json.as_deref(),
                             );
                             log::info!(
                                 "Dictado listo: {} ms grabación, {} ms STT",
