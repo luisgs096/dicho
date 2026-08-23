@@ -28,24 +28,74 @@ fn emit_state(app: &AppHandle, state: &str, extra: Option<serde_json::Value>) {
     let _ = app.emit("recording-state", payload);
 }
 
+/// Log de diagnóstico que sobrevive en builds release (sin consola):
+/// escribe a %APPDATA%/<identifier>/dicho.log además del logger normal.
+pub(crate) fn diag(app: &AppHandle, msg: &str) {
+    log::info!("{msg}");
+    if let Ok(dir) = app.path().app_data_dir() {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(dir.join("dicho.log"))
+        {
+            use std::io::Write;
+            let _ = writeln!(f, "[{ts}] {msg}");
+        }
+    }
+}
+
 fn show_hud(app: &AppHandle) {
     let Some(hud) = app.get_webview_window("hud") else {
+        diag(app, "HUD: ventana 'hud' NO EXISTE");
         return;
     };
-    if let Ok(Some(monitor)) = app.primary_monitor() {
-        let msize = monitor.size();
-        let mpos = monitor.position();
-        let wsize = hud.outer_size().unwrap_or(tauri::PhysicalSize {
-            width: 360,
-            height: 96,
-        });
-        let x = mpos.x + ((msize.width as i32 - wsize.width as i32) / 2);
-        let y = mpos.y + msize.height as i32
-            - wsize.height as i32
-            - (64.0 * monitor.scale_factor()) as i32;
-        let _ = hud.set_position(tauri::PhysicalPosition { x, y });
+    match app.primary_monitor() {
+        Ok(Some(monitor)) => {
+            let msize = monitor.size();
+            let mpos = monitor.position();
+            let wsize = hud.outer_size().unwrap_or(tauri::PhysicalSize {
+                width: 360,
+                height: 96,
+            });
+            let x = mpos.x + ((msize.width as i32 - wsize.width as i32) / 2);
+            let y = mpos.y + msize.height as i32
+                - wsize.height as i32
+                - (64.0 * monitor.scale_factor()) as i32;
+            let pos_result = hud.set_position(tauri::PhysicalPosition { x, y });
+            diag(
+                app,
+                &format!(
+                    "HUD: monitor {}x{} escala {:.2}, ventana {}x{}, pos ({x},{y}) → {pos_result:?}",
+                    msize.width,
+                    msize.height,
+                    monitor.scale_factor(),
+                    wsize.width,
+                    wsize.height
+                ),
+            );
+        }
+        other => diag(app, &format!("HUD: primary_monitor raro: {other:?}")),
     }
-    let _ = hud.show();
+    let show1 = hud.show();
+    let vis1 = hud.is_visible();
+    diag(app, &format!("HUD: show()={show1:?}, visible={vis1:?}"));
+    if !matches!(vis1, Ok(true)) {
+        // Reintento defensivo: algunos estados de Windows ignoran el primer show.
+        let _ = hud.unminimize();
+        let show2 = hud.show();
+        let _ = hud.set_always_on_top(true);
+        diag(
+            app,
+            &format!(
+                "HUD: reintento show()={show2:?}, visible={:?}",
+                hud.is_visible()
+            ),
+        );
+    }
 }
 
 fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {

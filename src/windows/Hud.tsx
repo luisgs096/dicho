@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { RecordingState } from "../types";
+
+function hudLog(msg: string) {
+  invoke("hud_log", { msg }).catch(() => {});
+}
 
 /** Puntos del historial de nivel de voz que alimentan la onda. */
 const POINTS = 48;
@@ -37,8 +42,15 @@ export default function Hud() {
   }, []);
 
   useEffect(() => {
+    hudLog(
+      `montado: ${window.innerWidth}x${window.innerHeight}, dark=${window.matchMedia("(prefers-color-scheme: dark)").matches}`,
+    );
     const unState = listen<RecordingState>("recording-state", (e) => {
       setRec(e.payload);
+      const c = canvasRef.current;
+      hudLog(
+        `evento ${e.payload.state}, canvas=${c ? `${c.clientWidth}x${c.clientHeight}` : "null"}`,
+      );
       if (e.payload.state === "recording") {
         levelsRef.current = Array(POINTS).fill(0);
       }

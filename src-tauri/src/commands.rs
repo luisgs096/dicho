@@ -107,3 +107,9 @@ pub fn has_groq_key() -> bool {
 pub fn delete_groq_key() -> Result<(), String> {
     keyring_entry()?.delete_credential().map_err(|e| e.to_string())
 }
+
+/// Diagnóstico desde el webview del HUD (visible incluso en builds release).
+#[tauri::command]
+pub fn hud_log(app: AppHandle, msg: String) {
+    pipeline::diag(&app, &format!("HUD-JS: {msg}"));
+}

@@ -123,6 +123,7 @@ pub fn run() {
             commands::set_groq_key,
             commands::has_groq_key,
             commands::delete_groq_key,
+            commands::hud_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
