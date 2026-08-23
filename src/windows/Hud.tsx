@@ -7,8 +7,12 @@ function hudLog(msg: string) {
   invoke("hud_log", { msg }).catch(() => {});
 }
 
-/** Puntos del historial de nivel de voz que alimentan la onda. */
-const POINTS = 48;
+/** Historial de niveles de voz que alimenta los puntos. */
+const HISTORY = 16;
+/** Paleta Dicho: azules → cian, un color por punto. */
+const DOT_COLORS = ["#2563eb", "#3b82f6", "#0ea5e9", "#38bdf8", "#22d3ee"];
+/** Desfase por punto (centro reacciona primero, orillas después → ondulación). */
+const DOT_LAG = [4, 2, 0, 2, 4];
 
 function MicIcon({ className }: { className?: string }) {
   return (
@@ -29,8 +33,9 @@ export default function Hud() {
   const [dark, setDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const levelsRef = useRef<number[]>(Array(POINTS).fill(0));
+  const dotsRef = useRef<(HTMLSpanElement | null)[]>([]);
+  const levelsRef = useRef<number[]>(Array(HISTORY).fill(0));
+  const displayRef = useRef<number[]>([0.5, 0.5, 0.5, 0.5, 0.5]);
   const recRef = useRef(rec);
   recRef.current = rec;
 
@@ -42,17 +47,12 @@ export default function Hud() {
   }, []);
 
   useEffect(() => {
-    hudLog(
-      `montado: ${window.innerWidth}x${window.innerHeight}, dark=${window.matchMedia("(prefers-color-scheme: dark)").matches}`,
-    );
+    hudLog(`montado: ${window.innerWidth}x${window.innerHeight}`);
     const unState = listen<RecordingState>("recording-state", (e) => {
       setRec(e.payload);
-      const c = canvasRef.current;
-      hudLog(
-        `evento ${e.payload.state}, canvas=${c ? `${c.clientWidth}x${c.clientHeight}` : "null"}`,
-      );
+      hudLog(`evento ${e.payload.state}`);
       if (e.payload.state === "recording") {
-        levelsRef.current = Array(POINTS).fill(0);
+        levelsRef.current = Array(HISTORY).fill(0);
       }
     });
     const unLevel = listen<{ level: number }>("audio-level", (e) => {
@@ -65,68 +65,35 @@ export default function Hud() {
     };
   }, []);
 
-  // Onda continua: la amplitud sigue tu voz y la fase fluye en el tiempo.
-  // Depende de rec.state porque el canvas solo existe mientras se graba o
-  // procesa: el bucle debe (re)arrancar en cuanto el elemento se monta.
+  // Puntos estilo Google Assistant: escalan con la voz (grabando) o rebotan
+  // en secuencia (procesando). DOM + transform, sin canvas: ligero y fluido.
+  // Depende de rec.state porque los puntos solo existen en esos estados.
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    const dpr = window.devicePixelRatio || 1;
+    if (rec.state !== "recording" && rec.state !== "processing") return;
     let raf = 0;
-
-    const draw = (t: number) => {
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
-      }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, w, h);
-
-      const state = recRef.current.state;
-      const cy = h / 2;
-      const maxAmp = h / 2 - 4;
+    const tick = (t: number) => {
       const levels = levelsRef.current;
-
-      const grad = ctx.createLinearGradient(0, 0, w, 0);
-      grad.addColorStop(0, dark ? "#3b82f6" : "#2563eb");
-      grad.addColorStop(1, dark ? "#22d3ee" : "#0ea5e9");
-
-      ctx.beginPath();
-      const phase = t / 240;
-      for (let x = 0; x <= w; x += 2) {
-        const pos = (x / w) * (POINTS - 1);
-        const i = Math.floor(pos);
-        const frac = pos - i;
-        const envRaw =
-          (levels[i] ?? 0) * (1 - frac) + (levels[Math.min(i + 1, POINTS - 1)] ?? 0) * frac;
-        let amp: number;
-        if (state === "recording") {
-          amp = 2.5 + envRaw * maxAmp;
-        } else if (state === "processing") {
-          amp = 4 + Math.sin(t / 300) * 2.5; // respiración suave
+      const display = displayRef.current;
+      for (let i = 0; i < 5; i++) {
+        const el = dotsRef.current[i];
+        if (!el) continue;
+        let target: number;
+        if (recRef.current.state === "recording") {
+          const v = levels[levels.length - 1 - DOT_LAG[i]] ?? 0;
+          target = 0.5 + v * 2.1;
         } else {
-          amp = 1.5;
+          target = 0.8 + 0.45 * Math.sin(t / 160 - i * 0.9);
         }
-        const y = cy + Math.sin(phase + x * 0.09) * amp * Math.sin((x / w) * Math.PI) ** 0.6;
-        if (x === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        display[i] += (target - display[i]) * 0.3;
+        const s = Math.max(0.35, display[i]);
+        el.style.transform = `scale(${s.toFixed(3)})`;
+        el.style.opacity = `${Math.min(1, 0.55 + s * 0.3).toFixed(3)}`;
       }
-      ctx.strokeStyle = grad;
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = "round";
-      ctx.shadowColor = dark ? "rgba(56,189,248,0.55)" : "rgba(37,99,235,0.35)";
-      ctx.shadowBlur = 8;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      raf = requestAnimationFrame(draw);
+      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(draw);
+    raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [dark, rec.state]);
+  }, [rec.state]);
 
   const pill = dark
     ? "border-white/10 bg-slate-900/90 text-slate-200"
@@ -139,17 +106,24 @@ export default function Hud() {
       >
         {(rec.state === "recording" || rec.state === "processing") && (
           <>
-            <span className="relative flex h-7 w-7 shrink-0 items-center justify-center">
-              <span
-                className={`absolute inset-0 rounded-full ${
-                  rec.state === "recording" ? "animate-ping bg-blue-500/25" : ""
-                }`}
-              />
-              <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-sky-400 text-white">
-                <MicIcon className="h-4 w-4" />
-              </span>
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-sky-400 text-white">
+              <MicIcon className="h-4 w-4" />
             </span>
-            <canvas ref={canvasRef} className="h-10 min-w-0 flex-1" />
+            <div className="flex h-8 flex-1 items-center justify-center gap-3">
+              {DOT_COLORS.map((color, i) => (
+                <span
+                  key={i}
+                  ref={(el) => {
+                    dotsRef.current[i] = el;
+                  }}
+                  className="h-3 w-3 rounded-full will-change-transform"
+                  style={{
+                    backgroundColor: color,
+                    boxShadow: `0 0 10px ${color}55`,
+                  }}
+                />
+              ))}
+            </div>
             <span
               className={`shrink-0 text-[11px] font-medium ${
                 dark ? "text-slate-400" : "text-slate-500"

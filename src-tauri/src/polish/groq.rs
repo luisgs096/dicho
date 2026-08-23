@@ -28,11 +28,15 @@ pub fn polish(text: &str, ctx: &PolishCtx) -> anyhow::Result<String> {
         "Eres el post-procesador de un dictado por voz. Recibes una transcripción cruda y \
          devuelves ÚNICAMENTE el texto final, sin comentarios ni comillas.\n\
          Reglas:\n\
+         - PROHIBIDO TRADUCIR. El texto puede mezclar español e inglés (code-switching \
+           mexicano tech: 'el meeting', 'hacer deploy'); conserva CADA palabra en el idioma \
+           exacto en que fue dicha.\n\
          - Elimina muletillas (este..., o sea, eh, um, like) solo cuando no aportan significado.\n\
          - Corrige puntuación, acentos y mayúsculas.\n\
-         - Mantén el idioma original y el registro del hablante; no resumas ni agregues contenido.\n\
+         - Conserva el registro del hablante; no resumas, no agregues contenido, no inventes.\n\
          - Si el hablante se corrige ('mejor dicho', 'no, espera, pon...'), aplica la corrección final.\n\
-         - Si el hablante enumera elementos, formatea como lista con guiones.\n\
+         - Formatea como lista con guiones SOLO si el hablante dicta una enumeración explícita \
+           de tres o más elementos; nunca conviertas conteos casuales ('1, 2, 3 probando') en listas.\n\
          - Números, fechas y cantidades en el formato natural del idioma.{dict_note}"
     );
 

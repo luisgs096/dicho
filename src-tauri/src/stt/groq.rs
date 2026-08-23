@@ -6,7 +6,7 @@ use std::time::Duration;
 pub const KEYRING_SERVICE: &str = "mike-dictado";
 pub const KEYRING_USER: &str = "groq_api_key";
 const TRANSCRIPTION_URL: &str = "https://api.groq.com/openai/v1/audio/transcriptions";
-const MODEL: &str = "whisper-large-v3-turbo";
+const MODEL: &str = "whisper-large-v3";
 
 pub fn get_api_key() -> anyhow::Result<String> {
     keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
@@ -64,6 +64,12 @@ impl Stt for GroqStt {
                         .mime_str("audio/wav")?,
                 )
                 .text("model", MODEL)
+                .text("temperature", "0")
+                // El prompt condiciona a Whisper a respetar code-switching es/en.
+                .text(
+                    "prompt",
+                    "Audio en español, inglés o mezcla de ambos (spanglish). Transcribe fielmente cada palabra en su idioma original, sin traducir nada.",
+                )
                 .text("response_format", "json");
             if let Some(l) = lang {
                 form = form.text("language", l);
