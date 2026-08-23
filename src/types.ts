@@ -8,6 +8,14 @@ export interface AppSettings {
   language: string;
   hud_enabled: boolean;
   autostart: boolean;
+  google_client_id: string;
+  google_client_secret: string;
+}
+
+export interface GoogleStatus {
+  configured: boolean;
+  email: string | null;
+  last_sync_ms: number | null;
 }
 
 export type ModelStatus =
@@ -64,8 +72,50 @@ export const KEY_LABELS: Record<string, string> = {
   ShiftLeft: "Shift",
   ShiftRight: "Shift Der",
   Space: "Espacio",
+  Escape: "Esc",
+  Tab: "Tab",
+  CapsLock: "Bloq Mayús",
+  Return: "Entrar",
+  Backspace: "Retroceso",
+  BackQuote: "`",
+  Minus: "-",
+  Equal: "=",
+  LeftBracket: "[",
+  RightBracket: "]",
+  BackSlash: "\\",
+  SemiColon: ";",
+  Quote: "'",
+  Comma: ",",
+  Dot: ".",
+  Slash: "/",
+  Insert: "Insert",
+  Delete: "Supr",
+  Home: "Inicio",
+  End: "Fin",
+  PageUp: "Re Pág",
+  PageDown: "Av Pág",
+  UpArrow: "↑",
+  DownArrow: "↓",
+  LeftArrow: "←",
+  RightArrow: "→",
+  NumLock: "Bloq Num",
+  KpReturn: "Entrar (num)",
+  KpMinus: "− (num)",
+  KpPlus: "+ (num)",
+  KpMultiply: "× (num)",
+  KpDivide: "÷ (num)",
+  KpDelete: ". (num)",
 };
 
+/** Nombre legible de una tecla rdev individual. */
+export function keyLabel(key: string): string {
+  if (KEY_LABELS[key]) return KEY_LABELS[key];
+  if (/^Key[A-Z]$/.test(key)) return key.slice(3);
+  if (/^Num\d$/.test(key)) return key.slice(3);
+  if (/^Kp\d$/.test(key)) return `${key.slice(2)} (num)`;
+  return key;
+}
+
 export function hotkeyLabel(keys: string[]): string {
-  return keys.map((k) => KEY_LABELS[k] ?? k).join(" + ");
+  return keys.map(keyLabel).join(" + ");
 }

@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type {
   AppSettings,
   DictItem,
+  GoogleStatus,
   HistoryItem,
   ModelProgress,
   ModelStatus,
 } from "../types";
-import { hotkeyLabel } from "../types";
+import { hotkeyLabel, keyLabel } from "../types";
 
 type Tab = "perfil" | "diccionario" | "historial" | "ajustes";
 
@@ -72,6 +74,29 @@ function GearIcon() {
   );
 }
 
+function GoogleG() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-4 w-4">
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+      />
+    </svg>
+  );
+}
+
 function Section(props: {
   title: string;
   children: React.ReactNode;
@@ -121,13 +146,11 @@ const btnCls =
 const btnGhostCls =
   "rounded-xl border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800";
 const labelCls = "text-xs font-medium text-slate-500 dark:text-slate-400";
-const kbdCls =
-  "rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300";
 
 const TAB_META: Record<Tab, { title: string; desc: string }> = {
   perfil: {
     title: "Perfil",
-    desc: "Tu forma de dictar: motores de voz y cuenta opcional de Groq.",
+    desc: "Tu cuenta para sincronizar entre dispositivos y tu atajo de dictado.",
   },
   diccionario: {
     title: "Diccionario",
@@ -139,9 +162,229 @@ const TAB_META: Record<Tab, { title: string; desc: string }> = {
   },
   ajustes: {
     title: "Ajustes",
-    desc: "Preferencias de dictado y comportamiento en el sistema.",
+    desc: "Motores de voz, limpieza del texto y comportamiento en el sistema.",
   },
 };
+
+// ─── Teclado gráfico para elegir el atajo ────────────────────────────────────
+
+/** Tecla del teclado gráfico: code = nombre rdev (null → no capturable). */
+interface KbKey {
+  code: string | null;
+  label: string;
+  w?: number;
+}
+
+const K = (code: string, label: string, w?: number): KbKey => ({
+  code,
+  label,
+  w,
+});
+
+const MAIN_ROWS: KbKey[][] = [
+  [
+    K("Escape", "Esc", 1.4),
+    ...Array.from({ length: 12 }, (_, i) => K(`F${i + 1}`, `F${i + 1}`)),
+  ],
+  [
+    K("BackQuote", "`"),
+    ...[..."1234567890"].map((d) => K(`Num${d}`, d)),
+    K("Minus", "-"),
+    K("Equal", "="),
+    K("Backspace", "⌫", 1.8),
+  ],
+  [
+    K("Tab", "Tab", 1.5),
+    ...[..."QWERTYUIOP"].map((c) => K(`Key${c}`, c)),
+    K("LeftBracket", "["),
+    K("RightBracket", "]"),
+    K("BackSlash", "\\", 1.3),
+  ],
+  [
+    K("CapsLock", "Bloq Mayús", 1.9),
+    ...[..."ASDFGHJKL"].map((c) => K(`Key${c}`, c)),
+    K("SemiColon", ";"),
+    K("Quote", "'"),
+    K("Return", "Entrar", 1.9),
+  ],
+  [
+    K("ShiftLeft", "Mayús", 2.4),
+    ...[..."ZXCVBNM"].map((c) => K(`Key${c}`, c)),
+    K("Comma", ","),
+    K("Dot", "."),
+    K("Slash", "/"),
+    K("ShiftRight", "Mayús", 2.4),
+  ],
+];
+
+const BOTTOM_ROW_LAPTOP: KbKey[] = [
+  K("ControlLeft", "Ctrl", 1.4),
+  { code: null, label: "Fn" },
+  K("MetaLeft", "Win", 1.2),
+  K("Alt", "Alt", 1.2),
+  K("Space", "Espacio", 5.6),
+  K("AltGr", "AltGr", 1.2),
+  K("ControlRight", "Ctrl", 1.4),
+  K("LeftArrow", "←"),
+  K("UpArrow", "↑"),
+  K("DownArrow", "↓"),
+  K("RightArrow", "→"),
+];
+
+const BOTTOM_ROW_EXTENDED: KbKey[] = [
+  K("ControlLeft", "Ctrl", 1.6),
+  K("MetaLeft", "Win", 1.3),
+  K("Alt", "Alt", 1.3),
+  K("Space", "Espacio", 7),
+  K("AltGr", "AltGr", 1.3),
+  K("MetaRight", "Win", 1.3),
+  K("ControlRight", "Ctrl", 1.6),
+];
+
+const MODIFIERS = new Set([
+  "ControlLeft",
+  "ControlRight",
+  "MetaLeft",
+  "MetaRight",
+  "Alt",
+  "AltGr",
+  "ShiftLeft",
+  "ShiftRight",
+]);
+
+function Cap(props: {
+  k: KbKey;
+  selected: boolean;
+  onToggle: (code: string) => void;
+  className?: string;
+}) {
+  const { k, selected } = props;
+  const base =
+    "flex h-8 items-center justify-center overflow-hidden rounded-md border text-[9px] font-medium leading-none transition-colors";
+  const style = k.code
+    ? selected
+      ? "border-blue-700 bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/40"
+      : "cursor-pointer border-slate-300 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-sky-400 dark:hover:text-sky-300"
+    : "border-slate-200 bg-slate-100 text-slate-300 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-600";
+  return (
+    <button
+      type="button"
+      disabled={!k.code}
+      title={k.code ? keyLabel(k.code) : "No capturable"}
+      onClick={() => k.code && props.onToggle(k.code)}
+      style={{ flex: `${k.w ?? 1} ${k.w ?? 1} 0%` }}
+      className={`${base} ${style} ${props.className ?? ""}`}
+    >
+      <span className="truncate px-0.5">{k.label}</span>
+    </button>
+  );
+}
+
+function KeyboardPicker(props: {
+  selected: string[];
+  onToggle: (code: string) => void;
+}) {
+  const [layout, setLayout] = useState<"laptop" | "extendido">("laptop");
+  const isSel = (code: string | null) =>
+    code !== null && props.selected.includes(code);
+  const cap = (k: KbKey, i: number) => (
+    <Cap key={i} k={k} selected={isSel(k.code)} onToggle={props.onToggle} />
+  );
+  const gridCap = (k: KbKey, i: number, extra?: string) => (
+    <Cap
+      key={i}
+      k={k}
+      selected={isSel(k.code)}
+      onToggle={props.onToggle}
+      className={extra}
+    />
+  );
+
+  return (
+    <div>
+      <div className="mb-2 inline-flex rounded-lg border border-slate-200 p-0.5 dark:border-slate-700">
+        {(["laptop", "extendido"] as const).map((l) => (
+          <button
+            key={l}
+            onClick={() => setLayout(l)}
+            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+              layout === l
+                ? "bg-blue-600 text-white"
+                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+            }`}
+          >
+            {l === "laptop" ? "Laptop" : "Teclado extendido"}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-2 rounded-xl bg-slate-100 p-2 dark:bg-slate-950/60">
+        {/* Bloque principal */}
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          {MAIN_ROWS.map((row, r) => (
+            <div key={r} className="flex gap-1">
+              {row.map(cap)}
+            </div>
+          ))}
+          <div className="flex gap-1">
+            {(layout === "laptop" ? BOTTOM_ROW_LAPTOP : BOTTOM_ROW_EXTENDED).map(
+              cap,
+            )}
+          </div>
+        </div>
+
+        {layout === "extendido" && (
+          <>
+            {/* Bloque de navegación + flechas */}
+            <div className="flex w-[19%] shrink-0 flex-col gap-1">
+              <div className="grid grid-cols-3 gap-1">
+                {[
+                  K("Insert", "Ins"),
+                  K("Home", "Inicio"),
+                  K("PageUp", "RePág"),
+                  K("Delete", "Supr"),
+                  K("End", "Fin"),
+                  K("PageDown", "AvPág"),
+                ].map((k, i) => gridCap(k, i))}
+              </div>
+              <div className="mt-auto grid grid-cols-3 gap-1">
+                <span />
+                {gridCap(K("UpArrow", "↑"), 100)}
+                <span />
+                {gridCap(K("LeftArrow", "←"), 101)}
+                {gridCap(K("DownArrow", "↓"), 102)}
+                {gridCap(K("RightArrow", "→"), 103)}
+              </div>
+            </div>
+
+            {/* Numpad */}
+            <div className="grid w-[22%] shrink-0 grid-cols-4 gap-1">
+              {gridCap(K("NumLock", "Bloq"), 0)}
+              {gridCap(K("KpDivide", "÷"), 1)}
+              {gridCap(K("KpMultiply", "×"), 2)}
+              {gridCap(K("KpMinus", "−"), 3)}
+              {gridCap(K("Kp7", "7"), 4)}
+              {gridCap(K("Kp8", "8"), 5)}
+              {gridCap(K("Kp9", "9"), 6)}
+              {gridCap(K("KpPlus", "+"), 7, "row-span-2 !h-auto")}
+              {gridCap(K("Kp4", "4"), 8)}
+              {gridCap(K("Kp5", "5"), 9)}
+              {gridCap(K("Kp6", "6"), 10)}
+              {gridCap(K("Kp1", "1"), 11)}
+              {gridCap(K("Kp2", "2"), 12)}
+              {gridCap(K("Kp3", "3"), 13)}
+              {gridCap(K("KpReturn", "⏎"), 14, "row-span-2 !h-auto")}
+              {gridCap(K("Kp0", "0"), 15, "col-span-2")}
+              {gridCap(K("KpDelete", "."), 16)}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Pantalla principal ──────────────────────────────────────────────────────
 
 export default function Settings() {
   const [tab, setTab] = useState<Tab>("perfil");
@@ -157,6 +400,11 @@ export default function Settings() {
   const [dict, setDict] = useState<DictItem[]>([]);
   const [term, setTerm] = useState("");
   const [replacement, setReplacement] = useState("");
+  const [google, setGoogle] = useState<GoogleStatus | null>(null);
+  const [googleBusy, setGoogleBusy] = useState<"login" | "sync" | null>(null);
+  const [googleError, setGoogleError] = useState<string | null>(null);
+  const [showSetup, setShowSetup] = useState(false);
+  const [hotkeyDraft, setHotkeyDraft] = useState<string[] | null>(null);
 
   const refreshHistory = useCallback((q: string) => {
     invoke<HistoryItem[]>("get_history", { search: q || null, limit: 100 })
@@ -168,12 +416,17 @@ export default function Settings() {
     invoke<DictItem[]>("dict_list").then(setDict).catch(console.error);
   }, []);
 
+  const refreshGoogle = useCallback(() => {
+    invoke<GoogleStatus>("google_status").then(setGoogle).catch(console.error);
+  }, []);
+
   useEffect(() => {
     invoke<AppSettings>("get_settings").then(setSettings).catch(console.error);
     invoke<ModelStatus>("model_status").then(setModel).catch(console.error);
     invoke<boolean>("has_groq_key").then(setHasKey).catch(console.error);
     refreshHistory("");
     refreshDict();
+    refreshGoogle();
 
     const unProgress = listen<ModelProgress>("model-progress", (e) => {
       if (e.payload.error) {
@@ -190,11 +443,13 @@ export default function Settings() {
       }
     });
     const unHistory = listen("history-changed", () => refreshHistory(""));
+    const unDict = listen("dict-changed", () => refreshDict());
     return () => {
       unProgress.then((f) => f());
       unHistory.then((f) => f());
+      unDict.then((f) => f());
     };
-  }, [refreshHistory, refreshDict]);
+  }, [refreshHistory, refreshDict, refreshGoogle]);
 
   const update = (patch: Partial<AppSettings>) => {
     if (!settings) return;
@@ -209,6 +464,49 @@ export default function Settings() {
   const visibleHistory = onlyCorrected
     ? history.filter((h) => h.corrections.length > 0)
     : history;
+
+  // Atajo: borrador local hasta que el usuario guarde.
+  const currentHotkey = settings?.hotkey ?? [];
+  const draft = hotkeyDraft ?? currentHotkey;
+  const draftHasModifier = draft.some((k) => MODIFIERS.has(k));
+  const draftChanged =
+    hotkeyDraft !== null &&
+    (draft.length !== currentHotkey.length ||
+      draft.some((k) => !currentHotkey.includes(k)));
+  const toggleKey = (code: string) => {
+    const base = hotkeyDraft ?? currentHotkey;
+    setHotkeyDraft(
+      base.includes(code)
+        ? base.filter((k) => k !== code)
+        : base.length >= 4
+          ? base
+          : [...base, code],
+    );
+  };
+
+  const googleLogin = () => {
+    setGoogleBusy("login");
+    setGoogleError(null);
+    invoke<GoogleStatus>("google_login")
+      .then(setGoogle)
+      .catch((e) => setGoogleError(String(e)))
+      .finally(() => setGoogleBusy(null));
+  };
+
+  const googleSync = () => {
+    setGoogleBusy("sync");
+    setGoogleError(null);
+    invoke<GoogleStatus>("google_sync_now")
+      .then(setGoogle)
+      .catch((e) => setGoogleError(String(e)))
+      .finally(() => setGoogleBusy(null));
+  };
+
+  const googleLogout = () => {
+    invoke("google_logout")
+      .then(refreshGoogle)
+      .catch((e) => setGoogleError(String(e)));
+  };
 
   return (
     <div className="flex h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -265,115 +563,191 @@ export default function Settings() {
 
           {tab === "perfil" && (
             <>
-              <Section title="Cómo dictar">
-                <p className="text-sm text-slate-600 dark:text-slate-300">
-                  Mantén{" "}
-                  <kbd className={kbdCls}>
-                    {settings ? hotkeyLabel(settings.hotkey) : "Ctrl + Win"}
-                  </kbd>{" "}
-                  y habla; suelta y el texto aparece donde estés escribiendo.
-                </p>
-              </Section>
-
-              <Section title="Modelo de voz local">
-                {model?.state === "ready" && !downloading && (
-                  <p className="flex items-center gap-2 text-sm text-blue-600 dark:text-sky-400">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white dark:bg-sky-500">
-                      ✓
-                    </span>
-                    Parakeet V3 listo — todo se procesa en tu equipo, sin
-                    internet.
-                  </p>
-                )}
-                {downloading && (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
-                      Descargando modelo…{" "}
-                      {progress ? fmtBytes(progress.downloaded) : ""}
-                      {progress ? ` de ${fmtBytes(progress.total)}` : ""}
-                    </p>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                      <div
-                        className="h-full rounded-full bg-blue-600 transition-all dark:bg-sky-500"
-                        style={{
-                          width: progress
-                            ? `${Math.round((progress.downloaded / progress.total) * 100)}%`
-                            : "0%",
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-                {model?.state === "missing" && !downloading && (
+              <Section
+                title="Cuenta de Google"
+                hint="Inicia sesión para llevar tu diccionario y tu historial a cualquier dispositivo. Se guardan en un espacio privado de tu propio Google Drive: nadie más los ve, ni siquiera nosotros."
+              >
+                {google?.email ? (
                   <div className="flex items-center gap-3">
-                    <p className="flex-1 text-sm text-slate-600 dark:text-slate-300">
-                      Falta el modelo Parakeet V3 ({fmtBytes(671_000_000)},
-                      descarga única).
-                    </p>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold uppercase text-white dark:bg-sky-500">
+                      {google.email[0]}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+                        {google.email}
+                      </p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                        {google.last_sync_ms
+                          ? `Última sincronización: ${fmtDate(google.last_sync_ms)}`
+                          : "Aún sin sincronizar"}
+                      </p>
+                    </div>
                     <button
-                      className={btnCls}
-                      onClick={() => {
-                        setModelError(null);
-                        invoke("download_model");
-                      }}
+                      className={btnGhostCls}
+                      disabled={googleBusy !== null}
+                      onClick={googleSync}
                     >
-                      {modelError ? "Reintentar" : "Descargar"}
+                      {googleBusy === "sync"
+                        ? "Sincronizando…"
+                        : "Sincronizar ahora"}
+                    </button>
+                    <button
+                      className="text-xs text-slate-400 transition-colors hover:text-amber-600 dark:text-slate-500 dark:hover:text-amber-400"
+                      onClick={googleLogout}
+                    >
+                      Cerrar sesión
                     </button>
                   </div>
+                ) : google?.configured ? (
+                  <button
+                    className="flex items-center gap-2.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                    disabled={googleBusy !== null}
+                    onClick={googleLogin}
+                  >
+                    <GoogleG />
+                    {googleBusy === "login"
+                      ? "Esperando al navegador…"
+                      : "Continuar con Google"}
+                  </button>
+                ) : google ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      Para activar la sincronización hace falta un cliente OAuth
+                      gratuito de Google (una sola vez, ~5 minutos).
+                    </p>
+                    <button
+                      className={`${btnGhostCls} self-start`}
+                      onClick={() => setShowSetup(!showSetup)}
+                    >
+                      {showSetup ? "Ocultar pasos" : "Configurar"}
+                    </button>
+                    {showSetup && settings && (
+                      <div className="mt-1 flex flex-col gap-2 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+                        <ol className="list-inside list-decimal space-y-1">
+                          <li>
+                            Abre la{" "}
+                            <button
+                              className="font-semibold text-blue-600 underline dark:text-sky-400"
+                              onClick={() =>
+                                openUrl("https://console.cloud.google.com")
+                              }
+                            >
+                              Google Cloud Console
+                            </button>{" "}
+                            y crea un proyecto (p. ej. "Dicho").
+                          </li>
+                          <li>
+                            En "APIs y servicios → Biblioteca" habilita{" "}
+                            <b>Google Drive API</b>.
+                          </li>
+                          <li>
+                            En "Pantalla de consentimiento OAuth" elige
+                            "Externo" y agrégate como usuario de prueba.
+                          </li>
+                          <li>
+                            En "Credenciales → Crear credenciales → ID de
+                            cliente de OAuth" elige tipo{" "}
+                            <b>App de escritorio</b>.
+                          </li>
+                          <li>Copia aquí el ID y el secreto de cliente:</li>
+                        </ol>
+                        <input
+                          className={`${inputCls} w-full`}
+                          placeholder="Client ID (…apps.googleusercontent.com)"
+                          value={settings.google_client_id}
+                          onChange={(e) =>
+                            update({ google_client_id: e.target.value })
+                          }
+                        />
+                        <input
+                          type="password"
+                          className={`${inputCls} w-full`}
+                          placeholder="Client secret (GOCSPX-…)"
+                          value={settings.google_client_secret}
+                          onChange={(e) =>
+                            update({ google_client_secret: e.target.value })
+                          }
+                        />
+                        <button
+                          className={`${btnCls} self-start`}
+                          disabled={
+                            !settings.google_client_id.trim() ||
+                            !settings.google_client_secret.trim()
+                          }
+                          onClick={refreshGoogle}
+                        >
+                          Listo
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">Cargando…</p>
                 )}
-                {modelError && !downloading && (
+                {googleError && (
                   <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                    {modelError}
+                    {googleError}
                   </p>
                 )}
               </Section>
 
               <Section
-                title="Groq (opcional)"
-                hint="Con una API key gratuita de console.groq.com activas el motor cloud (más rápido y mejor con spanglish) y la limpieza con IA. Sin key, todo sigue funcionando 100% local. La key se guarda cifrada en el Administrador de credenciales de Windows."
+                title="Atajo para dictar"
+                hint="Mantén estas teclas y habla; suéltalas y el texto aparece donde estés escribiendo. Haz clic en el teclado para armar tu combinación (máximo 4 teclas, al menos un modificador como Ctrl, Win, Alt o Mayús)."
               >
-                {hasKey ? (
-                  <div className="flex items-center gap-3">
-                    <p className="flex-1 text-sm text-blue-600 dark:text-sky-400">
-                      ✓ API key guardada
-                    </p>
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <span className={labelCls}>Combinación:</span>
+                  {draft.length === 0 ? (
+                    <span className="text-xs text-amber-600 dark:text-amber-400">
+                      elige al menos una tecla
+                    </span>
+                  ) : (
+                    draft.map((k) => (
+                      <kbd
+                        key={k}
+                        className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300"
+                      >
+                        {keyLabel(k)}
+                      </kbd>
+                    ))
+                  )}
+                </div>
+
+                <KeyboardPicker selected={draft} onToggle={toggleKey} />
+
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    className={btnCls}
+                    disabled={
+                      !draftChanged || draft.length === 0 || !draftHasModifier
+                    }
+                    onClick={() => {
+                      update({ hotkey: draft });
+                      setHotkeyDraft(null);
+                    }}
+                  >
+                    Guardar atajo
+                  </button>
+                  <button
+                    className={btnGhostCls}
+                    onClick={() => setHotkeyDraft(["ControlLeft", "MetaLeft"])}
+                  >
+                    Restaurar Ctrl + Win
+                  </button>
+                  {draftChanged && (
                     <button
-                      className={btnGhostCls}
-                      onClick={() =>
-                        invoke("delete_groq_key").then(() => {
-                          setHasKey(false);
-                          if (settings)
-                            update({ engine: "parakeet", polish: "rules" });
-                        })
-                      }
+                      className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                      onClick={() => setHotkeyDraft(null)}
                     >
-                      Quitar
+                      Descartar cambios
                     </button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      className={`${inputCls} flex-1`}
-                      placeholder="gsk_..."
-                      value={keyInput}
-                      onChange={(e) => setKeyInput(e.target.value)}
-                    />
-                    <button
-                      className={btnCls}
-                      disabled={!keyInput.trim()}
-                      onClick={() =>
-                        invoke("set_groq_key", { key: keyInput })
-                          .then(() => {
-                            setHasKey(true);
-                            setKeyInput("");
-                          })
-                          .catch((e) => alert(String(e)))
-                      }
-                    >
-                      Guardar
-                    </button>
-                  </div>
+                  )}
+                </div>
+                {!draftHasModifier && draft.length > 0 && (
+                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                    Incluye al menos un modificador (Ctrl, Win, Alt o Mayús);
+                    si no, el dictado se activaría al escribir normal.
+                  </p>
                 )}
               </Section>
             </>
@@ -604,43 +978,133 @@ export default function Settings() {
                 </div>
               </Section>
 
-              <Section title="Sistema">
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                  <label className="flex flex-col gap-1.5">
-                    <span className={labelCls}>Atajo push-to-talk</span>
-                    <span className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
-                      {hotkeyLabel(settings.hotkey)}{" "}
-                      <span className="text-xs text-slate-400 dark:text-slate-500">
-                        (personalizable pronto)
-                      </span>
+              <Section title="Modelo de voz local">
+                {model?.state === "ready" && !downloading && (
+                  <p className="flex items-center gap-2 text-sm text-blue-600 dark:text-sky-400">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white dark:bg-sky-500">
+                      ✓
                     </span>
+                    Parakeet V3 listo — todo se procesa en tu equipo, sin
+                    internet.
+                  </p>
+                )}
+                {downloading && (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      Descargando modelo…{" "}
+                      {progress ? fmtBytes(progress.downloaded) : ""}
+                      {progress ? ` de ${fmtBytes(progress.total)}` : ""}
+                    </p>
+                    <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                      <div
+                        className="h-full rounded-full bg-blue-600 transition-all dark:bg-sky-500"
+                        style={{
+                          width: progress
+                            ? `${Math.round((progress.downloaded / progress.total) * 100)}%`
+                            : "0%",
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {model?.state === "missing" && !downloading && (
+                  <div className="flex items-center gap-3">
+                    <p className="flex-1 text-sm text-slate-600 dark:text-slate-300">
+                      Falta el modelo Parakeet V3 ({fmtBytes(671_000_000)},
+                      descarga única).
+                    </p>
+                    <button
+                      className={btnCls}
+                      onClick={() => {
+                        setModelError(null);
+                        invoke("download_model");
+                      }}
+                    >
+                      {modelError ? "Reintentar" : "Descargar"}
+                    </button>
+                  </div>
+                )}
+                {modelError && !downloading && (
+                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                    {modelError}
+                  </p>
+                )}
+              </Section>
+
+              <Section
+                title="Groq (opcional)"
+                hint="Con una API key gratuita de console.groq.com activas el motor cloud (más rápido y mejor con spanglish) y la limpieza con IA. Sin key, todo sigue funcionando 100% local. La key se guarda cifrada en el Administrador de credenciales de Windows."
+              >
+                {hasKey ? (
+                  <div className="flex items-center gap-3">
+                    <p className="flex-1 text-sm text-blue-600 dark:text-sky-400">
+                      ✓ API key guardada
+                    </p>
+                    <button
+                      className={btnGhostCls}
+                      onClick={() =>
+                        invoke("delete_groq_key").then(() => {
+                          setHasKey(false);
+                          if (settings)
+                            update({ engine: "parakeet", polish: "rules" });
+                        })
+                      }
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      className={`${inputCls} flex-1`}
+                      placeholder="gsk_..."
+                      value={keyInput}
+                      onChange={(e) => setKeyInput(e.target.value)}
+                    />
+                    <button
+                      className={btnCls}
+                      disabled={!keyInput.trim()}
+                      onClick={() =>
+                        invoke("set_groq_key", { key: keyInput })
+                          .then(() => {
+                            setHasKey(true);
+                            setKeyInput("");
+                          })
+                          .catch((e) => alert(String(e)))
+                      }
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                )}
+              </Section>
+
+              <Section title="Sistema">
+                <div className="flex flex-col gap-3">
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    El atajo de dictado ({hotkeyLabel(settings.hotkey)}) se
+                    cambia en la pestaña Perfil.
+                  </p>
+                  <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={settings.hud_enabled}
+                      onChange={(e) => update({ hud_enabled: e.target.checked })}
+                      className="h-4 w-4 accent-blue-600"
+                    />
+                    Mostrar la onda flotante al dictar
                   </label>
 
-                  <div className="flex flex-col justify-center gap-3">
-                    <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={settings.hud_enabled}
-                        onChange={(e) =>
-                          update({ hud_enabled: e.target.checked })
-                        }
-                        className="h-4 w-4 accent-blue-600"
-                      />
-                      Mostrar la onda flotante al dictar
-                    </label>
-
-                    <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={settings.autostart}
-                        onChange={(e) =>
-                          update({ autostart: e.target.checked })
-                        }
-                        className="h-4 w-4 accent-blue-600"
-                      />
-                      Iniciar con Windows
-                    </label>
-                  </div>
+                  <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={settings.autostart}
+                      onChange={(e) => update({ autostart: e.target.checked })}
+                      className="h-4 w-4 accent-blue-600"
+                    />
+                    Iniciar con Windows
+                  </label>
                 </div>
               </Section>
             </>

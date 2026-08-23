@@ -8,6 +8,7 @@ mod polish;
 mod settings;
 mod store;
 mod stt;
+mod sync;
 
 use std::sync::{mpsc, Arc, Mutex, RwLock};
 use tauri::Manager;
@@ -99,6 +100,16 @@ pub fn run() {
                     }
                 }
             });
+
+            // Sincronización con Google al arrancar, si hay sesión iniciada.
+            let sync_handle = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                if sync::has_session() {
+                    if let Err(e) = sync::sync_now(sync_handle).await {
+                        log::warn!("Sync al arrancar falló: {e}");
+                    }
+                }
+            });
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -123,6 +134,10 @@ pub fn run() {
             commands::set_groq_key,
             commands::has_groq_key,
             commands::delete_groq_key,
+            commands::google_status,
+            commands::google_login,
+            commands::google_sync_now,
+            commands::google_logout,
             commands::hud_log,
         ])
         .run(tauri::generate_context!())

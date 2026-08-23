@@ -54,6 +54,10 @@ impl Store {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 term TEXT NOT NULL UNIQUE,
                 replacement TEXT
+            );
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
             );",
         )?;
         // Migración desde v0.1: la columna no existía; si ya está, el ALTER falla y se ignora.
@@ -166,6 +170,65 @@ impl Store {
             .unwrap()
             .execute("DELETE FROM dictionary WHERE id = ?1", [id])?;
         Ok(())
+    }
+
+    pub fn meta_get(&self, key: &str) -> Option<String> {
+        self.conn
+            .lock()
+            .unwrap()
+            .query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
+            .ok()
+    }
+
+    pub fn meta_set(&self, key: &str, value: &str) -> anyhow::Result<()> {
+        self.conn.lock().unwrap().execute(
+            "INSERT INTO meta (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [key, value],
+        )?;
+        Ok(())
+    }
+
+    pub fn meta_del(&self, key: &str) -> anyhow::Result<()> {
+        self.conn
+            .lock()
+            .unwrap()
+            .execute("DELETE FROM meta WHERE key = ?1", [key])?;
+        Ok(())
+    }
+
+    /// Fusión de sincronización: agrega términos remotos que no existen.
+    /// En conflicto de término gana el local (el dispositivo en uso es el más fresco).
+    pub fn merge_dict(&self, remote: &[(String, Option<String>)]) -> anyhow::Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        let mut added = 0;
+        for (term, replacement) in remote {
+            added += conn.execute(
+                "INSERT INTO dictionary (term, replacement) VALUES (?1, ?2)
+                 ON CONFLICT(term) DO NOTHING",
+                rusqlite::params![term, replacement],
+            )?;
+        }
+        Ok(added)
+    }
+
+    /// Fusión de sincronización: inserta dictados remotos que no existen
+    /// localmente, identificados por (ts, raw).
+    pub fn merge_history(
+        &self,
+        remote: &[(i64, String, String, String, i64, Option<String>)],
+    ) -> anyhow::Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        let mut added = 0;
+        for (ts, raw, polished, engine, duration_ms, corrections) in remote {
+            added += conn.execute(
+                "INSERT INTO history (ts, raw, polished, engine, duration_ms, corrections)
+                 SELECT ?1, ?2, ?3, ?4, ?5, ?6
+                 WHERE NOT EXISTS (SELECT 1 FROM history WHERE ts = ?1 AND raw = ?2)",
+                rusqlite::params![ts, raw, polished, engine, duration_ms, corrections],
+            )?;
+        }
+        Ok(added)
     }
 
     /// Pares (término, reemplazo) para la capa de limpieza.

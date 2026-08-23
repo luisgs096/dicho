@@ -28,6 +28,10 @@ pub struct AppSettings {
     pub language: String,
     pub hud_enabled: bool,
     pub autostart: bool,
+    /// Cliente OAuth "Desktop" de Google para la sincronización vía Drive.
+    /// En apps instaladas el client_secret no es confidencial por diseño.
+    pub google_client_id: String,
+    pub google_client_secret: String,
 }
 
 impl Default for AppSettings {
@@ -39,6 +43,8 @@ impl Default for AppSettings {
             language: "auto".into(),
             hud_enabled: true,
             autostart: false,
+            google_client_id: String::new(),
+            google_client_secret: String::new(),
         }
     }
 }

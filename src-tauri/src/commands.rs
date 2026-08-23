@@ -114,6 +114,26 @@ pub fn delete_groq_key() -> Result<(), String> {
     keyring_entry()?.delete_credential().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn google_status(app: AppHandle) -> crate::sync::GoogleStatus {
+    crate::sync::status(&app)
+}
+
+#[tauri::command]
+pub async fn google_login(app: AppHandle) -> Result<crate::sync::GoogleStatus, String> {
+    crate::sync::login(app).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn google_sync_now(app: AppHandle) -> Result<crate::sync::GoogleStatus, String> {
+    crate::sync::sync_now(app).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn google_logout(app: AppHandle) -> Result<(), String> {
+    crate::sync::logout(app).await.map_err(|e| e.to_string())
+}
+
 /// Diagnóstico desde el webview del HUD (visible incluso en builds release).
 #[tauri::command]
 pub fn hud_log(app: AppHandle, msg: String) {
