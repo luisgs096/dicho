@@ -54,6 +54,8 @@ export default function Hud() {
   }, []);
 
   // Onda continua: la amplitud sigue tu voz y la fase fluye en el tiempo.
+  // Depende de rec.state porque el canvas solo existe mientras se graba o
+  // procesa: el bucle debe (re)arrancar en cuanto el elemento se monta.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -112,7 +114,7 @@ export default function Hud() {
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [dark]);
+  }, [dark, rec.state]);
 
   const pill = dark
     ? "border-white/10 bg-slate-900/90 text-slate-200"
