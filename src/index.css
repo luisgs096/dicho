@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/* Las ventanas de Tauri pintan su propio fondo: el HUD necesita transparencia
+   real y la ventana principal pone su fondo en su componente raíz. */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  height: 100%;
+}
+
+* {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+@keyframes mike-bar {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
