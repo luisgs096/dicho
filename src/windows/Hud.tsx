@@ -7,12 +7,15 @@ function hudLog(msg: string) {
   invoke("hud_log", { msg }).catch(() => {});
 }
 
-/** Historial de niveles de voz que alimenta los puntos. */
+/** Historial de niveles de voz que alimenta las barras. */
 const HISTORY = 16;
-/** Paleta Dicho: azules → cian, un color por punto. */
-const DOT_COLORS = ["#2563eb", "#3b82f6", "#0ea5e9", "#38bdf8", "#22d3ee"];
-/** Desfase por punto (centro reacciona primero, orillas después → ondulación). */
-const DOT_LAG = [4, 2, 0, 2, 4];
+/** Desfase por barra (centro reacciona primero, orillas después → ondulación). */
+const BAR_LAG = [4, 2, 0, 2, 4];
+/** Ganancia por barra: arco simétrico, el centro sube más que las orillas. */
+const BAR_GAIN = [0.72, 0.9, 1, 0.9, 0.72];
+/** Altura de las barras en px (reposo → pico). */
+const BAR_MIN = 8;
+const BAR_MAX = 30;
 
 function MicIcon({ className }: { className?: string }) {
   return (
@@ -33,9 +36,9 @@ export default function Hud() {
   const [dark, setDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
-  const dotsRef = useRef<(HTMLSpanElement | null)[]>([]);
+  const barsRef = useRef<(HTMLSpanElement | null)[]>([]);
   const levelsRef = useRef<number[]>(Array(HISTORY).fill(0));
-  const displayRef = useRef<number[]>([0.5, 0.5, 0.5, 0.5, 0.5]);
+  const displayRef = useRef<number[]>(Array(5).fill(BAR_MIN));
   const recRef = useRef(rec);
   recRef.current = rec;
 
@@ -65,9 +68,11 @@ export default function Hud() {
     };
   }, []);
 
-  // Puntos estilo Google Assistant: escalan con la voz (grabando) o rebotan
-  // en secuencia (procesando). DOM + transform, sin canvas: ligero y fluido.
-  // Depende de rec.state porque los puntos solo existen en esos estados.
+  // Barras tipo ecualizador: suben y bajan con la voz (grabando) o ondulan
+  // en secuencia (procesando). Solo hay RMS, no espectro, así que la
+  // "frecuencia" se simula: desfase + ganancia por barra + vaivén senoidal.
+  // DOM + height, sin canvas: 5 elementos a 60 fps es despreciable.
+  // Depende de rec.state porque las barras solo existen en esos estados.
   useEffect(() => {
     if (rec.state !== "recording" && rec.state !== "processing") return;
     let raf = 0;
@@ -75,19 +80,19 @@ export default function Hud() {
       const levels = levelsRef.current;
       const display = displayRef.current;
       for (let i = 0; i < 5; i++) {
-        const el = dotsRef.current[i];
+        const el = barsRef.current[i];
         if (!el) continue;
         let target: number;
         if (recRef.current.state === "recording") {
-          const v = levels[levels.length - 1 - DOT_LAG[i]] ?? 0;
-          target = 0.5 + v * 2.1;
+          const v = levels[levels.length - 1 - BAR_LAG[i]] ?? 0;
+          const wobble = 1 + 0.25 * Math.sin(t / 90 + i * 2.1);
+          target =
+            BAR_MIN + (BAR_MAX - BAR_MIN) * Math.min(1, v * BAR_GAIN[i] * wobble);
         } else {
-          target = 0.8 + 0.45 * Math.sin(t / 160 - i * 0.9);
+          target = 12 + 7 * (1 + Math.sin(t / 160 - i * 0.9));
         }
-        display[i] += (target - display[i]) * 0.3;
-        const s = Math.max(0.35, display[i]);
-        el.style.transform = `scale(${s.toFixed(3)})`;
-        el.style.opacity = `${Math.min(1, 0.55 + s * 0.3).toFixed(3)}`;
+        display[i] += (target - display[i]) * 0.35;
+        el.style.height = `${display[i].toFixed(1)}px`;
       }
       raf = requestAnimationFrame(tick);
     };
@@ -106,20 +111,20 @@ export default function Hud() {
       >
         {(rec.state === "recording" || rec.state === "processing") && (
           <>
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-sky-400 text-white">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white dark:bg-sky-500">
               <MicIcon className="h-4 w-4" />
             </span>
-            <div className="flex h-8 flex-1 items-center justify-center gap-3">
-              {DOT_COLORS.map((color, i) => (
+            <div className="flex h-8 flex-1 items-center justify-center gap-2.5">
+              {BAR_LAG.map((_, i) => (
                 <span
                   key={i}
                   ref={(el) => {
-                    dotsRef.current[i] = el;
+                    barsRef.current[i] = el;
                   }}
-                  className="h-3 w-3 rounded-full will-change-transform"
+                  className="w-2 rounded-full will-change-[height]"
                   style={{
-                    backgroundColor: color,
-                    boxShadow: `0 0 10px ${color}55`,
+                    height: BAR_MIN,
+                    backgroundColor: dark ? "#38bdf8" : "#2563eb",
                   }}
                 />
               ))}
@@ -136,7 +141,7 @@ export default function Hud() {
 
         {rec.state === "done" && (
           <>
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-sky-400 text-xs font-bold text-white">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white dark:bg-sky-500">
               ✓
             </span>
             <p className="min-w-0 flex-1 truncate text-sm">{rec.text}</p>
