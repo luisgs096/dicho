@@ -18,6 +18,31 @@ pub enum Cmd {
     ModelReady,
 }
 
+/// Frases que los modelos STT "alucinan" sobre audio casi mudo: vienen de
+/// los subtítulos de video de sus datos de entrenamiento.
+const STT_HALLUCINATIONS: &[&str] = &[
+    "subtítulos realizados",
+    "subtitulado por",
+    "subtítulos por",
+    "traducido por",
+    "traducción de",
+    "traducir del inglés",
+    "amara.org",
+    "gracias por ver",
+    "suscríbete",
+    "subtitles by",
+    "thanks for watching",
+    "www.youtube",
+];
+
+/// RMS máximo por ventana: la energía del tramo más fuerte de la grabación.
+fn max_window_rms(samples: &[f32], window: usize) -> f32 {
+    samples
+        .chunks(window)
+        .map(|w| (w.iter().map(|s| s * s).sum::<f32>() / w.len() as f32).sqrt())
+        .fold(0.0f32, f32::max)
+}
+
 /// Incorpora una carga de Parakeet terminada (o la espera, si `block`).
 fn absorb_load(
     parakeet: &mut Option<ParakeetStt>,
@@ -276,6 +301,16 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                         if samples.len() < 16_000 / 4 {
                             return Ok(StopResult::Empty);
                         }
+                        // Compuerta de silencio: sin energía de voz no se
+                        // transcribe — los modelos STT alucinan frases sobre
+                        // silencio en lugar de devolver vacío.
+                        let voice_rms = max_window_rms(&samples, 1600);
+                        if voice_rms < 0.008 {
+                            log::info!(
+                                "Sin voz en la grabación (rms máx {voice_rms:.4}); no se transcribe"
+                            );
+                            return Ok(StopResult::Empty);
+                        }
                         let (engine, polish_kind, language) = {
                             let s = settings.read().unwrap();
                             (s.engine, s.polish, s.language.clone())
@@ -317,6 +352,17 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                         let stt_ms = t0.elapsed().as_millis() as i64;
                         log::info!("STT [{engine_name}] {stt_ms} ms: {raw}");
                         if raw.trim().is_empty() {
+                            return Ok(StopResult::Empty);
+                        }
+                        // Segunda barrera: si la energía fue baja y el texto es
+                        // una frase típica de alucinación, se descarta.
+                        let raw_lc = raw.to_lowercase();
+                        if voice_rms < 0.02
+                            && STT_HALLUCINATIONS.iter().any(|h| raw_lc.contains(h))
+                        {
+                            log::info!(
+                                "Alucinación de STT descartada (rms {voice_rms:.4}): {raw}"
+                            );
                             return Ok(StopResult::Empty);
                         }
 
