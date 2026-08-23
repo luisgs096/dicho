@@ -303,12 +303,12 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                         }
                         // Compuerta de silencio: sin energía de voz no se
                         // transcribe — los modelos STT alucinan frases sobre
-                        // silencio en lugar de devolver vacío.
+                        // silencio en lugar de devolver vacío. El umbral es
+                        // deliberadamente bajo: la ganancia de mic varía mucho
+                        // entre equipos y un umbral alto se traga voz real.
                         let voice_rms = max_window_rms(&samples, 1600);
-                        if voice_rms < 0.008 {
-                            log::info!(
-                                "Sin voz en la grabación (rms máx {voice_rms:.4}); no se transcribe"
-                            );
+                        diag(&app, &format!("Dictado: rms máx {voice_rms:.5}"));
+                        if voice_rms < 0.0012 {
                             return Ok(StopResult::Empty);
                         }
                         let (engine, polish_kind, language) = {
@@ -357,11 +357,12 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                         // Segunda barrera: si la energía fue baja y el texto es
                         // una frase típica de alucinación, se descarta.
                         let raw_lc = raw.to_lowercase();
-                        if voice_rms < 0.02
+                        if voice_rms < 0.006
                             && STT_HALLUCINATIONS.iter().any(|h| raw_lc.contains(h))
                         {
-                            log::info!(
-                                "Alucinación de STT descartada (rms {voice_rms:.4}): {raw}"
+                            diag(
+                                &app,
+                                &format!("Alucinación descartada (rms {voice_rms:.5}): {raw}"),
                             );
                             return Ok(StopResult::Empty);
                         }
@@ -416,7 +417,8 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                                 Some(serde_json::json!({ "text": polished })),
                             );
                             let _ = app.emit("history-changed", ());
-                            hide_hud_later(&app, &hud_gen, 1400);
+                            // Tiempo para que la carita de celebración se aprecie.
+                            hide_hud_later(&app, &hud_gen, 2400);
                         }
                         Ok(StopResult::Empty) => {
                             // Tiempo suficiente para la animación de la carita.
