@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { RecordingState } from "../types";
+import type { AppSettings, HudStyle, RecordingState } from "../types";
 
 function hudLog(msg: string) {
   invoke("hud_log", { msg }).catch(() => {});
@@ -190,6 +190,32 @@ const V: Record<FaceState, Variant[]> = {
 
 const MIC_SVG = `<svg viewBox="0 0 7 13">${spr([".aaa.", "aaaaa", "a.a.a", "aaaaa", "a.a.a", "aaaaa", ".aaa.", "..a..", "..a..", ".aaa."], 1, 1)}</svg>`;
 
+// ─── modo clásico: barras que crecen con la intensidad de la voz ────────────
+/** Historial de niveles de voz que alimenta las barras. */
+const HISTORY = 16;
+/** Desfase por barra (centro reacciona primero, orillas después → ondulación). */
+const BAR_LAG = [4, 2, 0, 2, 4];
+/** Ganancia por barra: arco simétrico, el centro sube más que las orillas. */
+const BAR_GAIN = [0.72, 0.9, 1, 0.9, 0.72];
+/** Altura de las barras en px (reposo → pico). */
+const BAR_MIN = 8;
+const BAR_MAX = 30;
+
+function MicIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" />
+      <path
+        d="M5 11a7 7 0 0 0 14 0M12 18v3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+
 /// Heurística ligera para la reacción por idioma del estado "listo".
 function detectLang(text: string): "es" | "en" | null {
   const t = ` ${text.toLowerCase()} `;
@@ -309,6 +335,9 @@ const CSS = `
                         100% { transform: translateY(4px); opacity: 0; } }
   @keyframes sparkle { 0%, 100% { opacity: .2; transform: scale(.7); } 50% { opacity: 1; transform: scale(1.1); } }
   @keyframes lupa { 0%, 100% { transform: translate(0, 0); } 45% { transform: translate(-17px, 1px); } }
+  .classic-shake { animation: shake .55s ease-in-out; }
+  @keyframes cdroop { 0%, 100% { height: 8px; } 15% { height: 13px; } 30%, 90% { height: 6px; } }
+  .cbar-sad { animation: cdroop 2.4s ease-in-out infinite; }
 
   .a-bob { animation: bob 1.8s ease-in-out infinite; }
   .a-notes1 { animation: notes 2.2s ease-out infinite; }
@@ -353,9 +382,15 @@ const CSS = `
 export default function Hud() {
   const [rec, setRec] = useState<RecordingState>({ state: "idle" });
   const [variant, setVariant] = useState(0);
+  const [hudStyle, setHudStyle] = useState<HudStyle>("tamagotchi");
   const [dark, setDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
+  const barsRef = useRef<(HTMLSpanElement | null)[]>([]);
+  const levelsRef = useRef<number[]>(Array(HISTORY).fill(0));
+  const displayRef = useRef<number[]>(Array(5).fill(BAR_MIN));
+  const recRef = useRef(rec);
+  recRef.current = rec;
 
   useEffect(() => {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
@@ -368,15 +403,66 @@ export default function Hud() {
     hudLog(`montado: ${window.innerWidth}x${window.innerHeight}`);
     const unState = listen<RecordingState>("recording-state", (e) => {
       setRec(e.payload);
+      if (e.payload.state === "recording") {
+        levelsRef.current = Array(HISTORY).fill(0);
+      }
       const face = stateFor(e.payload);
       const idx = pick(face, e.payload.state === "done" ? e.payload.text : undefined);
       setVariant(idx);
       hudLog(`evento ${e.payload.state} → carita ${face}[${idx}]`);
     });
+    const unLevel = listen<{ level: number }>("audio-level", (e) => {
+      const v = Math.min(1, Math.pow(e.payload.level * 12, 0.75));
+      levelsRef.current = [...levelsRef.current.slice(1), v];
+    });
     return () => {
       unState.then((f) => f());
+      unLevel.then((f) => f());
     };
   }, []);
+
+  // Estilo del HUD desde Ajustes; se refresca al vuelo al guardar cambios.
+  useEffect(() => {
+    const load = () =>
+      invoke<AppSettings>("get_settings")
+        .then((s) => setHudStyle(s.hud_style))
+        .catch(console.error);
+    load();
+    const un = listen("settings-changed", load);
+    return () => {
+      un.then((f) => f());
+    };
+  }, []);
+
+  // Modo clásico: barras tipo ecualizador movidas por la intensidad de la voz
+  // (grabando) o en onda secuencial (procesando). DOM + height, sin canvas.
+  useEffect(() => {
+    if (hudStyle !== "classic") return;
+    if (rec.state !== "recording" && rec.state !== "processing") return;
+    let raf = 0;
+    const tick = (t: number) => {
+      const levels = levelsRef.current;
+      const display = displayRef.current;
+      for (let i = 0; i < 5; i++) {
+        const el = barsRef.current[i];
+        if (!el) continue;
+        let target: number;
+        if (recRef.current.state === "recording") {
+          const v = levels[levels.length - 1 - BAR_LAG[i]] ?? 0;
+          const wobble = 1 + 0.25 * Math.sin(t / 90 + i * 2.1);
+          target =
+            BAR_MIN + (BAR_MAX - BAR_MIN) * Math.min(1, v * BAR_GAIN[i] * wobble);
+        } else {
+          target = 12 + 7 * (1 + Math.sin(t / 160 - i * 0.9));
+        }
+        display[i] += (target - display[i]) * 0.35;
+        el.style.height = `${display[i].toFixed(1)}px`;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [rec.state, hudStyle]);
 
   const pal = dark ? DARK : LIGHT;
   const vars = useMemo(
@@ -401,6 +487,105 @@ export default function Hud() {
     : rec.state === "done"
       ? rec.text
       : v.status;
+
+  // ── modo clásico: pill claro + barras reactivas a la voz ──────────────────
+  if (hudStyle === "classic") {
+    const emptyC = rec.state === "empty";
+    const pill = emptyC
+      ? dark
+        ? "border-orange-400/30 bg-slate-900/90 text-orange-200"
+        : "border-orange-200 bg-orange-50/95 text-orange-900"
+      : dark
+        ? "border-white/10 bg-slate-900/90 text-slate-200"
+        : "border-slate-200/80 bg-white/95 text-slate-700";
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <style>{CSS}</style>
+        <div
+          className={`flex h-[64px] w-[336px] items-center gap-3 rounded-full border px-5 shadow-2xl shadow-blue-900/20 backdrop-blur transition-colors ${
+            emptyC ? "classic-shake" : ""
+          } ${pill}`}
+        >
+          {(rec.state === "recording" || rec.state === "processing") && (
+            <>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white dark:bg-sky-500">
+                <MicIcon className="h-4 w-4" />
+              </span>
+              <div className="flex h-8 flex-1 items-center justify-center gap-2.5">
+                {BAR_LAG.map((_, i) => (
+                  <span
+                    key={i}
+                    ref={(el) => {
+                      barsRef.current[i] = el;
+                    }}
+                    className="w-2 rounded-full will-change-[height]"
+                    style={{
+                      height: BAR_MIN,
+                      backgroundColor: dark ? "#38bdf8" : "#2563eb",
+                    }}
+                  />
+                ))}
+              </div>
+              <span
+                className={`shrink-0 text-[11px] font-medium ${
+                  dark ? "text-slate-400" : "text-slate-500"
+                }`}
+              >
+                {rec.state === "recording" ? "Te escucho" : "Escribiendo…"}
+              </span>
+            </>
+          )}
+
+          {emptyC && (
+            <>
+              <div className="flex h-8 shrink-0 items-center gap-2 pl-1">
+                {BAR_LAG.map((_, i) => (
+                  <span
+                    key={i}
+                    className="cbar-sad w-2 rounded-full"
+                    style={{
+                      height: BAR_MIN,
+                      backgroundColor: dark ? "#fb923c" : "#ea7317",
+                      animationDelay: `${i * 0.12}s`,
+                    }}
+                  />
+                ))}
+              </div>
+              <p className="min-w-0 flex-1 text-[11px] font-medium leading-tight">
+                Perdón, no escuché, ¿puedes repetir?
+              </p>
+            </>
+          )}
+
+          {rec.state === "done" && (
+            <>
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white dark:bg-sky-500">
+                ✓
+              </span>
+              <p className="min-w-0 flex-1 truncate text-sm">{rec.text}</p>
+            </>
+          )}
+
+          {rec.state === "error" && (
+            <>
+              <span className="shrink-0 text-sm text-amber-500">●</span>
+              <p className="min-w-0 flex-1 truncate text-xs">{rec.message}</p>
+            </>
+          )}
+
+          {rec.state === "idle" && (
+            <p
+              className={`flex-1 text-center text-xs font-medium tracking-wide ${
+                dark ? "text-slate-500" : "text-slate-400"
+              }`}
+            >
+              Dicho
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-screen items-center justify-center" style={vars}>

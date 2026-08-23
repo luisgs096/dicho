@@ -17,6 +17,15 @@ pub enum PolishKind {
     GroqLlm,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HudStyle {
+    /// Caritas pixel estilo tamagotchi (5 variaciones por estado).
+    Tamagotchi,
+    /// Barras que crecen con la intensidad de la voz, fondo claro.
+    Classic,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppSettings {
@@ -27,6 +36,7 @@ pub struct AppSettings {
     /// "auto" o código ISO-639-1 ("es", "en", ...)
     pub language: String,
     pub hud_enabled: bool,
+    pub hud_style: HudStyle,
     pub autostart: bool,
     /// Cliente OAuth "Desktop" de Google para la sincronización vía Drive.
     /// En apps instaladas el client_secret no es confidencial por diseño.
@@ -42,6 +52,7 @@ impl Default for AppSettings {
             polish: PolishKind::Rules,
             language: "auto".into(),
             hud_enabled: true,
+            hud_style: HudStyle::Tamagotchi,
             autostart: false,
             google_client_id: String::new(),
             google_client_secret: String::new(),

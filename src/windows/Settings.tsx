@@ -1086,6 +1086,25 @@ export default function Settings() {
                     El atajo de dictado ({hotkeyLabel(settings.hotkey)}) se
                     cambia en la pestaña Perfil.
                   </p>
+                  <label className="flex max-w-xs flex-col gap-1.5">
+                    <span className={labelCls}>Estilo de la onda flotante</span>
+                    <select
+                      className={fieldCls}
+                      value={settings.hud_style}
+                      onChange={(e) =>
+                        update({
+                          hud_style: e.target.value as AppSettings["hud_style"],
+                        })
+                      }
+                    >
+                      <option value="tamagotchi">
+                        Caritas tamagotchi (5 por estado, al azar)
+                      </option>
+                      <option value="classic">
+                        Clásico — barras que crecen con tu voz
+                      </option>
+                    </select>
+                  </label>
                   <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
                     <input
                       type="checkbox"

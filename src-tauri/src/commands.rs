@@ -3,7 +3,7 @@ use crate::store::{DictItem, HistoryItem, Store};
 use crate::stt::groq::{KEYRING_SERVICE, KEYRING_USER};
 use crate::{models, pipeline, PipelineTx};
 use std::sync::Arc;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_autostart::ManagerExt;
 
 #[tauri::command]
@@ -31,6 +31,8 @@ pub fn save_settings(
         }
     }
     *state.write().unwrap() = new_settings;
+    // El HUD (webview aparte) escucha esto para refrescar su estilo.
+    let _ = app.emit("settings-changed", ());
     Ok(())
 }
 

@@ -1,5 +1,6 @@
 export type EngineKind = "parakeet" | "groq";
 export type PolishKind = "rules" | "groq_llm";
+export type HudStyle = "tamagotchi" | "classic";
 
 export interface AppSettings {
   hotkey: string[];
@@ -7,6 +8,7 @@ export interface AppSettings {
   polish: PolishKind;
   language: string;
   hud_enabled: boolean;
+  hud_style: HudStyle;
   autostart: boolean;
   google_client_id: string;
   google_client_secret: string;
