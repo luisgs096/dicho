@@ -32,7 +32,7 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     let mut builder = TrayIconBuilder::with_id("tray")
         .menu(&menu)
         .show_menu_on_left_click(true)
-        .tooltip("Mike — dictado por voz (mantén Ctrl+Win y habla)")
+        .tooltip("Dicho — mantén Ctrl+Win y habla")
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => focus_main(app),
             "quit" => app.exit(0),

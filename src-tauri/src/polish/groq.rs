@@ -4,7 +4,7 @@ use anyhow::{anyhow, Context};
 use std::time::Duration;
 
 const CHAT_URL: &str = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL: &str = "llama-3.1-8b-instant";
+const MODEL: &str = "openai/gpt-oss-20b";
 
 /// Pulido con LLM (opcional): la "magia" estilo Wispr — quita muletillas con
 /// criterio, corrige puntuación, formatea listas dictadas y aplica
@@ -39,6 +39,7 @@ pub fn polish(text: &str, ctx: &PolishCtx) -> anyhow::Result<String> {
     let body = serde_json::json!({
         "model": MODEL,
         "temperature": 0.2,
+        "reasoning_effort": "low",
         "max_tokens": 4096,
         "messages": [
             {"role": "system", "content": system},

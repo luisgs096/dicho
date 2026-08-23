@@ -25,26 +25,34 @@ function fmtDate(ts: number): string {
   });
 }
 
-function Section(props: { title: string; children: React.ReactNode; hint?: string }) {
+function Section(props: {
+  title: string;
+  children: React.ReactNode;
+  hint?: string;
+}) {
   return (
-    <section className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-5">
-      <h2 className="mb-1 text-sm font-semibold tracking-wide text-neutral-200">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <h2 className="mb-1 text-sm font-semibold tracking-wide text-slate-800 dark:text-slate-100">
         {props.title}
       </h2>
-      {props.hint && <p className="mb-3 text-xs text-neutral-500">{props.hint}</p>}
+      {props.hint && (
+        <p className="mb-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+          {props.hint}
+        </p>
+      )}
       <div className={props.hint ? "" : "mt-3"}>{props.children}</div>
     </section>
   );
 }
 
-const selectCls =
-  "rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-200 outline-none focus:border-emerald-500";
-const inputCls =
-  "rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-200 outline-none placeholder:text-neutral-500 focus:border-emerald-500";
+const fieldCls =
+  "rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-sky-400";
+const inputCls = `${fieldCls} placeholder:text-slate-400 dark:placeholder:text-slate-500`;
 const btnCls =
-  "rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50";
+  "rounded-xl bg-gradient-to-br from-blue-600 to-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40";
 const btnGhostCls =
-  "rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-800";
+  "rounded-xl border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800";
+const labelCls = "text-xs font-medium text-slate-500 dark:text-slate-400";
 
 export default function Settings() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -108,36 +116,41 @@ export default function Settings() {
     progress !== null || (model !== null && model.state === "downloading");
 
   return (
-    <div className="min-h-screen bg-neutral-950 px-6 py-6 text-neutral-100">
+    <div className="min-h-screen bg-slate-100 px-6 py-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
-        <header className="mb-1 flex items-baseline justify-between">
+        <header className="mb-1 flex items-end justify-between">
           <div>
-            <h1 className="text-xl font-bold tracking-tight">Mike</h1>
-            <p className="text-sm text-neutral-400">
-              Dictado por voz local y gratuito — mantén{" "}
-              <kbd className="rounded bg-neutral-800 px-1.5 py-0.5 text-xs">
+            <h1 className="bg-gradient-to-br from-blue-600 to-sky-400 bg-clip-text text-3xl font-black tracking-tight text-transparent">
+              Dicho
+            </h1>
+            <p className="mt-0.5 text-sm font-medium text-slate-500 dark:text-slate-400">
+              Dicho y hecho. — mantén{" "}
+              <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                 {settings ? hotkeyLabel(settings.hotkey) : "Ctrl + Win"}
               </kbd>{" "}
-              y habla; suelta para insertar el texto donde estés escribiendo.
+              y habla; suelta y el texto aparece donde estés escribiendo.
             </p>
           </div>
         </header>
 
         <Section title="Modelo de voz local">
           {model?.state === "ready" && !downloading && (
-            <p className="text-sm text-emerald-400">
-              ✓ Parakeet V3 listo — todo se procesa en tu equipo, sin internet.
+            <p className="flex items-center gap-2 text-sm text-blue-600 dark:text-sky-400">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-sky-400 text-[10px] font-bold text-white">
+                ✓
+              </span>
+              Parakeet V3 listo — todo se procesa en tu equipo, sin internet.
             </p>
           )}
           {downloading && (
             <div className="flex flex-col gap-2">
-              <p className="text-sm text-neutral-300">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
                 Descargando modelo… {progress ? fmtBytes(progress.downloaded) : ""}
                 {progress ? ` de ${fmtBytes(progress.total)}` : ""}
               </p>
-              <div className="h-2 overflow-hidden rounded-full bg-neutral-800">
+              <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                 <div
-                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  className="h-full rounded-full bg-gradient-to-r from-blue-600 to-sky-400 transition-all"
                   style={{
                     width: progress
                       ? `${Math.round((progress.downloaded / progress.total) * 100)}%`
@@ -149,8 +162,9 @@ export default function Settings() {
           )}
           {model?.state === "missing" && !downloading && (
             <div className="flex items-center gap-3">
-              <p className="flex-1 text-sm text-neutral-300">
-                Falta el modelo Parakeet V3 ({fmtBytes(671_000_000)}, descarga única).
+              <p className="flex-1 text-sm text-slate-600 dark:text-slate-300">
+                Falta el modelo Parakeet V3 ({fmtBytes(671_000_000)}, descarga
+                única).
               </p>
               <button
                 className={btnCls}
@@ -164,49 +178,61 @@ export default function Settings() {
             </div>
           )}
           {modelError && !downloading && (
-            <p className="mt-2 text-xs text-red-400">{modelError}</p>
+            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+              {modelError}
+            </p>
           )}
         </Section>
 
         {settings && (
           <Section title="Ajustes">
             <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-neutral-400">Motor de transcripción</span>
+              <label className="flex flex-col gap-1.5">
+                <span className={labelCls}>Motor de transcripción</span>
                 <select
-                  className={selectCls}
+                  className={fieldCls}
                   value={settings.engine}
                   onChange={(e) =>
                     update({ engine: e.target.value as AppSettings["engine"] })
                   }
                 >
-                  <option value="parakeet">Local — Parakeet V3 (privado, gratis)</option>
+                  <option value="parakeet">
+                    Local — Parakeet V3 (privado, gratis)
+                  </option>
                   <option value="groq" disabled={!hasKey}>
-                    Cloud — Groq Whisper turbo {hasKey ? "" : "(requiere API key)"}
+                    Cloud — Groq Whisper turbo{" "}
+                    {hasKey ? "" : "(requiere API key)"}
                   </option>
                 </select>
+                <span className="text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+                  ¿Mezclas español e inglés en la misma frase? El motor local
+                  elige un solo idioma por dictado; para spanglish fluido usa el
+                  motor cloud (gratis con API key de Groq).
+                </span>
               </label>
 
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-neutral-400">Limpieza del texto</span>
+              <label className="flex flex-col gap-1.5">
+                <span className={labelCls}>Limpieza del texto</span>
                 <select
-                  className={selectCls}
+                  className={fieldCls}
                   value={settings.polish}
                   onChange={(e) =>
                     update({ polish: e.target.value as AppSettings["polish"] })
                   }
                 >
-                  <option value="rules">Rápida local (muletillas + diccionario)</option>
+                  <option value="rules">
+                    Rápida local (muletillas + diccionario)
+                  </option>
                   <option value="groq_llm" disabled={!hasKey}>
                     IA — Groq Llama {hasKey ? "" : "(requiere API key)"}
                   </option>
                 </select>
               </label>
 
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-neutral-400">Idioma del dictado</span>
+              <label className="flex flex-col gap-1.5">
+                <span className={labelCls}>Idioma del dictado</span>
                 <select
-                  className={selectCls}
+                  className={fieldCls}
                   value={settings.language}
                   onChange={(e) => update({ language: e.target.value })}
                 >
@@ -216,30 +242,32 @@ export default function Settings() {
                 </select>
               </label>
 
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-neutral-400">Atajo push-to-talk</span>
-                <span className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-neutral-300">
+              <label className="flex flex-col gap-1.5">
+                <span className={labelCls}>Atajo push-to-talk</span>
+                <span className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
                   {hotkeyLabel(settings.hotkey)}{" "}
-                  <span className="text-xs text-neutral-500">(personalizable pronto)</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">
+                    (personalizable pronto)
+                  </span>
                 </span>
               </label>
 
-              <label className="flex items-center gap-2 text-sm text-neutral-300">
+              <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
                 <input
                   type="checkbox"
                   checked={settings.hud_enabled}
                   onChange={(e) => update({ hud_enabled: e.target.checked })}
-                  className="h-4 w-4 accent-emerald-500"
+                  className="h-4 w-4 accent-blue-600"
                 />
-                Mostrar indicador flotante al dictar
+                Mostrar la onda flotante al dictar
               </label>
 
-              <label className="flex items-center gap-2 text-sm text-neutral-300">
+              <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
                 <input
                   type="checkbox"
                   checked={settings.autostart}
                   onChange={(e) => update({ autostart: e.target.checked })}
-                  className="h-4 w-4 accent-emerald-500"
+                  className="h-4 w-4 accent-blue-600"
                 />
                 Iniciar con Windows
               </label>
@@ -249,18 +277,19 @@ export default function Settings() {
 
         <Section
           title="Groq (opcional)"
-          hint="Con una API key gratuita de console.groq.com activas el motor cloud (más rápido) y la limpieza con IA. Si no, todo sigue funcionando 100% local. La key se guarda cifrada en el Administrador de credenciales de Windows."
+          hint="Con una API key gratuita de console.groq.com activas el motor cloud (más rápido y mejor con spanglish) y la limpieza con IA. Sin key, todo sigue funcionando 100% local. La key se guarda cifrada en el Administrador de credenciales de Windows."
         >
           {hasKey ? (
             <div className="flex items-center gap-3">
-              <p className="flex-1 text-sm text-emerald-400">✓ API key guardada</p>
+              <p className="flex-1 text-sm text-blue-600 dark:text-sky-400">
+                ✓ API key guardada
+              </p>
               <button
                 className={btnGhostCls}
                 onClick={() =>
                   invoke("delete_groq_key").then(() => {
                     setHasKey(false);
-                    if (settings)
-                      update({ engine: "parakeet", polish: "rules" });
+                    if (settings) update({ engine: "parakeet", polish: "rules" });
                   })
                 }
               >
@@ -296,18 +325,18 @@ export default function Settings() {
 
         <Section
           title="Diccionario personal"
-          hint="Nombres propios, marcas o términos que Mike debe escribir exactamente así. Con reemplazo corrige transcripciones erróneas (p. ej. 'guisper' → 'Wispr')."
+          hint="Nombres propios, marcas o términos que Dicho debe escribir exactamente así. Con reemplazo corrige transcripciones erróneas (p. ej. 'iPad' → 'setup' si siempre te lo confunde)."
         >
           <div className="mb-3 flex gap-2">
             <input
               className={`${inputCls} flex-1`}
-              placeholder="Término (p. ej. guisper)"
+              placeholder="Término que transcribe mal"
               value={term}
               onChange={(e) => setTerm(e.target.value)}
             />
             <input
               className={`${inputCls} flex-1`}
-              placeholder="Reemplazo (opcional, p. ej. Wispr)"
+              placeholder="Cómo debe escribirse (opcional)"
               value={replacement}
               onChange={(e) => setReplacement(e.target.value)}
             />
@@ -329,22 +358,27 @@ export default function Settings() {
             </button>
           </div>
           {dict.length === 0 ? (
-            <p className="text-xs text-neutral-500">Aún no hay términos.</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              Aún no hay términos.
+            </p>
           ) : (
             <ul className="flex flex-col gap-1">
               {dict.map((d) => (
                 <li
                   key={d.id}
-                  className="flex items-center justify-between rounded-lg bg-neutral-900 px-3 py-1.5 text-sm"
+                  className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/60"
                 >
-                  <span>
+                  <span className="text-slate-700 dark:text-slate-200">
                     {d.term}
                     {d.replacement && (
-                      <span className="text-neutral-400"> → {d.replacement}</span>
+                      <span className="text-slate-400 dark:text-slate-500">
+                        {" "}
+                        → {d.replacement}
+                      </span>
                     )}
                   </span>
                   <button
-                    className="text-xs text-neutral-500 hover:text-red-400"
+                    className="text-xs text-slate-400 transition-colors hover:text-amber-600 dark:text-slate-500 dark:hover:text-amber-400"
                     onClick={() =>
                       invoke("dict_remove", { id: d.id }).then(refreshDict)
                     }
@@ -368,7 +402,7 @@ export default function Settings() {
             }}
           />
           {history.length === 0 ? (
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-slate-400 dark:text-slate-500">
               Aquí aparecerá todo lo que dictes.
             </p>
           ) : (
@@ -376,23 +410,23 @@ export default function Settings() {
               {history.map((h) => (
                 <li
                   key={h.id}
-                  className="group rounded-lg bg-neutral-900 px-3 py-2 text-sm"
+                  className="group rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/60"
                 >
-                  <p className="text-neutral-200">{h.polished}</p>
-                  <div className="mt-1 flex items-center gap-3 text-[11px] text-neutral-500">
+                  <p className="text-slate-800 dark:text-slate-100">
+                    {h.polished}
+                  </p>
+                  <div className="mt-1 flex items-center gap-3 text-[11px] text-slate-400 dark:text-slate-500">
                     <span>{fmtDate(h.ts)}</span>
                     <span>{h.engine === "parakeet" ? "local" : h.engine}</span>
                     <span>{(h.duration_ms / 1000).toFixed(1)} s</span>
                     <button
-                      className="ml-auto opacity-0 transition-opacity hover:text-neutral-200 group-hover:opacity-100"
-                      onClick={() =>
-                        navigator.clipboard.writeText(h.polished)
-                      }
+                      className="ml-auto opacity-0 transition-opacity hover:text-blue-600 group-hover:opacity-100 dark:hover:text-sky-400"
+                      onClick={() => navigator.clipboard.writeText(h.polished)}
                     >
                       Copiar
                     </button>
                     <button
-                      className="opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                      className="opacity-0 transition-opacity hover:text-amber-600 group-hover:opacity-100 dark:hover:text-amber-400"
                       onClick={() =>
                         invoke("delete_history", { id: h.id }).then(() =>
                           refreshHistory(search),
@@ -408,9 +442,9 @@ export default function Settings() {
           )}
         </Section>
 
-        <footer className="pb-2 text-center text-[11px] text-neutral-600">
-          Mike v0.1 — corre en tu equipo. Cierra esta ventana y sigo en la bandeja
-          del sistema.
+        <footer className="pb-2 text-center text-[11px] text-slate-400 dark:text-slate-600">
+          Dicho v0.1 — corre en tu equipo. Cierra esta ventana y sigo en la
+          bandeja del sistema.
         </footer>
       </div>
     </div>

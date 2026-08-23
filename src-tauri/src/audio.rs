@@ -167,10 +167,10 @@ pub fn resample_to_16k(samples: Vec<f32>, rate: u32) -> anyhow::Result<Vec<f32>>
         return Ok(samples);
     }
     let params = SincInterpolationParameters {
-        sinc_len: 128,
+        sinc_len: 64,
         f_cutoff: 0.95,
         interpolation: SincInterpolationType::Linear,
-        oversampling_factor: 256,
+        oversampling_factor: 128,
         window: WindowFunction::BlackmanHarris2,
     };
     const CHUNK: usize = 1024;

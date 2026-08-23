@@ -7,7 +7,7 @@ use crate::store::Store;
 use crate::stt::{groq::GroqStt, parakeet::ParakeetStt, Stt};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::Receiver;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -119,8 +119,16 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                     }
                     emit_state(&app, "recording", None);
                     let level_app = app.clone();
+                    // Máximo ~30 eventos/s hacia el HUD para no saturar el IPC.
+                    let last_emit = Arc::new(Mutex::new(Instant::now() - Duration::from_secs(1)));
                     match AudioRecorder::start(move |rms| {
-                        let _ = level_app.emit("audio-level", serde_json::json!({ "level": rms }));
+                        let mut last = last_emit.lock().unwrap();
+                        if last.elapsed() >= Duration::from_millis(33) {
+                            *last = Instant::now();
+                            drop(last);
+                            let _ = level_app
+                                .emit("audio-level", serde_json::json!({ "level": rms }));
+                        }
                     }) {
                         Ok(r) => {
                             recorder = Some(r);
@@ -147,7 +155,14 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                         if held < Duration::from_millis(350) {
                             return Ok(None);
                         }
+                        let t_rs = Instant::now();
                         let samples = resample_to_16k(samples, rate)?;
+                        log::info!(
+                            "Resample {}Hz→16k: {} ms ({:.1} s de audio)",
+                            rate,
+                            t_rs.elapsed().as_millis(),
+                            samples.len() as f32 / 16_000.0
+                        );
                         if samples.len() < 16_000 / 4 {
                             return Ok(None);
                         }
