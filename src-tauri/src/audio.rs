@@ -9,8 +9,10 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-/// Máximo de audio retenido: 5 minutos (a la tasa nativa del dispositivo).
-const MAX_SECONDS: usize = 300;
+/// Red de seguridad del búfer de captura. El pipeline lo drena cada 500 ms
+/// mientras hablas, así que en la práctica nunca se acerca a este tope; sólo
+/// protege si el consumidor se atasca.
+const MAX_SECONDS: usize = 600;
 
 pub struct AudioRecorder {
     stop: Arc<AtomicBool>,
@@ -137,7 +139,16 @@ impl AudioRecorder {
         })
     }
 
-    /// Detiene la captura y devuelve (muestras mono, sample_rate nativo).
+    /// Saca lo grabado desde la última llamada y vacía el búfer, para poder
+    /// remuestrear y trocear mientras el usuario sigue hablando.
+    /// Devuelve (muestras, sample_rate); el rate es 0 hasta que arranca el stream.
+    pub fn drain(&self) -> (Vec<f32>, u32) {
+        let mut b = self.buffer.lock().unwrap();
+        let out = std::mem::take(&mut *b);
+        (out, self.sample_rate.load(Ordering::SeqCst))
+    }
+
+    /// Detiene la captura y devuelve (muestras mono pendientes, sample_rate).
     pub fn stop(mut self) -> anyhow::Result<(Vec<f32>, u32)> {
         self.stop.store(true, Ordering::SeqCst);
         if let Some(h) = self.handle.take() {
@@ -161,35 +172,73 @@ fn downmix(data: &[f32], channels: usize) -> Vec<f32> {
         .collect()
 }
 
-/// Remuestrea a los 16 kHz mono que exigen los motores STT.
-pub fn resample_to_16k(samples: Vec<f32>, rate: u32) -> anyhow::Result<Vec<f32>> {
-    if rate == 16_000 || samples.is_empty() {
-        return Ok(samples);
-    }
-    let params = SincInterpolationParameters {
-        sinc_len: 64,
-        f_cutoff: 0.95,
-        interpolation: SincInterpolationType::Linear,
-        oversampling_factor: 128,
-        window: WindowFunction::BlackmanHarris2,
-    };
-    const CHUNK: usize = 1024;
-    let mut resampler =
-        SincFixedIn::<f32>::new(16_000.0 / rate as f64, 2.0, params, CHUNK, 1)
+const CHUNK: usize = 1024;
+
+/// Remuestreador incremental a los 16 kHz mono que exigen los motores STT.
+///
+/// Se alimenta a trozos mientras grabas y mantiene vivo el filtro entre
+/// llamadas: crear un resampler nuevo por trozo dejaría una costura audible en
+/// cada corte.
+pub struct Resampler16k {
+    inner: Option<SincFixedIn<f32>>,
+    pendiente: Vec<f32>,
+}
+
+impl Resampler16k {
+    pub fn new(rate: u32) -> anyhow::Result<Self> {
+        if rate == 16_000 {
+            return Ok(Self {
+                inner: None,
+                pendiente: Vec::new(),
+            });
+        }
+        let params = SincInterpolationParameters {
+            sinc_len: 64,
+            f_cutoff: 0.95,
+            interpolation: SincInterpolationType::Linear,
+            oversampling_factor: 128,
+            window: WindowFunction::BlackmanHarris2,
+        };
+        let inner = SincFixedIn::<f32>::new(16_000.0 / rate as f64, 2.0, params, CHUNK, 1)
             .context("No se pudo crear el resampler")?;
-    let mut out = Vec::with_capacity(samples.len() * 16_000 / rate as usize + CHUNK);
-    let mut chunks = samples.chunks_exact(CHUNK);
-    for chunk in &mut chunks {
-        let res = resampler.process(&[chunk], None)?;
-        out.extend_from_slice(&res[0]);
+        Ok(Self {
+            inner: Some(inner),
+            pendiente: Vec::new(),
+        })
     }
-    let rest = chunks.remainder();
-    if !rest.is_empty() {
-        let res = resampler.process_partial(Some(&[rest]), None)?;
-        out.extend_from_slice(&res[0]);
+
+    /// Remuestrea lo que se pueda; lo que no complete un bloque queda pendiente.
+    pub fn push(&mut self, samples: &[f32]) -> anyhow::Result<Vec<f32>> {
+        let Self { inner, pendiente } = self;
+        let Some(r) = inner.as_mut() else {
+            return Ok(samples.to_vec());
+        };
+        pendiente.extend_from_slice(samples);
+        let mut out = Vec::with_capacity(pendiente.len());
+        let mut i = 0;
+        while pendiente.len() - i >= CHUNK {
+            let res = r.process(&[&pendiente[i..i + CHUNK]], None)?;
+            out.extend_from_slice(&res[0]);
+            i += CHUNK;
+        }
+        pendiente.drain(..i);
+        Ok(out)
     }
-    // Vacía las colas internas del filtro.
-    let res = resampler.process_partial::<&[f32]>(None, None)?;
-    out.extend_from_slice(&res[0]);
-    Ok(out)
+
+    /// Cierra: procesa el resto y vacía las colas internas del filtro.
+    pub fn finish(&mut self) -> anyhow::Result<Vec<f32>> {
+        let Self { inner, pendiente } = self;
+        let Some(r) = inner.as_mut() else {
+            return Ok(std::mem::take(pendiente));
+        };
+        let mut out = Vec::new();
+        if !pendiente.is_empty() {
+            let res = r.process_partial(Some(&[pendiente.as_slice()]), None)?;
+            out.extend_from_slice(&res[0]);
+            pendiente.clear();
+        }
+        let res = r.process_partial::<&[f32]>(None, None)?;
+        out.extend_from_slice(&res[0]);
+        Ok(out)
+    }
 }

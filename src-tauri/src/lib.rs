@@ -1,8 +1,10 @@
 mod audio;
+mod chunker;
 mod commands;
 mod hotkey;
 mod inject;
 mod models;
+mod overlay;
 mod pipeline;
 mod polish;
 mod settings;

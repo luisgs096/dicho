@@ -33,8 +33,12 @@ pub struct AppSettings {
     pub hotkey: Vec<Key>,
     pub engine: EngineKind,
     pub polish: PolishKind,
-    /// "auto" o código ISO-639-1 ("es", "en", ...)
+    /// "auto" o código ISO-639-1 ("es", "en", ...). Se ignora si `no_traducir`.
     pub language: String,
+    /// Conserva cada palabra en el idioma en que se dijo: nunca fija idioma en
+    /// el motor (fijarlo es lo que hace que Whisper traduzca el otro) y le pasa
+    /// una muestra de spanglish como contexto de estilo.
+    pub no_traducir: bool,
     pub hud_enabled: bool,
     pub hud_style: HudStyle,
     pub autostart: bool,
@@ -51,6 +55,7 @@ impl Default for AppSettings {
             engine: EngineKind::Parakeet,
             polish: PolishKind::Rules,
             language: "auto".into(),
+            no_traducir: true,
             hud_enabled: true,
             hud_style: HudStyle::Tamagotchi,
             autostart: false,

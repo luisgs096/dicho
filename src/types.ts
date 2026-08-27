@@ -7,6 +7,7 @@ export interface AppSettings {
   engine: EngineKind;
   polish: PolishKind;
   language: string;
+  no_traducir: boolean;
   hud_enabled: boolean;
   hud_style: HudStyle;
   autostart: boolean;
@@ -35,8 +36,8 @@ export interface ModelProgress {
 
 export type RecordingState =
   | { state: "idle" }
-  | { state: "recording" }
-  | { state: "processing" }
+  | { state: "recording"; max_seconds?: number }
+  | { state: "processing"; motivo?: string }
   | { state: "done"; text: string }
   /** Hubo grabación pero no se entendió nada. */
   | { state: "empty" }

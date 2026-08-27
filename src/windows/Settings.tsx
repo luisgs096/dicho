@@ -11,6 +11,7 @@ import type {
   ModelStatus,
 } from "../types";
 import { hotkeyLabel, keyLabel } from "../types";
+import Animaciones from "./Animaciones";
 
 type Tab = "perfil" | "diccionario" | "historial" | "ajustes";
 
@@ -388,6 +389,7 @@ function KeyboardPicker(props: {
 
 export default function Settings() {
   const [tab, setTab] = useState<Tab>("perfil");
+  const [verAnimaciones, setVerAnimaciones] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [model, setModel] = useState<ModelStatus | null>(null);
   const [progress, setProgress] = useState<ModelProgress | null>(null);
@@ -963,10 +965,29 @@ export default function Settings() {
                     </select>
                   </label>
 
+                  <label className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={settings.no_traducir}
+                      onChange={(e) => update({ no_traducir: e.target.checked })}
+                      className="mt-0.5 h-4 w-4 accent-blue-600"
+                    />
+                    <span>
+                      No traducir nunca
+                      <span className="mt-0.5 block text-xs text-slate-400 dark:text-slate-500">
+                        Conserva cada palabra en el idioma en que la dijiste. El motor
+                        decide un solo idioma cada 30 s, así que Dicho corta el audio en
+                        tus pausas para que cada tramo decida por su cuenta; aun así, una
+                        palabra suelta en el otro idioma puede salir traducida.
+                      </span>
+                    </span>
+                  </label>
+
                   <label className="flex flex-col gap-1.5">
                     <span className={labelCls}>Idioma del dictado</span>
                     <select
-                      className={fieldCls}
+                      className={`${fieldCls} disabled:opacity-40`}
+                      disabled={settings.no_traducir}
                       value={settings.language}
                       onChange={(e) => update({ language: e.target.value })}
                     >
@@ -974,6 +995,12 @@ export default function Settings() {
                       <option value="es">Español</option>
                       <option value="en">English</option>
                     </select>
+                    {settings.no_traducir && (
+                      <span className="text-xs text-slate-400 dark:text-slate-500">
+                        Sin efecto mientras "no traducir" esté encendido: fijar el idioma
+                        es justo lo que empuja al motor a traducir el otro.
+                      </span>
+                    )}
                   </label>
                 </div>
               </Section>
@@ -1114,6 +1141,14 @@ export default function Settings() {
                     />
                     Mostrar la onda flotante al dictar
                   </label>
+                  {settings.hud_enabled && (
+                    <button
+                      className={`${btnGhostCls} self-start`}
+                      onClick={() => setVerAnimaciones(true)}
+                    >
+                      Ver animaciones
+                    </button>
+                  )}
 
                   <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
                     <input
@@ -1130,6 +1165,9 @@ export default function Settings() {
           )}
         </div>
       </main>
+      {verAnimaciones && (
+        <Animaciones onClose={() => setVerAnimaciones(false)} />
+      )}
     </div>
   );
 }

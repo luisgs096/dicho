@@ -38,6 +38,14 @@ anyhow = "1"
 log = "0.4"
 env_logger = "0.11"
 
+# Colocación del HUD sobre el monitor activo y z-order topmost (overlay.rs).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 # Deps optimizados tambien en dev: rubato/ort en debug son 20-30x mas lentos
 # (causa directa de dictados de >25 s). El crate propio queda en opt-level 1
 # para compilar rapido.

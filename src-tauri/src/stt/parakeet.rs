@@ -1,4 +1,4 @@
-use super::Stt;
+use super::{Stt, SttOpts};
 use anyhow::anyhow;
 use std::path::Path;
 use transcribe_rs::onnx::parakeet::ParakeetModel;
@@ -20,9 +20,10 @@ impl ParakeetStt {
 }
 
 impl Stt for ParakeetStt {
-    fn transcribe(&mut self, samples: &[f32], lang: Option<&str>) -> anyhow::Result<String> {
+    fn transcribe(&mut self, samples: &[f32], opts: &SttOpts) -> anyhow::Result<String> {
+        // Parakeet no acepta contexto previo; sólo el idioma.
         let options = TranscribeOptions {
-            language: lang.map(String::from),
+            language: opts.language.clone(),
             ..Default::default()
         };
         let result = self
