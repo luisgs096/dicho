@@ -557,7 +557,9 @@ export default function Settings() {
           </div>
         </nav>
         <p className="mt-3 px-3 text-[10px] text-slate-400 dark:text-slate-600">
-          v0.1 — corre en tu equipo
+          {/* La versión sale del binario, igual que en Ajustes: escrita a mano se
+              quedaba clavada en la del día que se tecleó. */}
+          {versionActual ? `v${versionActual}` : "v…"} — corre en tu equipo
         </p>
       </aside>
 
