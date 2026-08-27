@@ -37,6 +37,8 @@ rand = "0.8"
 anyhow = "1"
 log = "0.4"
 env_logger = "0.11"
+tauri-plugin-updater = "2.10.1"
+tauri-plugin-process = "2.3.1"
 
 # Colocación del HUD sobre el monitor activo y z-order topmost (overlay.rs).
 [target.'cfg(windows)'.dependencies]

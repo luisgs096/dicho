@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claves de firma del updater (viven en %USERPROFILE%\.tauri)
+*.key
+*.key.pub

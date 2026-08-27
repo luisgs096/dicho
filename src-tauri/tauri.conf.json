@@ -47,6 +47,7 @@
     "targets": [
       "nsis"
     ],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -54,5 +55,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNDNTc1RUI4MDI5NDEzMkUKUldRdUU1UUN1RjVYUEhpVEZRbFQ5SVlxbjhEMDNMZlFSM2NPRkZFRjdKUFVwYTNJK1cyRVdaOHcK",
+      "endpoints": [
+        "https://github.com/luisgs096/dicho/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

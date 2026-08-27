@@ -35,8 +35,14 @@ app dictándole a Claude; prioriza soluciones locales y gratuitas.
   JSON), dictionary, meta (email de Google, last_sync).
 - `src/windows/Settings.tsx` — ventana principal con sidebar: Perfil (cuenta Google +
   editor visual de atajo con teclado laptop/extendido), Diccionario, Historial (chips de
-  correcciones + filtro), Ajustes (motores, "no traducir", modelo local, Groq key, estilo
-  del HUD + botón "Ver animaciones", autostart) anclado abajo.
+  correcciones + filtro), Ajustes (motores, "no traducir", modelo local, Groq, estilo
+  del HUD + botón "Ver animaciones", autostart, actualizaciones) anclado abajo.
+  Ojo: `update()` en este archivo es el que guarda **ajustes**, no el de versiones;
+  el de versiones se destructura como `actualizacion`/`buscarActualizacion`.
+- `src/windows/updater.ts` — hook `useUpdater()`: consulta la release más reciente al
+  abrir Ajustes (callado si no hay nada o no hay internet, ruidoso sólo si el usuario
+  pulsó el botón), descarga con progreso e instala. La verificación de firma la hace
+  el plugin de Tauri, no este código.
 - `src/windows/Animaciones.tsx` — catálogo modal de las 25 caritas, animándose de verdad.
   Importa `V`/`MIC_SVG`/`FACE_CSS` de `faces.ts`, o sea que muestra exactamente lo que
   verá el usuario al dictar; si se añade una carita, aparece aquí sola.
@@ -67,6 +73,16 @@ app dictándole a Claude; prioriza soluciones locales y gratuitas.
   las pruebas mienten: se comprueba con
   `[Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($exe)).Contains("<cadena nueva>")`.
   La instalación mata la app en uso: avisar al usuario.
+- **Publicar una versión para los demás**: `.\publicar.ps1 -Version X.Y.Z -Notas "…"`.
+  Sube el número en los tres sitios (tauri.conf.json, package.json, Cargo.toml), compila
+  firmando, arma `latest.json` y crea el Release en GitHub. La app consulta
+  `releases/latest/download/latest.json` al abrir Ajustes.
+- **La clave privada del updater vive en `%USERPROFILE%\.tauri\dicho.key`, fuera del
+  repo.** Si se pierde, ninguna copia ya instalada podrá volver a actualizarse nunca:
+  habría que reinstalar a mano en cada equipo. Conviene copiarla a un gestor de
+  contraseñas. La pública va en `tauri.conf.json` y sí es publicable.
+- El updater exige que el repo de GitHub sea **público**: los assets de un repo privado
+  piden token y la app no lleva ninguno.
 - WebView2 no reescala su lienzo cuando la ventana salta a un monitor con otro DPI:
   la ventana crece pero la web se queda pintando en una esquina. Hay que estirarlo a
   mano con `webview.set_bounds(...)` (`hud.as_ref(): &Webview`, sin necesitar la

@@ -12,6 +12,7 @@ import type {
 } from "../types";
 import { hotkeyLabel, keyLabel } from "../types";
 import Animaciones from "./Animaciones";
+import { useUpdater } from "./updater";
 
 type Tab = "perfil" | "diccionario" | "historial" | "ajustes";
 
@@ -407,6 +408,14 @@ export default function Settings() {
   const [googleError, setGoogleError] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
   const [hotkeyDraft, setHotkeyDraft] = useState<string[] | null>(null);
+  // `update` ya es el actualizador de ajustes de esta pantalla: el de versiones
+  // va con nombre propio para no pisarlo.
+  const {
+    estado: actualizacion,
+    versionActual,
+    buscar: buscarActualizacion,
+    instalar: instalarActualizacion,
+  } = useUpdater();
 
   const refreshHistory = useCallback((q: string) => {
     invoke<HistoryItem[]>("get_history", { search: q || null, limit: 100 })
@@ -1059,13 +1068,14 @@ export default function Settings() {
               </Section>
 
               <Section
-                title="Groq (opcional)"
-                hint="Con una API key gratuita de console.groq.com activas el motor cloud (más rápido y mejor con spanglish) y la limpieza con IA. Sin key, todo sigue funcionando 100% local. La key se guarda cifrada en el Administrador de credenciales de Windows."
+                title="Conectar Groq — opcional, gratis y sin tarjeta"
+                hint="Dicho ya funciona entero sin esto. Conectar Groq es para cuando quieres más velocidad o dictas mezclando español e inglés en la misma frase."
               >
                 {hasKey ? (
                   <div className="flex items-center gap-3">
                     <p className="flex-1 text-sm text-blue-600 dark:text-sky-400">
-                      ✓ API key guardada
+                      ✓ Groq conectado. Arriba, en «Motor de transcripción», ya
+                      puedes elegir el motor cloud y la limpieza con IA.
                     </p>
                     <button
                       className={btnGhostCls}
@@ -1077,32 +1087,109 @@ export default function Settings() {
                         })
                       }
                     >
-                      Quitar
+                      Desconectar
                     </button>
                   </div>
                 ) : (
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      className={`${inputCls} flex-1`}
-                      placeholder="gsk_..."
-                      value={keyInput}
-                      onChange={(e) => setKeyInput(e.target.value)}
-                    />
-                    <button
-                      className={btnCls}
-                      disabled={!keyInput.trim()}
-                      onClick={() =>
-                        invoke("set_groq_key", { key: keyInput })
-                          .then(() => {
-                            setHasKey(true);
-                            setKeyInput("");
-                          })
-                          .catch((e) => alert(String(e)))
-                      }
-                    >
-                      Guardar
-                    </button>
+                  <div className="flex flex-col gap-5">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
+                        <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          Ahora mismo — motor local
+                        </p>
+                        <ul className="flex flex-col gap-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                          <li>Tu voz no sale nunca de este equipo.</li>
+                          <li>Funciona sin internet.</li>
+                          <li>
+                            Elige un solo idioma por dictado: el spanglish se le
+                            atraganta.
+                          </li>
+                          <li>Ocupa 670 MB en disco y RAM mientras dictas.</li>
+                        </ul>
+                      </div>
+                      <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5 dark:border-sky-900 dark:bg-sky-950/40">
+                        <p className="mb-2 text-xs font-semibold text-blue-700 dark:text-sky-300">
+                          Con Groq conectado
+                        </p>
+                        <ul className="flex flex-col gap-1.5 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
+                          <li>Más rápido, sobre todo en dictados largos.</li>
+                          <li>
+                            Respeta el spanglish: cada tramo decide su idioma.
+                          </li>
+                          <li>
+                            Desbloquea la limpieza con IA, que además ordena la
+                            frase.
+                          </li>
+                          <li>
+                            Necesita internet y envía tu audio a Groq para
+                            transcribirlo.
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                        Sacar la key son tres minutos:
+                      </p>
+                      <ol className="flex flex-col gap-1.5 text-xs leading-snug text-slate-500 dark:text-slate-400">
+                        <li>
+                          <b className="text-slate-700 dark:text-slate-300">1.</b>{" "}
+                          Entra a console.groq.com y crea la cuenta con Google o
+                          GitHub. No pide tarjeta.
+                        </li>
+                        <li>
+                          <b className="text-slate-700 dark:text-slate-300">2.</b>{" "}
+                          En el menú «API Keys», pulsa «Create API Key» y ponle
+                          un nombre cualquiera, por ejemplo Dicho.
+                        </li>
+                        <li>
+                          <b className="text-slate-700 dark:text-slate-300">3.</b>{" "}
+                          Copia la clave que empieza por <code>gsk_</code> y
+                          pégala aquí abajo. Sólo se muestra una vez.
+                        </li>
+                      </ol>
+                      <button
+                        className={`${btnGhostCls} mt-3`}
+                        onClick={() => openUrl("https://console.groq.com/keys")}
+                      >
+                        Abrir console.groq.com ↗
+                      </button>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        className={`${inputCls} flex-1`}
+                        placeholder="Pega aquí tu key: gsk_…"
+                        value={keyInput}
+                        onChange={(e) => setKeyInput(e.target.value)}
+                      />
+                      <button
+                        className={btnCls}
+                        disabled={!keyInput.trim()}
+                        onClick={() =>
+                          invoke("set_groq_key", { key: keyInput })
+                            .then(() => {
+                              setHasKey(true);
+                              setKeyInput("");
+                              // Conectar Groq sin activarlo no le sirve a nadie.
+                              update({ engine: "groq" });
+                            })
+                            .catch((e) => alert(String(e)))
+                        }
+                      >
+                        Conectar
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+                      La key se guarda cifrada en el Administrador de
+                      credenciales de Windows, nunca en un archivo del proyecto.
+                      El plan gratuito de Groq admite 20 peticiones por minuto,
+                      de sobra para dictar todo el día: Dicho manda un trozo cada
+                      20-55 segundos de audio.
+                    </p>
                   </div>
                 )}
               </Section>
@@ -1160,6 +1247,87 @@ export default function Settings() {
                     Iniciar con Windows
                   </label>
                 </div>
+              </Section>
+
+              <Section
+                title="Actualizaciones"
+                hint="Dicho mira si hay versión nueva cada vez que abres esta ventana. Cada actualización viene firmada: si la firma no cuadra, no se instala."
+              >
+                {actualizacion.fase === "disponible" ? (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5 dark:border-sky-900 dark:bg-sky-950/40">
+                    <p className="text-sm font-semibold text-blue-700 dark:text-sky-300">
+                      Dicho {actualizacion.version} ya está disponible
+                    </p>
+                    {actualizacion.notas && (
+                      <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                        {actualizacion.notas}
+                      </p>
+                    )}
+                    <button
+                      className={`${btnCls} mt-3`}
+                      onClick={instalarActualizacion}
+                    >
+                      Actualizar ahora
+                    </button>
+                    <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+                      Dicho se cierra un momento para instalarla y vuelve solo.
+                      No perderás el historial ni el diccionario.
+                    </p>
+                  </div>
+                ) : actualizacion.fase === "descargando" ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      Descargando {actualizacion.version}…{" "}
+                      {actualizacion.total > 0
+                        ? `${fmtBytes(actualizacion.hechos)} de ${fmtBytes(actualizacion.total)}`
+                        : ""}
+                    </p>
+                    <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                      <div
+                        className="h-full rounded-full bg-blue-600 transition-all dark:bg-sky-500"
+                        style={{
+                          width:
+                            actualizacion.total > 0
+                              ? `${Math.round((actualizacion.hechos / actualizacion.total) * 100)}%`
+                              : "0%",
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : actualizacion.fase === "listo" ? (
+                  <p className="text-sm text-blue-600 dark:text-sky-400">
+                    Descarga terminada — instalando y reiniciando Dicho…
+                  </p>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm text-slate-700 dark:text-slate-200">
+                        Versión instalada: {versionActual ?? "…"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                        {actualizacion.fase === "buscando"
+                          ? "Buscando…"
+                          : actualizacion.fase === "alDia"
+                            ? "Estás al día."
+                            : actualizacion.fase === "error"
+                              ? "No se pudo comprobar. Revisa tu conexión."
+                              : "Se comprueba sola al abrir esta ventana."}
+                      </p>
+                    </div>
+                    <button
+                      className={btnGhostCls}
+                      disabled={actualizacion.fase === "buscando"}
+                      onClick={() => buscarActualizacion(true)}
+                    >
+                      Buscar actualizaciones
+                    </button>
+                  </div>
+                )}
+                {actualizacion.fase === "error" && (
+                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                    {actualizacion.mensaje}
+                  </p>
+                )}
               </Section>
             </>
           )}
