@@ -1,4 +1,4 @@
-<#
+﻿<#
   Publica una version nueva de Dicho: sube el numero de version, compila
   firmando el instalador, genera latest.json y crea el Release en GitHub.
 
@@ -8,9 +8,13 @@
   Requisitos, una sola vez:
     - La clave privada en %USERPROFILE%\.tauri\dicho.key (creada con
       `npm run tauri signer generate`). Si se pierde, NINGUN Dicho ya
-      instalado podra volver a actualizarse: habria que reinstalar a mano.
-    - `gh auth login` hecho y el repo publico (los assets de un repo
-      privado exigen token, y el updater no lleva ninguno).
+      instalado podra volver a actualizarse: habria que reinstalar a mano
+      en cada equipo.
+    - `gh auth login` hecho y el repo publico: los assets de un repo
+      privado exigen token y la app no lleva ninguno.
+
+  Este archivo se guarda en UTF-8 CON BOM. Sin el BOM, PowerShell 5.1 lo lee
+  como ANSI y cualquier acento o guion largo rompe el parseo.
 #>
 param(
   [Parameter(Mandatory)][string]$Version,
@@ -22,9 +26,18 @@ $raiz  = $PSScriptRoot
 $repo  = "luisgs096/dicho"
 $clave = "$env:USERPROFILE\.tauri\dicho.key"
 
-if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Version debe ser X.Y.Z, llego '$Version'" }
+if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "La version debe ser X.Y.Z, llego '$Version'" }
 if (-not (Test-Path $clave)) { throw "Falta la clave privada en $clave" }
-gh auth status | Out-Null; if (-not $?) { throw "gh no esta autenticado: corre 'gh auth login'" }
+
+# gh escribe en stderr aunque le vaya bien; con ErrorActionPreference=Stop eso
+# se convierte en NativeCommandError y aborta sin motivo. Se comprueba el
+# codigo de salida con la preferencia relajada.
+$prev = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+gh auth status *> $null
+$ghOk = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = $prev
+if (-not $ghOk) { throw "gh no esta autenticado: corre 'gh auth login'" }
 
 Write-Host "1/5  Subiendo version a $Version" -ForegroundColor Cyan
 $conf = "$raiz\src-tauri\tauri.conf.json"
@@ -32,24 +45,54 @@ $pkg  = "$raiz\package.json"
 $carg = "$raiz\src-tauri\Cargo.toml"
 # Un solo "version" de primer nivel en cada JSON; en Cargo.toml se ancla a
 # principio de linea para no tocar las versiones de las dependencias.
-[IO.File]::ReadAllText($conf) -replace '("version":\s*")[^"]+(")', "`${1}$Version`${2}" | Set-Content $conf -Encoding utf8 -NoNewline
-[IO.File]::ReadAllText($pkg)  -replace '("version":\s*")[^"]+(")', "`${1}$Version`${2}" | Set-Content $pkg  -Encoding utf8 -NoNewline
-[IO.File]::ReadAllText($carg) -replace '(?m)^version = "[^"]*"', "version = ""$Version""" | Set-Content $carg -Encoding utf8 -NoNewline
+#
+# OJO: `Set-Content -Encoding utf8` en PowerShell 5.1 escribe BOM, y ni el
+# JSON.parse de Node (package.json) ni serde_json (latest.json) lo toleran.
+# Hay que escribir UTF-8 sin BOM a mano.
+$sinBom = New-Object System.Text.UTF8Encoding($false)
+function Escribir($ruta, $texto) { [IO.File]::WriteAllText($ruta, $texto, $sinBom) }
+
+Escribir $conf ([IO.File]::ReadAllText($conf) -replace '("version":\s*")[^"]+(")', "`${1}$Version`${2}")
+Escribir $pkg  ([IO.File]::ReadAllText($pkg)  -replace '("version":\s*")[^"]+(")', "`${1}$Version`${2}")
+Escribir $carg ([IO.File]::ReadAllText($carg) -replace '(?m)^version = "[^"]*"', "version = ""$Version""")
 
 Write-Host "2/5  Compilando y firmando (tarda unos minutos)" -ForegroundColor Cyan
-$env:TAURI_SIGNING_PRIVATE_KEY = [IO.File]::ReadAllText($clave)
-$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
-npm run tauri build
-if ($LASTEXITCODE -ne 0) { throw "La compilacion fallo" }
+# Tauri exige que TAURI_SIGNING_PRIVATE_KEY_PASSWORD *exista*, aunque este vacia
+# (que es el caso de esta clave). Si falta, abre un prompt interactivo que un
+# script no puede contestar y muere con "Wrong password for that key".
+#
+# Y PowerShell no sabe crear una variable vacia: `$env:X = ""` la BORRA, no la
+# deja en blanco. .NET si puede, via ProcessStartInfo, asi que el build se lanza
+# por ahi. Sin redirigir la salida, para que se siga viendo en vivo.
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+# Via cmd.exe y no "npm.cmd" a secas: lanzado directo, npm resuelve mal su
+# propia carpeta y busca npm-cli.js dentro del proyecto.
+$psi.FileName         = "cmd.exe"
+$psi.Arguments        = "/c npm run tauri build"
+$psi.WorkingDirectory = $raiz
+$psi.UseShellExecute  = $false
+$psi.EnvironmentVariables["TAURI_SIGNING_PRIVATE_KEY"]          = [IO.File]::ReadAllText($clave)
+$psi.EnvironmentVariables["TAURI_SIGNING_PRIVATE_KEY_PASSWORD"] = ""
+$proc = [System.Diagnostics.Process]::Start($psi)
+$proc.WaitForExit()
+if ($proc.ExitCode -ne 0) { throw "La compilacion fallo (codigo $($proc.ExitCode))" }
 
 $nsis = "$raiz\src-tauri\target\release\bundle\nsis"
 $exe  = "$nsis\Dicho_${Version}_x64-setup.exe"
 $sig  = "$exe.sig"
 if (-not (Test-Path $exe)) { throw "No aparecio el instalador en $exe" }
-if (-not (Test-Path $sig)) { throw "No aparecio la firma en $sig — revisa TAURI_SIGNING_PRIVATE_KEY" }
+
+# Se vuelve a firmar aparte aunque el build ya lo haya hecho: es barato y
+# garantiza que el .sig corresponde al instalador que se acaba de construir (un
+# .sig viejo de otra compilacion rompe la actualizacion en silencio).
+# El `--password=""` va pegado con `=`: separado, clap se traga el argumento
+# siguiente y toma la ruta del instalador como si fuera la password.
+npm run tauri -- signer sign --private-key-path "$clave" --password="" "$exe"
+if ($LASTEXITCODE -ne 0) { throw "La firma fallo. Revisa la clave en $clave" }
+if (-not (Test-Path $sig)) { throw "No aparecio la firma en $sig" }
 
 Write-Host "3/5  Generando latest.json" -ForegroundColor Cyan
-# La URL apunta al tag concreto, no a /latest: asi una descarga a medias no
+# La URL apunta al tag concreto y no a /latest: asi una descarga a medias no
 # se mezcla con la version siguiente.
 $manifiesto = [ordered]@{
   version   = $Version
@@ -63,14 +106,14 @@ $manifiesto = [ordered]@{
   }
 }
 $latest = "$nsis\latest.json"
-$manifiesto | ConvertTo-Json -Depth 5 | Set-Content $latest -Encoding utf8
+Escribir $latest ($manifiesto | ConvertTo-Json -Depth 5)
 
 Write-Host "4/5  Creando el Release v$Version en GitHub" -ForegroundColor Cyan
-$titulo = "Dicho $Version"
 $cuerpo = if ($Notas) { $Notas } else { "Version $Version" }
-gh release create "v$Version" $exe $latest --repo $repo --title $titulo --notes $cuerpo
+gh release create "v$Version" $exe $latest --repo $repo --title "Dicho $Version" --notes $cuerpo
 if ($LASTEXITCODE -ne 0) { throw "gh release create fallo" }
 
 Write-Host "5/5  Listo." -ForegroundColor Green
-Write-Host "Las copias de Dicho ya instaladas veran la $Version la proxima vez que abran Ajustes."
-Write-Host "Recuerda commitear el cambio de version: git add -A; git commit -m ""Version $Version"""
+Write-Host "Las copias ya instaladas veran la $Version la proxima vez que abran Ajustes."
+Write-Host "Falta commitear el cambio de version:"
+Write-Host '  git add -A; git commit -m "Version X.Y.Z"'

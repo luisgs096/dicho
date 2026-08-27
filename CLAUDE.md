@@ -96,14 +96,46 @@ app dictándole a Claude; prioriza soluciones locales y gratuitas.
 - Límites de Groq (plan gratis): 25 MB por archivo y **20 peticiones/minuto**. Trocear al
   soltar la tecla las reventaría; trocear mientras hablas sale a ~3/min.
 - reqwest 0.13: `.form()`/`.query()` son features (`form`, `query`) — ya activadas.
+- **BOM y PowerShell 5.1, en las dos direcciones** (los dos fallos de `publicar.ps1` el
+  27/08):
+  - Un `.ps1` **sin** BOM se lee como ANSI: un `—` en UTF-8 se convierte en `â€"`, y ese
+    `"` final cierra la cadena y rompe el parseo. Los `.ps1` con acentos van con BOM.
+  - `Set-Content -Encoding utf8` **añade** BOM, y ni el `JSON.parse` de Node
+    (`package.json`) ni `serde_json` (`latest.json`) lo toleran. Para JSON hay que usar
+    `[IO.File]::WriteAllText($ruta, $texto, (New-Object System.Text.UTF8Encoding($false)))`.
+  - Antes de lanzar un script largo, validarlo gratis con
+    `[System.Management.Automation.Language.Parser]::ParseFile(ruta, [ref]$null, [ref]$errs)`.
+- **Firmar el updater desde un script: tres trampas encadenadas** (los tres fallos de la
+  0.2.0 el 27/08). La clave `dicho.key` **no tiene contraseña**, pero:
+  - Tauri exige que `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` **exista** aunque esté vacía. Si
+    falta, abre un prompt interactivo que un script no puede contestar y muere con
+    `failed to decode secret key: Wrong password for that key`.
+  - Y **PowerShell no sabe crear una variable vacía**: `$env:X = ""` la *borra*. .NET sí,
+    con `ProcessStartInfo.EnvironmentVariables["X"] = ""`, así que el build se lanza por
+    ahí. Comprobable en 5 s sin compilar nada: pasarle la variable a
+    `node -e "console.log(process.env.X === '' )"`.
+  - Ese `ProcessStartInfo` tiene que apuntar a **`cmd.exe /c npm run …`**, no a `npm.cmd`
+    a secas: lanzado directo, npm resuelve mal su propia carpeta y busca `npm-cli.js`
+    dentro del proyecto (`Cannot find module 'C:\dev\Mike\node_modules\npm\bin\npm-cli.js'`).
+  Además se re-firma aparte al terminar (`tauri signer sign … --password=""`, con el `=`
+  **pegado**: separado, clap se come el argumento siguiente y toma la ruta del instalador
+  como password). Es barato y garantiza que el `.sig` corresponde al instalador recién
+  construido; un `.sig` viejo rompe la actualización en silencio.
+- **No canalizar la salida de `publicar.ps1`.** Un `*>&1 | Tee-Object` convierte cada línea
+  que Tauri escribe en stderr (hasta un `Info` inocuo) en `NativeCommandError` y aborta el
+  script. Es la misma trampa que `2>&1` sobre ejecutables nativos en PowerShell 5.1.
 - En Bash, `cmd | tail` se traga el exit code: usar `set -o pipefail`.
+- **Relanzar Dicho desde una sesión automatizada**: `Start-Process mike.exe` a secas no
+  vale — el proceso hereda el job object de la sesión y Windows lo mata en cuanto termina
+  el comando. Parece un crash de la app y no lo es. Hay que re-parentarlo:
+  `Start-Process explorer.exe -ArgumentList $exe`.
 - Test E2E sin tocar el mic: simular el atajo con `keybd_event` (P/Invoke) y verificar
   la cadena en `dicho.log` (rms 0 → evento empty → carita). El Notepad de Win11 no
   expone `MainWindowHandle`: para elegir en qué monitor cae el foco, crear un
   `System.Windows.Forms.Form` en la posición deseada y robarle el foco con el truco
   del ALT (`keybd_event(0x12)` antes de `SetForegroundWindow`, si no Windows lo ignora).
 
-## Dónde estamos (26 de agosto de 2026)
+## Dónde estamos (27 de agosto de 2026)
 
 Dicho está **en uso diario y estable**. El usuario lo usa para dictarle a Claude a diario;
 en el historial hay 200+ dictados reales, la mayoría de 20-40 s, y su veredicto de hoy:
@@ -127,7 +159,44 @@ a entender".
   por el volumen real del micro, y catálogo navegable desde Ajustes.
 - **Robustez de voz**: compuerta de silencio, filtro de alucinaciones, y el pulido ya no
   puede devolver un dictado truncado (comprueba `finish_reason`).
-- Tests: `cargo test --lib` → 12 verdes (chunker, reglas de pulido, diccionario).
+- **Repartible a otra gente**: el instalador NSIS no exige cuenta ni configuración —
+  los defaults de `settings.rs` son motor local + pulido por reglas, y la app se descarga
+  sola el modelo (670 MB) al primer arranque. Va sin firma de código, así que SmartScreen
+  avisa: "Más información" → "Ejecutar de todas formas". Sólo x64, nada de ARM.
+- **«cámara» ya sale bien** (27/08): aparece escrita correctamente en el historial
+  ("vuelvo a probarlo de cámara, por ejemplo, la usé ahorita"). El prompt de spanglish la
+  sostiene sin necesidad de entrada de diccionario.
+- Tests y build en verde (27/08): `cargo test --lib` → 12 verdes (chunker, reglas de
+  pulido, diccionario), `npm run build` limpio y `dicho.log` sin un solo error en 253
+  dictados registrados.
+
+### Auto-actualización: publicada y verificada (27/08)
+
+La **v0.2.0 está publicada** en https://github.com/luisgs096/dicho/releases/tag/v0.2.0 con
+`Dicho_0.2.0_x64-setup.exe` + `latest.json`. Verificado de punta a punta, no sólo que el
+release existiera: `latest.json` se descarga desde la URL exacta que consulta la app
+(`releases/latest/download/latest.json`), va sin BOM, parsea, su campo `signature` es igual
+al `.sig` local, y el `.exe` publicado es **idéntico en SHA256** al que se firmó.
+
+**Ya instalada** en el equipo de luisg (27/08 17:18): el `mike.exe` de
+`%LOCALAPPDATA%/Dicho` reporta 0.2.0 y su binario sí contiene el endpoint del updater. Los
+ajustes y la API key sobrevivieron a la reinstalación (viven en `%APPDATA%` y en el
+Administrador de credenciales, no dentro del programa). Ése era el único paso manual: de la
+0.3.0 en adelante se actualiza sola al abrir Ajustes.
+
+**Auditoría de secretos antes del primer reparto a terceros** (27/08). Todo limpio, y
+conviene rehacerla cada vez que se publique:
+- La API key de Groq vive en el **Administrador de credenciales de Windows** (`keyring`,
+  servicio `mike-dictado`), nunca en el repo ni dentro del binario.
+- Cero coincidencias de `gsk_…`, `sk-…`, `GOCSPX-…` ni `…apps.googleusercontent.com` en el
+  binario sin comprimir, en el instalador publicado **y en todo el historial de git**
+  (`git log --all -p`, no sólo el estado actual).
+- De Google sólo viajan URLs públicas de endpoint. El cliente OAuth lo crea cada usuario y
+  queda en su `settings.json` local.
+- `.gitignore` bloquea `*.key` y `*.key.pub`; no hay ningún `.db`, `.log` ni
+  `settings.json` rastreado, así que no se publica ni un dictado.
+- Quien instale la app arranca con motor **local** y pulido por reglas: no puede gastar
+  dinero de nadie sin poner su propia key.
 
 ### Lo que viene, por orden de valor
 
@@ -145,6 +214,13 @@ a entender".
    por antigüedad ni límite de tamaño.
 6. **Parakeet local con dictados largos**: el troceo secuencial está escrito pero no se ha
    probado con audio real largo en local.
+7. **Vocabulario propio en el prompt del STT.** El diccionario personal llega al pulido con
+   IA (`polish/groq.rs`) pero **no** al `prompt` de Whisper (`stt/groq.rs` sólo manda
+   `PRIME_SPANGLISH`), o sea que hoy sólo puede corregir la palabra *después* de oírla mal,
+   nunca ayudar a oírla bien. El `prompt` de Whisper es justo la palanca documentada para
+   sesgar vocabulario. Cuidado: ese mismo prompt es lo que frena la traducción, así que
+   meterle una lista de palabras puede debilitarlo — hay que medir antes y después.
+   Detonante: "cámara" no aparece ni una vez en 200+ dictados del historial.
 
 ### Pendientes del usuario (nadie más puede hacerlos)
 
@@ -160,6 +236,9 @@ a entender".
   la traducción) y más paralelos.
 - **Calibrar el umbral de silencio** si algún dictado real se marca como "no entendí": el
   rms de cada dictado queda en `dicho.log` y el umbral está en `pipeline.rs` (0.0012).
+- **Guardar la clave privada del updater** (`%USERPROFILE%\.tauri\dicho.key`) en un gestor
+  de contraseñas. Es irreemplazable: sin ella, ninguna copia instalada vuelve a
+  actualizarse nunca.
 
 ### Comprobar en dos minutos que sigue todo vivo
 
@@ -178,6 +257,15 @@ Revisión visual de las caritas (viva, se actualiza al republicar):
 https://claude.ai/code/artifact/6e51420d-77cd-40b0-bcc5-ec39ce74e18f
 
 ## Historial de sesiones
+
+**27/08** — Auto-actualización firmada y UX de Groq (commit 2b85a0b). Chequeo de cierre:
+tests 12/12, build limpio, log sin un error en 253 dictados, HUD y caritas bien en las dos
+pantallas, y "cámara" confirmada como resuelta en el historial. Se descubrió que
+`publicar.ps1` **nunca había llegado a publicar** — no existía ninguna release y la copia
+instalada seguía siendo la 0.1.0 sin updater. Costó tres intentos porque eran tres fallos
+encadenados (canalizar la salida, la variable de entorno vacía, y `npm.cmd` lanzado
+directo); todos documentados arriba. **v0.2.0 publicada y verificada** (firma y SHA256
+comprobados contra lo que descarga la app). Falta instalarla a mano una vez.
 
 **26/08** — HUD siempre encima (monitor activo + topmost + arreglo del lienzo de WebView2
 en DPI mixto); 25 caritas rehechas sobre rejilla fija (lentes oscuros con destello, manos
