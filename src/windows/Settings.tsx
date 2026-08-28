@@ -458,10 +458,17 @@ export default function Settings() {
     });
     const unHistory = listen("history-changed", () => refreshHistory(""));
     const unDict = listen("dict-changed", () => refreshDict());
+    // El modo colocación también se apaga solo al cerrar esta ventana, así que
+    // el botón se entera por el mismo evento que el HUD y no se queda diciendo
+    // "Listo, déjala ahí" cuando ya no hay nada que colocar.
+    const unColocar = listen<boolean>("hud-colocar", (e) =>
+      setColocandoHud(e.payload),
+    );
     return () => {
       unProgress.then((f) => f());
       unHistory.then((f) => f());
       unDict.then((f) => f());
+      unColocar.then((f) => f());
     };
   }, [refreshHistory, refreshDict, refreshGoogle]);
 
@@ -1270,8 +1277,9 @@ export default function Settings() {
                       {colocandoHud && (
                         <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs leading-relaxed text-blue-700 dark:bg-sky-950/50 dark:text-sky-300">
                           La onda ya está en pantalla: arrástrala con el ratón a
-                          donde no te estorbe y pulsa «Listo». Se queda en ese
-                          rincón en las dos pantallas, no sólo en ésta.
+                          donde no te estorbe y pulsa «Listo». Cada pantalla
+                          recuerda su propio rincón, así que si trabajas en dos
+                          tendrás que colocarla en cada una.
                         </p>
                       )}
                       <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">

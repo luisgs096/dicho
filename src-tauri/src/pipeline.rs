@@ -4,7 +4,7 @@ use crate::inject::inject_text;
 use crate::models::{self, ModelStatus};
 use crate::overlay;
 use crate::polish::{self, PolishCtx};
-use crate::settings::{EngineKind, PolishKind, SettingsState};
+use crate::settings::{EngineKind, HudPos, PolishKind, SettingsState};
 use crate::store::Store;
 use crate::stt::{groq, groq::GroqStt, parakeet::ParakeetStt, Stt, SttOpts};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -149,11 +149,14 @@ fn place_hud(
         position: tauri::PhysicalPosition::new(0, 0).into(),
         size: tauri::PhysicalSize::new(w, h).into(),
     });
-    let guardada = app
-        .try_state::<SettingsState>()
-        .and_then(|s| s.read().ok().and_then(|s| s.hud_pos));
+    // El rincón que el usuario eligió *en esta pantalla*: cada monitor guarda
+    // el suyo, así que colocarlo en la 4K no lo mueve en el portátil.
+    let guardada = app.try_state::<SettingsState>().and_then(|s| {
+        let clave = HudPos::clave(area);
+        s.read().ok().and_then(|s| s.hud_posiciones.get(&clave).copied())
+    });
     let (x, y) = match guardada {
-        // Donde lo dejó el usuario, en fracción del hueco libre (ver `HudPos`).
+        // En fracción del hueco libre de la pantalla (ver `HudPos`).
         Some(p) => p.a_pixeles((w as i32, h as i32), area),
         // Sitio de siempre: abajo al centro, un dedo por encima de la barra.
         None => (

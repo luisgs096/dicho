@@ -74,6 +74,13 @@ const CLASSIC_CSS = `
 // El movimiento de la ventana lo hace Windows en el backend (ver
 // `overlay::arrastrar_con_cursor`); aquí sólo se ve que la estás agarrando.
 const DRAG_CSS = `
+  /* El HUD no se desliza nunca. Al cruzar entre monitores de distinto DPI,
+     WebView2 se queda un rato con el lienzo viejo (medido: lienzo 1440x384
+     con dpr 1.25), el contenido escalado se desborda y Windows le mete barras
+     de scroll de las de verdad, que reservan 15 px y ya no se van: se ven como
+     dos rayas en los costados y además encogen la carita. */
+  html, body, #root { overflow: hidden; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
   .agarrable { cursor: grab; }
   .agarrando { cursor: grabbing; }
   .colocando { outline: 2px dashed var(--a); outline-offset: 4px;
@@ -172,8 +179,17 @@ export default function Hud() {
         "--k",
         (window.innerHeight / 96).toFixed(3),
       );
+      // Si el lienzo se desbordara, Windows le metería barras de scroll que
+      // roban 15 px y ya no se van. No debería volver a pasar (overflow
+      // hidden, arriba), pero si pasa que quede en el log y no en la cara del
+      // usuario: fue así como se encontró.
+      const d = document.documentElement;
+      const desborde =
+        d.scrollWidth !== d.clientWidth || d.scrollHeight !== d.clientHeight
+          ? ` DESBORDE scroll=${d.scrollWidth}x${d.scrollHeight} client=${d.clientWidth}x${d.clientHeight}`
+          : "";
       hudLog(
-        `lienzo ${window.innerWidth}x${window.innerHeight} dpr=${window.devicePixelRatio}`,
+        `lienzo ${window.innerWidth}x${window.innerHeight} dpr=${window.devicePixelRatio}${desborde}`,
       );
     };
     ajustar();

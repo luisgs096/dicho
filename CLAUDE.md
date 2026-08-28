@@ -32,8 +32,11 @@ sesión, se reescribe entera. Y commitear el resultado.
   `show_hud()` coloca el HUD en el **monitor activo** y deja un hilo
   vigilante (tick de 70 ms y luego 250 ms) que reafirma el topmost y lo recoloca
   si cambias de pantalla o de DPI. Dónde exactamente lo decide `place_hud()`:
-  donde el usuario lo haya soltado arrastrándolo (`settings.hud_pos`, en
-  **fracción del hueco libre**, no en píxeles) o abajo-centro si nunca lo movió.
+  donde el usuario lo haya soltado arrastrándolo, o abajo-centro si nunca lo
+  movió. Eso vive en `settings.hud_posiciones`: **una por pantalla** (la clave
+  es el tamaño de su área de trabajo) y en **fracción del hueco libre**, no en
+  píxeles. Así colocarlo en la 4K no lo mueve en el portátil, y el rincón
+  elegido significa lo mismo en las dos.
   `modo_colocar()` es el botón "Mover la onda flotante" de Ajustes: deja el HUD
   a la vista y agarrable hasta que el usuario diga que ya, porque si no sólo se
   podría mover durante los segundos que dura un dictado.
@@ -123,7 +126,19 @@ sesión, se reescribe entera. Y commitear el resultado.
   la ventana crece pero la web se queda pintando en una esquina. Hay que estirarlo a
   mano con `webview.set_bounds(...)` (`hud.as_ref(): &Webview`, sin necesitar la
   feature `unstable` de Tauri); eso además le actualiza el `devicePixelRatio`.
-- Traducción indeseada: **es Whisper, no el pulido** (medido: 0 de 120 dictados cambian de
+- **De ese mismo desfase salen barras de scroll que no se van** (visto en la
+  0.7.0, arreglado en la 0.8.0). Mientras WebView2 anda con el lienzo viejo, el
+  contenido escalado se desborda y Windows le mete barras de las de verdad
+  —las que reservan 15 px— dentro del HUD: dos rayas en los costados y la
+  carita encogida. No son las barras que aparecen al pasar el ratón, se quedan
+  puestas: medido `scroll=360x96 client=345x81` bastante después del salto,
+  frente a `scroll == client` siempre con el arreglo. Se corta de raíz con
+  `html, body, #root { overflow: hidden }` en el CSS del **HUD**, nunca en
+  `index.css`, que se comparte con la ventana de Ajustes y ésa sí necesita
+  deslizarse. El HUD ahora se autodelata: si `scrollWidth` no cuadra con
+  `clientWidth`, su log escribe `DESBORDE`.
+- Traducción indeseada: **es Whisper, no el pulido**
+ (medido: 0 de 120 dictados cambian de
   idioma entre `raw` y `polished` en `mike.db`). Whisper fija un idioma por ventana de 30 s
   y traduce el resto. Mitigaciones: no mandar nunca `language` (fijarlo empeora), `prompt`
   con una **muestra real de spanglish** en vez de instrucciones (el prompt guía estilo y
@@ -340,10 +355,11 @@ que comprobar firma y SHA256 contra lo que descarga la app.
   y reafirma su z-order cada 250 ms. Probado en las dos pantallas del usuario, incluida la
   4K al 250 % — que además destapó que WebView2 no reescala solo (ver gotchas).
 - **HUD movible con el ratón** (28/08): se arrastra a donde no estorbe y se
-  queda ahí. La posición se guarda en **fracción de la pantalla**, no en píxeles,
-  así que el rincón elegido es el mismo rincón en el portátil y en la 4K. Desde
-  Ajustes se puede colocar con calma sin dictar ("Mover la onda flotante"),
-  devolverlo a su sitio de siempre, o apagar el arrastre para que vuelva a ser un
+  queda ahí. **Cada pantalla recuerda su propio rincón** —guardado en fracción,
+  no en píxeles—, así que colocarlo en la 4K no lo mueve en el portátil y sigue
+  saliendo en el monitor donde estés trabajando. Desde Ajustes se puede colocar
+  con calma sin dictar ("Mover la onda flotante"), devolverlo a su sitio de
+  siempre en todas las pantallas, o apagar el arrastre para que vuelva a ser un
   cristal que los clics atraviesan.
 - **26 caritas** con reglas de pixel-art documentadas en `faces.ts`, dos de ellas movidas
   por el volumen real del micro, y catálogo navegable desde Ajustes.
@@ -486,7 +502,13 @@ e interruptor por si se prefiere el cristal de antes. 18 tests (5 nuevos sobre l
 aritmética de la posición). Probado en vivo en las dos direcciones; de paso
 salieron tres gotchas de banco de pruebas: el DPI virtualizado de PowerShell, el
 `FindWindow($null, …)` que nunca encuentra nada, y que simular el atajo hace que
-Dicho pegue alucinaciones de Whisper en la ventana enfocada.
+Dicho pegue alucinaciones de Whisper en la ventana enfocada. Y por la tarde la
+0.8.0, con las dos cosas que sólo se ven usándolo de verdad: la posición era
+una sola para todos los monitores (colocarlo en la 4K lo movía también en el
+portátil, y soltarlo en una pantalla no evitaba que el siguiente dictado lo
+sacara en la otra), y en los saltos de DPI aparecían barras de scroll dentro
+del HUD. 19 tests.
+
 
 **27/08 (tarde)**
  — Estrenada la actualización automática: 0.3.0, 0.4.0 y 0.5.0 publicadas

@@ -21,7 +21,10 @@ pub fn save_settings(
     // La posición del HUD no sale de este formulario, sino de arrastrarlo. Si
     // se guardara la que trae el front, mover el HUD y luego tocar cualquier
     // ajuste con la ventana abierta desde antes lo devolvería a su sitio viejo.
-    new_settings.hud_pos = state.read().map(|s| s.hud_pos).unwrap_or(None);
+    new_settings.hud_posiciones = state
+        .read()
+        .map(|s| s.hud_posiciones.clone())
+        .unwrap_or_default();
     settings::save(&app, &new_settings).map_err(|e| e.to_string())?;
     aplicar_raton_hud(&app, new_settings.hud_arrastrable);
     // Solo release toca la entrada Run: un build dev registraría target/debug/mike.exe,
@@ -179,12 +182,14 @@ pub fn hud_arrastrar(app: AppHandle, state: State<'_, SettingsState>) {
         else {
             return;
         };
-        let pos = HudPos::desde_pixeles((x, y, w, h), (ax, ay, aw, ah));
+        let area = (ax, ay, aw, ah);
+        let clave = HudPos::clave(area);
+        let pos = HudPos::desde_pixeles((x, y, w, h), area);
         let copia = {
             let Ok(mut s) = settings.write() else {
                 return;
             };
-            s.hud_pos = Some(pos);
+            s.hud_posiciones.insert(clave.clone(), pos);
             s.clone()
         };
         if let Err(e) = settings::save(&app, &copia) {
@@ -194,7 +199,7 @@ pub fn hud_arrastrar(app: AppHandle, state: State<'_, SettingsState>) {
         pipeline::diag(
             &app,
             &format!(
-                "HUD movido a ({x},{y}) → fx={:.3} fy={:.3}",
+                "HUD movido a ({x},{y}) en la pantalla {clave} → fx={:.3} fy={:.3}",
                 pos.fx, pos.fy
             ),
         );
@@ -213,12 +218,14 @@ pub fn hud_colocar(app: AppHandle, on: bool) {
     pipeline::modo_colocar(&app, on);
 }
 
-/// Devuelve el HUD a su sitio de siempre: abajo, al centro.
+/// Devuelve el HUD a su sitio de siempre —abajo, al centro— en **todas** las
+/// pantallas: si sólo borrara el rincón de ésta, el botón parecería no hacer
+/// nada al volver al otro monitor.
 #[tauri::command]
 pub fn hud_pos_reset(app: AppHandle, state: State<'_, SettingsState>) -> Result<(), String> {
     let copia = {
         let mut s = state.write().map_err(|e| e.to_string())?;
-        s.hud_pos = None;
+        s.hud_posiciones.clear();
         s.clone()
     };
     settings::save(&app, &copia).map_err(|e| e.to_string())?;

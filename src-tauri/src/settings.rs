@@ -1,6 +1,6 @@
 use rdev::Key;
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf, sync::{Arc, RwLock}};
+use std::{collections::HashMap, fs, path::PathBuf, sync::{Arc, RwLock}};
 use tauri::{AppHandle, Manager};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -49,6 +49,16 @@ fn fraccion(desplazado: i32, libre: i32) -> f64 {
 }
 
 impl HudPos {
+    /// Con qué nombre se guarda el rincón de una pantalla.
+    ///
+    /// El tamaño del área de trabajo en píxeles basta para distinguir el
+    /// portátil de la 4K, y aguanta que se muevan de sitio en la configuración
+    /// de Windows: ahí cambia dónde empieza el monitor, no cuánto mide.
+    pub fn clave(area: (i32, i32, i32, i32)) -> String {
+        let (_, _, aw, ah) = area;
+        format!("{aw}x{ah}")
+    }
+
     /// Dónde quedó una ventana ya colocada. `rect` y `area` en píxeles
     /// físicos: (x, y, ancho, alto).
     pub fn desde_pixeles(rect: (i32, i32, i32, i32), area: (i32, i32, i32, i32)) -> Self {
@@ -83,8 +93,12 @@ pub struct AppSettings {
     pub no_traducir: bool,
     pub hud_enabled: bool,
     pub hud_style: HudStyle,
-    /// `None` = donde siempre, abajo al centro.
-    pub hud_pos: Option<HudPos>,
+    /// El rincón donde el usuario dejó el HUD **en cada pantalla**, por
+    /// `HudPos::clave()`. Sin entrada para la pantalla de turno: abajo al
+    /// centro, donde siempre. (El `hud_pos` suelto de la 0.7.0 era uno solo
+    /// para todos los monitores: mover el HUD en la 4K lo movía también en el
+    /// portátil. Serde ignora esa clave vieja y se empieza de cero.)
+    pub hud_posiciones: HashMap<String, HudPos>,
     /// Si el HUD atrapa el ratón para poder arrastrarlo. Apagado vuelve a ser
     /// un cristal: los clics lo atraviesan y llegan a lo que haya debajo.
     pub hud_arrastrable: bool,
@@ -105,7 +119,7 @@ impl Default for AppSettings {
             no_traducir: true,
             hud_enabled: true,
             hud_style: HudStyle::Tamagotchi,
-            hud_pos: None,
+            hud_posiciones: HashMap::new(),
             hud_arrastrable: true,
             autostart: false,
             google_client_id: String::new(),
@@ -201,6 +215,21 @@ mod tests {
     fn soltarlo_fuera_de_pantalla_se_recorta() {
         let fuera = HudPos::desde_pixeles((-200, 1000, 360, 96), PORTATIL);
         assert_eq!((fuera.fx, fuera.fy), (0.0, 1.0));
+    }
+
+    /// Cada pantalla guarda su propio rincón, y sigue siendo la misma pantalla
+    /// aunque la muevas de sitio en la configuración de Windows.
+    #[test]
+    fn cada_pantalla_tiene_su_clave() {
+        assert_eq!(HudPos::clave(PORTATIL), "1920x1032");
+        assert_eq!(HudPos::clave(CUATRO_K), "3840x2100");
+        assert_ne!(HudPos::clave(PORTATIL), HudPos::clave(CUATRO_K));
+        let cuatro_k_a_la_izquierda = (-3840, 500, 3840, 2100);
+        assert_eq!(
+            HudPos::clave(cuatro_k_a_la_izquierda),
+            HudPos::clave(CUATRO_K),
+            "cambiar de sitio un monitor no lo convierte en otro"
+        );
     }
 
     /// Pantalla más estrecha que el propio HUD: ni pánico ni NaN.

@@ -16,7 +16,8 @@ export interface AppSettings {
   no_traducir: boolean;
   hud_enabled: boolean;
   hud_style: HudStyle;
-  hud_pos: HudPos | null;
+  /** Un rincón por pantalla, por tamaño del área de trabajo ("3840x2040"). */
+  hud_posiciones: Record<string, HudPos>;
   hud_arrastrable: boolean;
   autostart: boolean;
   google_client_id: string;
