@@ -290,10 +290,10 @@ sesión, se reescribe entera. Y commitear el resultado.
 
 | | |
 |---|---|
-| Versión publicada | **v0.7.0** (28/08), firmada y verificada. Instalada sigue la 0.6.0: se actualiza sola al abrir Ajustes |
+| Versión publicada | **v0.8.0** (28/08), firmada y verificada. Se actualiza sola al abrir Ajustes |
 | Repo | `main` en `8d02400`, **público**, sincronizado con GitHub |
-| Releases vivas | v0.2.0 … v0.7.0, todas firmadas y verificadas |
-| Tests | `cargo test --lib` → **18 verdes** |
+| Releases vivas | v0.2.0 … v0.8.0, todas firmadas y verificadas |
+| Tests | `cargo test --lib` → **19 verdes** |
 | Build | `npm run build` limpio |
 | Árbol de trabajo | limpio, nada suelto |
 | Único pendiente crítico | respaldar `dicho.key` (sólo puede hacerlo luisg) |
@@ -478,7 +478,7 @@ repetirla cada vez que se publique). Todo limpio:
 ### Comprobar en dos minutos que sigue todo vivo
 
 ```sh
-cd src-tauri && cargo test --lib        # 18 tests
+cd src-tauri && cargo test --lib        # 19 tests
 npm run build                           # tsc + vite
 ```
 ```powershell
