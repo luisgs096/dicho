@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { invoke } from "@tauri-apps/api/core";
 
 /// Fases del ciclo de actualización. `alDia` sólo se muestra cuando el usuario
 /// pulsó el botón: en el arranque una comprobación sin novedad debe ser muda.
@@ -50,6 +51,9 @@ export function useUpdater() {
     let total = 0;
     setEstado({ fase: "descargando", version: update.version, hechos: 0, total: 0 });
     try {
+      // Antes de nada, dejar programado el relanzamiento: el instalador mata
+      // Dicho y por ese camino su propio `/R` no vuelve a abrirlo.
+      await invoke("programar_relanzamiento").catch(console.warn);
       await update.downloadAndInstall((ev) => {
         switch (ev.event) {
           case "Started":
@@ -65,8 +69,8 @@ export function useUpdater() {
             break;
         }
       });
-      // El instalador NSIS corre en modo `passive` y cierra Dicho por su cuenta;
-      // el relanzamiento sólo llega si el proceso sigue vivo.
+      // Si el proceso llega vivo hasta aquí, este es el camino limpio; si no,
+      // el relanzamiento programado arriba se encarga.
       await relaunch();
     } catch (e) {
       setEstado({ fase: "error", mensaje: String(e) });

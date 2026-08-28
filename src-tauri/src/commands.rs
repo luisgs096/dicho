@@ -141,3 +141,93 @@ pub async fn google_logout(app: AppHandle) -> Result<(), String> {
 pub fn hud_log(app: AppHandle, msg: String) {
     pipeline::diag(&app, &format!("HUD-JS: {msg}"));
 }
+
+/// Deja programado el relanzamiento de Dicho tras una actualización.
+///
+/// El instalador NSIS trae su propio `/R` para volver a abrir la app, y el
+/// plugin del updater se lo pasa. Pero sólo funciona si Dicho ya está cerrado
+/// cuando arranca el instalador: si lo encuentra abierto entra por
+/// `CheckIfAppIsRunning`, lo mata, y por ese camino el relanzamiento nunca
+/// llega. Que es justo lo que pasa al actualizar desde dentro de la app.
+///
+/// Así que el relanzamiento lo programa la app antes de empezar: un PowerShell
+/// suelto que espera a que el proceso desaparezca y lo vuelve a abrir. Es
+/// inofensivo aunque el `/R` funcione — la guardia de instancia única hace que
+/// el segundo arranque enfoque al primero y se cierre.
+/// El script vigilante, en su propia función para poder probarlo sin lanzar nada.
+fn script_relanzador(exe: &str) -> String {
+    // Con BOM: un .ps1 sin él se lee como ANSI y los acentos rompen el parseo.
+    format!(
+        "\u{feff}$exe = '{exe}'
+# 1) Esperar a que Dicho se cierre. Si no se cierra, la actualización no siguió
+#    adelante (cancelada o fallida) y aquí no hay nada que hacer.
+$limite = (Get-Date).AddSeconds(120)
+while ((Get-Process mike -ErrorAction SilentlyContinue) -and (Get-Date) -lt $limite) {{
+  Start-Sleep -Milliseconds 500
+}}
+if (Get-Process mike -ErrorAction SilentlyContinue) {{ exit }}
+
+# 2) Reintentar: mientras el instalador termina de escribir el .exe, Start-Process
+#    falla, así que se vuelve a probar hasta que arranque.
+Start-Sleep -Seconds 3
+for ($i = 0; $i -lt 20; $i++) {{
+  if (Get-Process mike -ErrorAction SilentlyContinue) {{ break }}
+  try {{ Start-Process $exe }} catch {{}}
+  Start-Sleep -Seconds 2
+}}
+Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
+"
+    )
+}
+
+#[tauri::command]
+pub fn programar_relanzamiento(app: AppHandle) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    // Sin ventana y desacoplado del padre: si no, muere con la app.
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let script = std::env::temp_dir().join("dicho-relanzar.ps1");
+    let contenido = script_relanzador(&exe.display().to_string());
+    std::fs::write(&script, contenido).map_err(|e| e.to_string())?;
+
+    std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            &script.to_string_lossy(),
+        ])
+        .creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+
+    pipeline::diag(&app, "Updater: relanzamiento programado");
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// El script se arma con `format!`, donde una llave mal escapada no se nota
+    /// hasta que falla en producción. Además lo vuelca a disco para poder
+    /// validarlo con el parser de PowerShell.
+    #[test]
+    fn el_script_relanzador_sale_entero() {
+        let s = script_relanzador(r"C:\Users\x\AppData\Local\Dicho\mike.exe");
+        assert!(s.starts_with('\u{feff}'), "falta el BOM");
+        assert!(s.contains(r"$exe = 'C:\Users\x\AppData\Local\Dicho\mike.exe'"));
+        assert!(s.contains("while ((Get-Process mike"), "falta la espera");
+        assert!(
+            s.contains("try { Start-Process $exe } catch {}"),
+            "llaves mal escapadas por format!"
+        );
+        assert!(!s.contains("{{"), "quedaron llaves dobles de format!");
+        let ruta = std::env::temp_dir().join("dicho-relanzar-test.ps1");
+        std::fs::write(&ruta, &s).unwrap();
+        eprintln!("script volcado en {}", ruta.display());
+    }
+}

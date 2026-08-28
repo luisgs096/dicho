@@ -143,6 +143,7 @@ pub fn run() {
             commands::google_sync_now,
             commands::google_logout,
             commands::hud_log,
+            commands::programar_relanzamiento,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
