@@ -35,10 +35,11 @@ tus pausas para que cada tramo decida por su cuenta.
 ## El HUD
 
 Cápsula flotante estilo **tamagotchi**: pantalla LCD con rejilla pixel, micrófono
-pixel-art y un personajito con 25 animaciones (5 variaciones por estado — escuchando,
-pensando, listo, no-entendí, reposo) elegidas al azar en cada dictado, con reacciones
-según el idioma detectado. Dos de las caritas de "te escucho" se mueven con el volumen
-real del micrófono. El botón **Ver animaciones** de Ajustes abre el catálogo completo.
+pixel-art y un personajito con 26 animaciones (5 variaciones por estado — escuchando,
+pensando, listo, no-entendí, reposo, más el eructo) elegidas al azar en cada dictado, con
+reacciones según el idioma detectado. Dos de las caritas de "te escucho" se mueven con el
+volumen real del micrófono: el DJ con audífonos y la que se come tu voz como Pac-Man. A
+esa última le responde el eructo, la única carita que no sale al azar. El botón **Ver animaciones** de Ajustes abre el catálogo completo.
 En Ajustes puede cambiarse al estilo **clásico**: barras que crecen con la intensidad de
 la voz.
 

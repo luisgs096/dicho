@@ -83,11 +83,30 @@ const eyes = (m: string[], y: number) => {
   return spr(m, LX + ox, y) + spr(m, RX + ox, y);
 };
 
-// ─── ojos ───────────────────────────────────────────────────────────────────
+/**
+ * Repertorio de ojos, sacado del vocabulario de los tamagotchi de siempre.
+ * Todos de ancho impar (1, 3 o 5): `eyes()` los centra con `(3 - ancho) / 2`
+ * y con ancho par saldría un desplazamiento de medio píxel.
+ *
+ * Alturas pensadas para que el ojo siempre acabe en y=8, que es donde acaba
+ * el ojo normal: OJO/OJO_ANCHO/OJO_BRILLO en y=5, OJO_MEDIO en y=7,
+ * OJO_LINEA en y=7, OJO_ARCO/OJO_TRISTE en y=6 y los de 5 filas en y=4.
+ */
 const OJO = ["XXX", "XXX", "XXX", "XXX"];
 const OJO_LINEA = ["XXX"];
 const OJO_ARCO = [".XXX.", "X...X"];
 const OJO_TRISTE = ["X...X", ".XXX."];
+/** Entrecerrado: sólo la mitad de abajo. El párpado a medio caer. */
+const OJO_MEDIO = ["XXX", "XXX"];
+/** De par en par: dos píxeles más ancho. Sorpresa, se le prendió el foco. */
+const OJO_ANCHO = ["XXXXX", "XXXXX", "XXXXX", "XXXXX"];
+/** Con destello: el píxel `o` es del color del LCD, o sea un hueco. */
+const OJO_BRILLO = ["oXX", "XXX", "XXX", "XXX"];
+const OJO_ESTRELLA = ["..X..", "X.X.X", ".XXX.", "X.X.X", "..X.."];
+const OJO_CORAZON = ["XX.XX", "XXXXX", "XXXXX", ".XXX.", "..X.."];
+/** Aspas: el "aquí ya no entendí nada" de toda la vida. Se probó primero un
+ *  remolino, pero a 5 px se leía como una letra G. */
+const OJO_ASPA = ["X...X", ".X.X.", "..X..", ".X.X.", "X...X"];
 const CUENCA = ["XXXXXXX", "X.....X", "X.....X", "X.....X", "XXXXXXX"];
 const PUPILA = ["XXX", "XXX"];
 
@@ -142,6 +161,36 @@ const MARCO = ["XXXXXXXXXXXX", "X..........X", "XXXXXXXXXXXX"];
 const RUIDO_A = ["X..X...X..X", "..X...X....", "X...X....X.", ".X.....X..X"];
 const RUIDO_B = [".X...X..X..", "X..X.....X.", "..X..X.X...", "X....X...X."];
 
+/**
+ * Audífonos de DJ, de arriba abajo: diadema (y=2), almohadilla de la
+ * coronilla y bisagras (y=3) y dos auriculares con reborde (y=4-8) a los lados de la cara, en
+ * x=11-13 y x=31-33. El labio interior del auricular sólo existe en la fila
+ * de arriba y en la de abajo: relleno de lado a lado se fundía con el ojo y
+ * la cara parecía llevar un antifaz. Por eso también las barras de volumen
+ * se corrieron a x=36. Es el único accesorio que se pinta *sobre* la cara.
+ */
+const AUDIFONOS = [
+  "...XXXXXXXXXXXXXXXXX...",
+  ".XX.....XXXXXXX.....XX.",
+  "XXX.................XXX",
+  "XX...................XX",
+  "XX...................XX",
+  "XX...................XX",
+  "XXX.................XXX",
+];
+/**
+ * Boca de Pac-Man: el vértice queda a la izquierda y la cuña abre hacia la
+ * derecha, que es de donde llega tu voz. Tres cuadros = un mordisco; el ciclo
+ * (.6s) es múltiplo del paso de la onda (.2s) para que cada barra entre
+ * siempre en la misma fase de la mordida.
+ */
+const PAC_ABIERTA = ["....XXX", "..XXXXX", "XXXXXXX", "XXXXXXX", "..XXXXX", "....XXX"];
+const PAC_MEDIA = [".......", ".....XX", "XXXXXXX", "XXXXXXX", ".....XX", "......."];
+const PAC_CERRADA = [".......", ".......", "XXXXXXX", "XXXXXXX", ".......", "......."];
+/** Burbuja del eructo: cuatro filas para que salga redonda. Con tres se
+ *  leía como una cruz verde, que no es lo que queremos decir. */
+const PUFF = [".XX.", "XXXX", "XXXX", ".XX."];
+
 // ─── motorcito de fotogramas ────────────────────────────────────────────────
 /** Alterna N dibujos a partes iguales (el clásico flipbook). */
 const flip = (list: string[], dur: string) =>
@@ -174,17 +223,21 @@ const SPINNER_CARRIL = `<g opacity=".16">${SPINNER.join("")}</g>`;
 
 /** Barras que suben con tu voz de verdad (--lvl lo actualiza el HUD). */
 const VU = `<g class="vu">
-  <rect class="v1" x="34" y="4" width="2" height="12"/>
-  <rect class="v2" x="38" y="4" width="2" height="12"/>
-  <rect class="v3" x="42" y="4" width="2" height="12"/>
+  <rect class="v1" x="36" y="4" width="2" height="12"/>
+  <rect class="v2" x="40" y="4" width="2" height="12"/>
+  <rect class="v3" x="44" y="4" width="2" height="12"/>
 </g>`;
 
-// ─── 25 caritas: 5 por estado ───────────────────────────────────────────────
+// ─── 26 caritas: 5 por estado + el eructo, que sólo sale tras la comilona ───
+// Regla nueva (28/08): **ninguna carita tiene los ojos quietos**, y el gesto de
+// los ojos no se repite entre caritas. Es lo que las separa unas de otras
+// cuando el accesorio se parece.
 export const V: Record<FaceState, Variant[]> = {
   reposo: [
     {
+      // Respira y parpadea, con un destello en el ojo mientras está abierto.
       status: "Dicho",
-      scene: `<g class="a-resp">${blink(eyes(OJO, 5), eyes(OJO_LINEA, 7))}${spr(SONRISA, 18, 12)}</g>`,
+      scene: `<g class="a-resp">${blink(eyes(OJO_BRILLO, 5), eyes(OJO_LINEA, 7))}${spr(SONRISA, 18, 12)}</g>`,
     },
     {
       status: "Dicho",
@@ -193,33 +246,48 @@ export const V: Record<FaceState, Variant[]> = {
         ${spr(SONRISA, 18, 12)}`,
     },
     {
+      // Dormido: la línea de los ojos sube y baja un píxel, como respirando.
       status: "Zzz…",
-      scene: `${eyes(OJO_LINEA, 7)}${spr(BOCA_CHICA, 21, 12)}
+      scene: `${flip([eyes(OJO_LINEA, 7), eyes(OJO_LINEA, 8)], "1.8s")}${spr(BOCA_CHICA, 21, 12)}
         <g class="a-zzz">${spr(ZZZ, 36, 6)}</g>
         <g class="a-zzz2">${spr(ZZZ_MINI, 42, 10)}</g>`,
     },
     {
+      // Tarareando: los arcos de los ojos brincan con la nota.
       status: "Dicho",
-      scene: `${eyes(OJO_ARCO, 6)}
+      scene: `${flip([eyes(OJO_ARCO, 6), eyes(OJO_ARCO, 5)], ".8s")}
         ${flip([spr(BOCA_CHICA, 21, 12), spr(BOCA_O, 20, 11)], "1s")}
         <g class="a-nota">${spr(tint(NOTA, "a"), 37, 7)}</g>`,
     },
     {
+      // Bostezo: el párpado va cayendo (entrecerrado → línea → apretado) al
+      // mismo ritmo que se abre la boca.
       status: "Dicho",
-      scene: `${eyes(OJO_LINEA, 7)}
+      scene: `${flip([eyes(OJO_MEDIO, 7), eyes(OJO_LINEA, 7), eyes(OJO_ARCO, 6)], "1.4s")}
         ${flip([spr(BOCA_CHICA, 21, 12), spr(BOCA_O, 20, 11), spr(BOSTEZO, 19, 10)], "1.4s")}`,
     },
   ],
 
   escuchando: [
     {
-      // Las barras siguen el volumen real de tu voz, no un bucle enlatado.
+      // El DJ: los audífonos y el cabeceo son de la carita, pero las barras
+      // siguen siendo tus decibeles de verdad — la música es tu voz. Los ojos
+      // van entrecerrados disfrutando y de vez en cuando se abren.
       status: "Te escucho",
-      scene: `${eyes(OJO, 5)}${spr(BOCA_CHICA, 21, 12)}${VU}`,
+      scene: `<g class="a-dj">${flip(
+        [
+          eyes(OJO_MEDIO, 7),
+          eyes(OJO_ARCO, 6),
+          eyes(OJO_MEDIO, 7),
+          eyes(OJO_BRILLO, 5),
+        ],
+        "1.6s",
+      )}${spr(BOCA_CHICA, 21, 12)}${spr(AUDIFONOS, 11, 2)}</g>${VU}`,
     },
     {
+      // Asiente con la cabeza y remata con un pestañeo contento.
       status: "Ajá, sigue…",
-      scene: `<g class="a-asiente">${eyes(OJO_ARCO, 6)}${spr(SONRISA, 18, 12)}</g>`,
+      scene: `<g class="a-asiente">${blink(eyes(OJO, 5), eyes(OJO_ARCO, 6), "2.2s")}${spr(SONRISA, 18, 12)}</g>`,
     },
     {
       status: "Te escucho",
@@ -228,39 +296,60 @@ export const V: Record<FaceState, Variant[]> = {
         ${spr(SONRISA, 18, 12)}`,
     },
     {
+      // Anotando: baja la mirada al renglón y la vuelve a levantar.
       status: "Anotando…",
-      scene: `${eyes(OJO, 5)}${spr(RAYA, 20, 13)}
+      scene: `${flip([eyes(OJO, 5), eyes(OJO, 6)], ".6s")}${spr(RAYA, 20, 13)}
         <g class="a-lapiz">${spr(tint(LAPIZ, "a"), 39, 8)}</g>
         <g class="a-renglon"><rect x="34" y="13" width="11" height="1" fill="var(--a)"/></g>`,
     },
     {
-      // La boca se abre con el volumen: la carita "habla" contigo.
-      status: "Te escucho",
-      scene: `${eyes(OJO, 5)}<g class="boca-voz">${spr(BOCA_O, 20, 11)}</g>${VU}`,
+      // Comilona: la onda de tu voz entra por la derecha y el Pac-Man se la va
+      // masticando. Los ojos mastican con la boca (abierto → entrecerrado →
+      // apretado, los tres al mismo ritmo que el mordisco). Las barras de la
+      // onda respiran con el volumen real (--lvl): lo que se come es tu voz.
+      status: "Ñam, ñam…",
+      scene: `${flip([eyes(OJO, 5), eyes(OJO_MEDIO, 7), eyes(OJO_ARCO, 6)], ".6s")}
+        ${flip(
+          [spr(PAC_ABIERTA, 19, 10), spr(PAC_MEDIA, 19, 10), spr(PAC_CERRADA, 19, 10)],
+          ".6s",
+        )}
+        <g class="a-onda">${[3, 5, 7, 3, 5, 3, 5]
+          .map(
+            (h, i) =>
+              `<g style="animation-delay:${(i * 0.2).toFixed(1)}s"><rect x="44" y="${
+                12.5 - h / 2
+              }" width="2" height="${h}"/></g>`,
+          )
+          .join("")}</g>`,
     },
   ],
 
   pensando: [
     {
+      // Las pupilas se van arriba y a un lado: la pose de estar pensando.
       status: "Escribiendo…",
-      scene: `${spr(CUENCA, 13, 4)}${spr(CUENCA, 25, 4)}${spr(PUPILA, 15, 5)}${spr(PUPILA, 27, 5)}
+      scene: `${spr(CUENCA, 13, 4)}${spr(CUENCA, 25, 4)}
+        <g class="a-piensa">${spr(PUPILA, 15, 6)}${spr(PUPILA, 27, 6)}</g>
         ${spr(RAYA, 20, 13)}
         <g class="a-pt1">${spr(PUNTO, 35, 12)}</g><g class="a-pt2">${spr(PUNTO, 39, 12)}</g><g class="a-pt3">${spr(PUNTO, 43, 12)}</g>`,
     },
     {
+      // Los ojos suben y bajan siguiendo la vuelta de la ruedita.
       status: "Escribiendo…",
-      scene: `${eyes(OJO, 5)}${spr(RAYA, 20, 13)}
+      scene: `${flip([eyes(OJO, 4), eyes(OJO, 5)], ".8s")}${spr(RAYA, 20, 13)}
         ${SPINNER_CARRIL}${flip(SPINNER, ".8s")}`,
     },
     {
+      // Se le prende el foco y los ojos se abren de par en par, al mismo ritmo.
       status: "Escribiendo…",
-      scene: `${eyes(OJO, 5)}${spr(BOCA_CHICA, 21, 12)}
+      scene: `${flip([eyes(OJO, 5), eyes(OJO_ANCHO, 5)], "1.2s")}${spr(BOCA_CHICA, 21, 12)}
         ${flip([spr(FOCO_OFF, 38, 4), spr(tint(FOCO_ON, "w"), 38, 4)], "1.2s")}`,
     },
     {
-      // Tecleando: las manos se turnan sobre el teclado.
+      // Tecleando: las manos se turnan sobre el teclado y los ojos van de
+      // izquierda a derecha, como quien relee lo que va escribiendo.
       status: "Escribiendo…",
-      scene: `${eyes(OJO, 5)}${spr(RAYA, 20, 13)}
+      scene: `<g class="a-leer">${eyes(OJO, 5)}</g>${spr(RAYA, 20, 13)}
         ${spr(TECLADO, 34, 13)}
         ${flip(
           [
@@ -271,8 +360,9 @@ export const V: Record<FaceState, Variant[]> = {
         )}`,
     },
     {
+      // Concentrado: el ojo se abre a medias y se vuelve a cerrar, sin prisa.
       status: "Escribiendo…",
-      scene: `${eyes(OJO_LINEA, 7)}${spr(BOCA_CHICA, 21, 12)}
+      scene: `${flip([eyes(OJO_LINEA, 7), eyes(OJO_MEDIO, 7)], "1.3s")}${spr(BOCA_CHICA, 21, 12)}
         ${spr(MARCO, 34, 8)}
         <g class="a-barra"><rect x="35" y="9" width="10" height="1" fill="var(--m)"/></g>`,
     },
@@ -286,28 +376,31 @@ export const V: Record<FaceState, Variant[]> = {
         <g class="a-pulgar">${spr(tint(PULGAR, "a"), 39, 7)}</g>`,
     },
     {
+      // Ojos de estrella cuando saltan las chispas: el clásico del tamagotchi.
       status: "¡Listo!",
-      scene: `${eyes(OJO_ARCO, 6)}${spr(SONRISOTA, 19, 11)}
+      scene: `${flip([eyes(OJO_ARCO, 6), eyes(OJO_ESTRELLA, 4)], "1s")}${spr(SONRISOTA, 19, 11)}
         <g class="a-chispa1">${spr(tint(CHISPA, "m"), 34, 3)}</g>
         <g class="a-chispa2">${spr(tint(CHISPITA, "m"), 42, 10)}</g>`,
     },
     {
-      // La de los lentes, ahora alineada: el marco encuadra los dos ojos.
+      // La de los lentes: los ojos se abren de golpe justo antes de que le
+      // caigan encima, y los cristales los tapan.
       status: "¡Listo!",
-      scene: `${eyes(OJO, 5)}${spr(SONRISA_LADO, 18, 12)}
+      scene: `${flip([eyes(OJO, 5), eyes(OJO_ANCHO, 5)], ".45s")}${spr(SONRISA_LADO, 18, 12)}
         <g class="a-lentes">${spr(LENTES, 12, 3)}
           <g class="a-brillo">${spr(BRILLO, 14, 4)}</g>
         </g>`,
     },
     {
       status: "¡Órale!",
-      scene: `<g class="a-baila">${eyes(OJO_ARCO, 6)}${spr(SONRISOTA, 19, 11)}</g>
+      scene: `<g class="a-baila">${flip([eyes(OJO_ARCO, 6), eyes(OJO_ARCO, 5)], ".4s")}${spr(SONRISOTA, 19, 11)}</g>
         <g class="a-mar1">${spr(tint(MARACA, "p"), 8, 8)}</g>
         <g class="a-mar2">${spr(tint(MARACA, "p"), 38, 8)}</g>`,
     },
     {
+      // Ojos de corazón entre el confeti: te quiere.
       status: "Got it!",
-      scene: `${eyes(OJO_ARCO, 6)}${spr(SONRISOTA, 19, 11)}
+      scene: `${flip([eyes(OJO_ARCO, 6), eyes(OJO_CORAZON, 4)], "1.4s")}${spr(SONRISOTA, 19, 11)}
         <g class="a-confeti">${(
           [
             ["p", -10, -6],
@@ -324,35 +417,71 @@ export const V: Record<FaceState, Variant[]> = {
           )
           .join("")}</g>`,
     },
+    {
+      // El postre de la comilona: se comió tu voz y ahora la devuelve. Sólo
+      // sale detrás de la carita del Pac-Man (el HUD las encadena), nunca al
+      // azar. La boca se abre un cuarto del bucle, justo cuando sale el aire:
+      // por eso son tres cuadros cerrados y uno abierto, y los ojos van
+      // entrecerrados de gusto hasta que el eructo se los aprieta.
+      status: "¡Provechito!",
+      scene: `${flip(
+        [
+          eyes(OJO_MEDIO, 7),
+          eyes(OJO_MEDIO, 7),
+          eyes(OJO_MEDIO, 7),
+          eyes(OJO_ARCO, 6),
+        ],
+        "1.2s",
+      )}
+        ${flip(
+          [
+            spr(BOCA_CHICA, 21, 12),
+            spr(BOCA_CHICA, 21, 12),
+            spr(BOCA_CHICA, 21, 12),
+            spr(BOSTEZO, 19, 10),
+          ],
+          "1.2s",
+        )}
+        <g class="a-eructo">${spr(tint(PUFF, "m"), 27, 11)}</g>
+        <g class="a-eructo2">${spr(tint(PUNTO, "m"), 28, 12)}</g>`,
+    },
   ],
 
   "no-entendi": [
     {
+      // Los ojos caídos se van cayendo un píxel más mientras baja la lágrima.
       status: "No escuché nada, lo siento",
       sad: true,
       shake: true,
-      scene: `${eyes(OJO_TRISTE, 6)}${spr(ZIGZAG, 18, 12)}
+      scene: `${flip([eyes(OJO_TRISTE, 6), eyes(OJO_TRISTE, 7)], "1.3s")}${spr(ZIGZAG, 18, 12)}
         <g class="a-gota">${spr(tint(GOTA, "s"), 38, 4)}</g>`,
     },
     {
       status: "¿Me repites?",
       sad: true,
-      // Ladear la cabeza sin rotar: un ojo sube, el otro baja y la boca se tuerce.
-      scene: `${spr(OJO, LX, 6)}${spr(OJO, RX, 4)}${spr(LADEADA, 18, 12)}
+      // Ladear la cabeza sin rotar: un ojo sube, el otro baja y la boca se
+      // tuerce. El parpadeo respeta esa asimetría, cada ojo a su altura.
+      scene: `${blink(
+        spr(OJO, LX, 6) + spr(OJO, RX, 4),
+        spr(OJO_LINEA, LX, 8) + spr(OJO_LINEA, RX, 6),
+        "2.6s",
+      )}${spr(LADEADA, 18, 12)}
         <g class="a-interr">${spr(tint(INTERR, "w"), 39, 3)}</g>`,
     },
     {
+      // Avergonzado: no se atreve a abrir del todo los ojos.
       status: "Perdón…",
       sad: true,
-      scene: `${eyes(OJO_LINEA, 7)}${spr(BOCA_CHICA, 21, 12)}
+      scene: `${flip([eyes(OJO_LINEA, 7), eyes(OJO_MEDIO, 7)], "1.2s")}${spr(BOCA_CHICA, 21, 12)}
         <g class="a-rubor">${spr(tint(CACHETE, "p"), 12, 9)}${spr(tint(CACHETE, "p"), 31, 9)}</g>
         <g class="a-pt1">${spr(PUNTO, 37, 12)}</g><g class="a-pt2">${spr(PUNTO, 41, 12)}</g><g class="a-pt3">${spr(PUNTO, 45, 12)}</g>`,
     },
     {
-      // También se reutiliza para los errores de la app.
+      // También se reutiliza para los errores de la app. Con el ruido, cada
+      // tanto los ojos se le van en aspas.
       status: "Señal perdida",
       sad: true,
-      scene: `${eyes(OJO, 5)}${spr(RAYA, 20, 13)}
+      scene: `${flip([eyes(OJO, 5), eyes(OJO, 5), eyes(OJO_ASPA, 4)], ".72s")}${spr(RAYA, 20, 13)}
         <g opacity=".6">${flip(
           [spr(RUIDO_A, 34, 3) + spr(RUIDO_B, 35, 12), spr(RUIDO_B, 34, 3) + spr(RUIDO_A, 35, 12)],
           ".24s",
@@ -368,6 +497,14 @@ export const V: Record<FaceState, Variant[]> = {
     },
   ],
 };
+
+/**
+ * Caritas encadenadas: si mientras hablabas salió la comilona (`escuchando`),
+ * la respuesta al terminar es el eructo (`listo`) — nunca sale por su cuenta.
+ * Se exportan para que el HUD no lleve números mágicos.
+ */
+export const CARITA_COMILONA = 4;
+export const CARITA_ERUCTO = 5;
 
 export const MIC_SVG = `<svg viewBox="0 0 7 13">${spr(
   [".aaa.", "aaaaa", "a.a.a", "aaaaa", "a.a.a", "aaaaa", ".aaa.", "..a..", "..a..", ".aaa."],
@@ -460,9 +597,11 @@ ${FLIP_CSS}
   .vu .v1 { transform: scaleY(calc(.16 + var(--lvl, .1) * .55)); }
   .vu .v2 { transform: scaleY(calc(.2 + var(--lvl, .1) * .8)); }
   .vu .v3 { transform: scaleY(calc(.16 + var(--lvl, .1) * .42)); }
-  .boca-voz { transform-box: fill-box; transform-origin: center center;
-              transform: scaleY(calc(.45 + var(--lvl, .1) * .9));
-              transition: transform .07s linear; }
+  /* La onda que se come el Pac-Man también respira con tu voz: la barra viaja
+     en el <g> y el nivel escala el <rect>, así los dos transforms conviven. */
+  .a-onda rect { fill: var(--a); transform-box: fill-box; transform-origin: center center;
+                 transform: scaleY(calc(.4 + var(--lvl, .1) * .85));
+                 transition: transform .07s linear; }
 
   @keyframes resp { 0% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
   @keyframes mira { 0% { transform: translateX(0); } 30% { transform: translateX(-1px); }
@@ -470,6 +609,13 @@ ${FLIP_CSS}
   @keyframes asiente { 0% { transform: translateY(0); } 50% { transform: translateY(2px); } }
   @keyframes atento { 0% { transform: translate(0, 0); } 25% { transform: translate(1px, 0); }
                       50% { transform: translate(0, 1px); } 75% { transform: translate(-1px, 0); } }
+  /* Mirada pensativa: las pupilas se van arriba y a la izquierda. Arrancan
+     en y=6 justo para poder subir sin montarse en el borde de la cuenca. */
+  @keyframes piensa { 0% { transform: translate(0, 0); } 30% { transform: translate(0, -1px); }
+                      60% { transform: translate(-1px, -1px); } 85% { transform: translate(0, -1px); } }
+  /* Releer lo que va saliendo: los ojos barren de izquierda a derecha. */
+  @keyframes leer { 0% { transform: translateX(-1px); } 25% { transform: translateX(0); }
+                    50% { transform: translateX(1px); } 75% { transform: translateX(0); } }
   @keyframes busca { 0% { transform: translate(0, 0); } 25% { transform: translate(-1px, 1px); }
                      50% { transform: translate(1px, 0); } 75% { transform: translate(1px, 1px); } }
   @keyframes sube { 0% { transform: translate(0, 3px); opacity: 0; }
@@ -520,11 +666,35 @@ ${FLIP_CSS}
   @keyframes lupa { 0% { transform: translate(0, 0); } 25% { transform: translate(-4px, 2px); }
                     50% { transform: translate(-8px, 0); } 75% { transform: translate(-3px, 2px); } }
 
+  /* Cabeceo del DJ: sólo baja y va hacia la izquierda. Si se moviera a la
+     derecha, el auricular (x=33) chocaría con la primera barra (x=34). */
+  @keyframes dj { 0% { transform: translate(0, 0); } 25% { transform: translate(0, 1px); }
+                  50% { transform: translate(0, 0); } 75% { transform: translate(-1px, 1px); } }
+  /* La onda entra por x=44 y avanza 3 px cada 0.2 s hasta pegarse a la boca
+     (x=26), donde desaparece: siete pasos, siete barras, un desfile seguido. */
+  @keyframes onda { 0% { transform: translateX(0); opacity: 1; }
+                    14.3% { transform: translateX(-3px); opacity: 1; }
+                    28.6% { transform: translateX(-6px); opacity: 1; }
+                    42.9% { transform: translateX(-9px); opacity: 1; }
+                    57.1% { transform: translateX(-12px); opacity: 1; }
+                    71.4% { transform: translateX(-15px); opacity: 1; }
+                    85.7% { transform: translateX(-18px); opacity: 1; }
+                    100% { transform: translateX(-18px); opacity: 0; } }
+  /* El eructo aparece al 75 % del bucle, que es cuando la boca se abre. */
+  @keyframes eructo { 0% { transform: translate(0, 0); opacity: 0; }
+                      75% { transform: translate(0, 0); opacity: 1; }
+                      81% { transform: translate(2px, -1px); opacity: 1; }
+                      87% { transform: translate(4px, -2px); opacity: 1; }
+                      93% { transform: translate(6px, -3px); opacity: 1; }
+                      100% { transform: translate(8px, -4px); opacity: 0; } }
+
   .a-resp { animation: resp 2s steps(1, end) infinite; }
   .a-mira { animation: mira 2.4s steps(1, end) infinite; }
   .a-asiente { animation: asiente .8s steps(1, end) infinite; }
   .a-atento { animation: atento .9s steps(1, end) infinite; }
   .a-busca { animation: busca 1.2s steps(1, end) infinite; }
+  .a-piensa { animation: piensa 1.6s steps(1, end) infinite; }
+  .a-leer { animation: leer .52s steps(1, end) infinite; }
   .a-zzz { animation: sube 1.8s linear infinite; }
   .a-zzz2 { animation: sube 1.8s linear .9s infinite; }
   .a-nota { animation: sube 1.6s linear infinite; }
@@ -550,13 +720,19 @@ ${FLIP_CSS}
   .a-interr { animation: interr 1.6s steps(1, end) infinite; }
   .a-rubor { animation: rubor 1.2s steps(1, end) infinite; }
   .a-lupa { animation: lupa 1.6s steps(1, end) infinite; }
+  .a-dj { animation: dj .8s steps(1, end) infinite; }
+  .a-onda > g { opacity: 0; animation: onda 1.4s steps(1, end) infinite; }
+  .a-eructo, .a-eructo2 { opacity: 0; animation: eructo 1.2s steps(1, end) infinite; }
+  /* Dos pasos exactos (2 × 6 % de 1,2 s) por detrás de la burbuja grande:
+     la chica va saliendo de la boca mientras la otra ya se aleja. */
+  .a-eructo2 { animation-delay: .144s; }
 `;
 
 /** Nombre y momento de cada estado, para el catálogo de Ajustes. */
 export const ESTADOS: { key: FaceState; titulo: string; cuando: string }[] = [
-  { key: "escuchando", titulo: "Te escucho", cuando: "Mientras mantienes pulsado el atajo. Dos de estas cinco se mueven con el volumen real de tu voz." },
+  { key: "escuchando", titulo: "Te escucho", cuando: "Mientras mantienes pulsado el atajo. El DJ y la comilona se mueven con el volumen real de tu voz." },
   { key: "pensando", titulo: "Escribiendo", cuando: "Transcribiendo y puliendo lo que dijiste (1-3 s)." },
-  { key: "listo", titulo: "Listo", cuando: "Con el texto ya pegado. La cara de los lentes sale cuando el dictado va en español." },
+  { key: "listo", titulo: "Listo", cuando: "Con el texto ya pegado. La de los lentes sale cuando el dictado va en español, y el eructo sólo si antes te salió la carita comilona." },
   { key: "no-entendi", titulo: "No entendí", cuando: "El audio venía mudo o no se entendió nada." },
   { key: "reposo", titulo: "En reposo", cuando: "El instante antes de empezar a grabar." },
 ];

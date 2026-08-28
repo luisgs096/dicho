@@ -57,21 +57,30 @@ sesión, se reescribe entera. Y commitear el resultado.
   abrir Ajustes (callado si no hay nada o no hay internet, ruidoso sólo si el usuario
   pulsó el botón), descarga con progreso e instala. La verificación de firma la hace
   el plugin de Tauri, no este código.
-- `src/windows/Animaciones.tsx` — catálogo modal de las 25 caritas, animándose de verdad.
+- `src/windows/Animaciones.tsx` — catálogo modal de las 26 caritas, animándose de verdad.
   Importa `V`/`MIC_SVG`/`FACE_CSS` de `faces.ts`, o sea que muestra exactamente lo que
   verá el usuario al dictar; si se añade una carita, aparece aquí sola.
-- `src/windows/faces.ts` — motor de caritas: sprites en mapas de texto, las 25
+- `src/windows/faces.ts` — motor de caritas: sprites en mapas de texto, las 26
   escenas y el CSS (carcasa + animaciones). Reglas: coordenadas enteras, rejilla
   fija (ojos de 3 px en x=15 y x=27, cara centrada en 22), un gesto por carita,
   bucles ≤1,4 s y movimiento a `steps(1, end)` para que el pixel-art no tiemble.
+  Desde el 28/08 hay dos reglas más: **ninguna carita tiene los ojos quietos** y
+  el gesto de ojos no se repite entre caritas (es lo que las distingue cuando el
+  accesorio se parece). El repertorio sale del vocabulario tamagotchi —abierto,
+  con destello, de par en par, entrecerrado, cerrado, contento, caído, estrella,
+  corazón, aspa— y **todos son de ancho impar**: `eyes()` centra con
+  `(3 - ancho) / 2`, así que un ancho par los dejaría a medio píxel.
+  Exporta `CARITA_COMILONA`/`CARITA_ERUCTO`, los dos índices que el HUD encadena.
   Se previsualiza con `npx esbuild src/windows/faces.ts --bundle --format=iife
   --global-name=FACES` + una página que pinte `FACES.V`.
 - `src/windows/Hud.tsx` — HUD con dos estilos conmutables desde Ajustes
   (`settings.hud_style`, evento `settings-changed` para refrescar al vuelo):
-  - `tamagotchi` (default): pantalla LCD pixel (viewBox `0 2 48 16`), 25 caritas =
+  - `tamagotchi` (default): pantalla LCD pixel (viewBox `0 2 48 16`), 26 caritas =
     5 variaciones × 5 estados elegidas al azar por transición, reacción por idioma
     en "listo" (heurística es/en sobre el texto). La variable CSS `--lvl` lleva el
-    volumen real del micro a las caritas reactivas (barras y boca).
+    volumen real del micro a las caritas reactivas (barras del DJ y onda del Pac-Man).
+    La 26ª es el **eructo**, que no entra en el sorteo: `comioRef` recuerda si la
+    carita de "te escucho" fue la comilona y sólo entonces `pick("listo")` lo devuelve.
   - `classic`: pill claro + 5 barras movidas por `audio-level` (rAF); en `empty` las
     barras se pintan naranjas, el fondo se tiñe, vibra y dice "Perdón, no escuché…".
 
@@ -237,7 +246,7 @@ que comprobar firma y SHA256 contra lo que descarga la app.
 - **HUD siempre visible**: aparece en el monitor de la ventana activa (no en el primario)
   y reafirma su z-order cada 250 ms. Probado en las dos pantallas del usuario, incluida la
   4K al 250 % — que además destapó que WebView2 no reescala solo (ver gotchas).
-- **25 caritas** con reglas de pixel-art documentadas en `faces.ts`, dos de ellas movidas
+- **26 caritas** con reglas de pixel-art documentadas en `faces.ts`, dos de ellas movidas
   por el volumen real del micro, y catálogo navegable desde Ajustes.
 - **Robustez de voz**: compuerta de silencio, filtro de alucinaciones, y el pulido ya no
   puede devolver un dictado truncado (comprueba `finish_reason`).

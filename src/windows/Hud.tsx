@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { AppSettings, HudStyle, RecordingState } from "../types";
-import { FACE_CSS, MIC_SVG, V, type FaceState } from "./faces";
+import {
+  CARITA_COMILONA,
+  CARITA_ERUCTO,
+  FACE_CSS,
+  MIC_SVG,
+  V,
+  type FaceState,
+} from "./faces";
 
 function hudLog(msg: string) {
   invoke("hud_log", { msg }).catch(() => {});
@@ -94,8 +101,10 @@ function detectLang(text: string): "es" | "en" | null {
   return null;
 }
 
-function pick(state: FaceState, text?: string): number {
+function pick(state: FaceState, text?: string, comio = false): number {
   if (state === "listo") {
+    // Si mientras hablabas se comió tu voz, la respuesta obligada es el eructo.
+    if (comio) return CARITA_ERUCTO;
     const lang = detectLang(text ?? "");
     const pool =
       lang === "es" ? [0, 1, 2, 3] : lang === "en" ? [0, 1, 2, 4] : [0, 1, 2];
@@ -132,6 +141,9 @@ export default function Hud() {
   const displayRef = useRef<number[]>(Array(5).fill(BAR_MIN));
   const recRef = useRef(rec);
   recRef.current = rec;
+  // ¿La carita de "te escucho" que tocó esta vez fue la comilona? Decide si al
+  // terminar toca el eructo.
+  const comioRef = useRef(false);
   // Cuánto llevas del tope del dictado (0-1) y cuál es ese tope; lo manda el
   // backend al empezar a grabar.
   const [cap, setCap] = useState(0);
@@ -187,7 +199,11 @@ export default function Hud() {
       const idx = pick(
         face,
         e.payload.state === "done" ? e.payload.text : undefined,
+        comioRef.current,
       );
+      // Se apunta en cada grabación, así que nunca queda un eructo colgado de
+      // un dictado anterior.
+      if (face === "escuchando") comioRef.current = idx === CARITA_COMILONA;
       setVariant(idx);
       hudLog(`evento ${e.payload.state} → carita ${face}[${idx}]`);
     });

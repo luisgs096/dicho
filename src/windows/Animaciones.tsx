@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { ESTADOS, FACE_CSS, MIC_SVG, V, cssVars, type Variant } from "./faces";
 
+/** Se cuenta sola: añadir una carita a faces.ts actualiza este número. */
+const TOTAL = Object.values(V).reduce((n, l) => n + l.length, 0);
+
 /**
  * Catálogo de las caritas del HUD. Pinta exactamente los mismos sprites y el
  * mismo CSS que la onda flotante (`faces.ts`), así que nunca se desincroniza
@@ -59,7 +62,9 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
               Las caritas de Dicho
             </h2>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              25 en total: cinco por estado, y en cada dictado sale una al azar.
+              {TOTAL} en total: cinco por estado más el eructo, que sólo sale
+              detrás de la comilona. En cada dictado toca una al azar, y ninguna
+              tiene los ojos quietos: cada una usa un gesto distinto.
             </p>
           </div>
           <button
