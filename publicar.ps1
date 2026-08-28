@@ -73,6 +73,11 @@ $psi.WorkingDirectory = $raiz
 $psi.UseShellExecute  = $false
 $psi.EnvironmentVariables["TAURI_SIGNING_PRIVATE_KEY"]          = [IO.File]::ReadAllText($clave)
 $psi.EnvironmentVariables["TAURI_SIGNING_PRIVATE_KEY_PASSWORD"] = ""
+# aws-lc-sys (via reqwest -> rustls) ensambla con NASM, que este equipo no
+# tiene. El crate trae objetos pre-ensamblados justo para este caso. Solo hace
+# falta cuando aws-lc-sys tiene que recompilarse, pero dejarlo puesto no cuesta
+# nada y evita que un 'cargo clean' tumbe la siguiente publicacion.
+$psi.EnvironmentVariables["AWS_LC_SYS_PREBUILT_NASM"]           = "1"
 $proc = [System.Diagnostics.Process]::Start($psi)
 $proc.WaitForExit()
 if ($proc.ExitCode -ne 0) { throw "La compilacion fallo (codigo $($proc.ExitCode))" }

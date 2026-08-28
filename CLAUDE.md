@@ -148,6 +148,45 @@ sesión, se reescribe entera. Y commitear el resultado.
   que Tauri escribe en stderr (hasta un `Info` inocuo) en `NativeCommandError` y aborta el
   script. Es la misma trampa que `2>&1` sobre ejecutables nativos en PowerShell 5.1.
 - En Bash, `cmd | tail` se traga el exit code: usar `set -o pipefail`.
+- **El `target/` guarda rutas absolutas: mover la carpeta del proyecto lo rompe.**
+  El proyecto vivía en `C:\dev\Mike` y ahora en `C:\dev\Proyectos Personales\Mike`;
+  los artefactos viejos seguían apuntando a la ruta vieja y el build moría con
+  `failed to read plugin permissions: ... C:\dev\Mike\...` (os error 3), un
+  mensaje que no menciona la mudanza por ningún lado. Se arregla con
+  `cargo clean` del perfil afectado — y son dos: `cargo clean -p tauri` sólo
+  limpia **debug**, para release hace falta `--release`. La cura completa fue
+  `cargo clean --release` (3,6 GB, ~40 min de recompilación).
+- **`aws-lc-sys` necesita NASM y este equipo no lo tiene.** Sale al reconstruir
+  desde cero (antes vivía de un artefacto cacheado de hace meses):
+  `NASM command not found`. En vez de instalar NASM se usa la salida oficial del
+  crate, `AWS_LC_SYS_PREBUILT_NASM=1`, que ya está puesta en `publicar.ps1`.
+  Ojo: sus `.o` los compila con el crate `cc`, que **no cachea entre intentos**,
+  así que un build cortado a la mitad reempieza de cero.
+- **Compilar en limpio dura más que el límite por comando de una sesión.** Un
+  build completo de release son ~45 min y los comandos mueren a los 10. La
+  salida es desprender el proceso: un `.cmd` lanzado con
+  `Start-Process explorer.exe -ArgumentList "…\lanzar.cmd"`, que redirige a un
+  log y deja un archivo centinela al terminar; luego se espera con un
+  `until [ -f centinela ]` que sí se puede rearmar. Comprobado: así aguantó
+  40 min de compilación mientras la sesión iba y venía. Redirigir el proceso
+  entero a un archivo (`> log 2>&1` desde cmd) **no** es lo mismo que canalizar
+  en PowerShell, así que no cae en la trampa del `NativeCommandError`.
+- **`Start-Process explorer.exe -ArgumentList mike.exe` no basta para relanzar
+  Dicho** (28/08): la app arranca, se ve viva unos segundos y muere en cuanto
+  termina el comando. Lo que sí funciona es el mismo rodeo del `.cmd`: un
+  archivo con `start "" "%LOCALAPPDATA%\Dicho\mike.exe"` lanzado por explorer.
+  Se verifica en **dos llamadas separadas**: dentro de la misma sigue vivo
+  aunque esté condenado.
+- **El instalador con `/S` puede dejar el `mike.exe` viejo** (28/08). Salió con
+  código 0, actualizó el registro y el `uninstall.exe` a 0.6.0… y no tocó el
+  binario, que se quedó en 0.5.0 con su fecha vieja, con la app cerrada y sin
+  nada bloqueándolo. Relanzarlo con `/P /R` (pasivo, el mismo modo que usa el
+  updater) sí lo reemplazó. **No basta con el código de salida**: hay que
+  comprobar `(Get-Item $exe).VersionInfo.FileVersion` después de instalar.
+  Y ojo, la otra comprobación documentada —buscar una cadena nueva dentro del
+  exe— **no sirve para cambios de frontend**: los assets van comprimidos dentro
+  del binario, así que `Contains("<texto de la UI>")` da falso aunque el build
+  sea el correcto. Para UI, la versión es el único discriminador fiable.
 - **El instalador NSIS no vuelve a abrir la app si la encuentra abierta.** Trae un `/R`
   para relanzarla y el plugin del updater se lo pasa (`installMode: passive` →
   `["/P", "/R"]`), pero sólo surte efecto si Dicho ya está cerrado cuando arranca el
@@ -182,9 +221,9 @@ sesión, se reescribe entera. Y commitear el resultado.
 
 | | |
 |---|---|
-| Versión publicada e instalada | **v0.5.0**, corriendo |
+| Versión publicada e instalada | **v0.6.0**, corriendo (28/08) |
 | Repo | `main` en `8d02400`, **público**, sincronizado con GitHub |
-| Releases vivas | v0.2.0 … v0.5.0, todas firmadas y verificadas |
+| Releases vivas | v0.2.0 … v0.6.0, todas firmadas y verificadas |
 | Tests | `cargo test --lib` → **13 verdes** |
 | Build | `npm run build` limpio |
 | Árbol de trabajo | limpio, nada suelto |
