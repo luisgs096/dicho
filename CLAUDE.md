@@ -6,17 +6,18 @@ app dictándole a Claude; prioriza soluciones locales y gratuitas.
 
 ## Cuando luisg diga "cierre"
 
-Pide un **checkpoint escrito aquí**, no un resumen en el chat: la siguiente instancia tiene
-que poder arrancar leyendo sólo este archivo. Trabaja con instancias que no comparten
-memoria, así que lo que no quede en el `.md` se pierde.
+Lo lleva la skill **`cierre`** (`~/.claude/skills/cierre/`): ahí está el procedimiento
+entero y la plantilla. Lo esencial, por si la skill no está a mano:
 
-El cierre deja por escrito: **qué se hizo** y **qué archivos se tocaron**; los **hallazgos**
-(bugs, con su causa raíz y cómo se reprodujeron); los **aprendizajes/gotchas** que costaron
-descubrir; las **actualizaciones** publicadas; los **pendientes**, separando lo que puede
-hacer la siguiente instancia de lo que sólo puede hacer él; y **dónde estamos parados**.
+Pide un **checkpoint escrito aquí**, no un resumen en el chat — trabaja con instancias que
+no comparten memoria, así que lo que no quede en el `.md` se pierde. Vive en la sección
+`## Checkpoint` de este archivo, **una sola**, y se **reescribe entera** cada vez:
+consolidar, no apilar. Los títulos de sus subsecciones son un contrato con la skill de
+status, que los lee para saber dónde estamos parados; no cambiarles el nombre.
 
-Consolidar, no apilar: si una sección se desordenó con ediciones incrementales durante la
-sesión, se reescribe entera. Y commitear el resultado.
+Lo que **no** va en el checkpoint: los gotchas que costaron descubrir van a "Convenciones y
+gotchas", y los cambios de arquitectura al "Mapa del código". El checkpoint es estado, no
+conocimiento. Y se commitea con el resto.
 
 ## Mapa del código
 
@@ -284,111 +285,201 @@ sesión, se reescribe entera. Y commitear el resultado.
   `System.Windows.Forms.Form` en la posición deseada y robarle el foco con el truco
   del ALT (`keybd_event(0x12)` antes de `SetForegroundWindow`, si no Windows lo ignora).
 
-## Dónde estamos (27 de agosto de 2026)
+## Checkpoint — 28 de agosto de 2026
 
-### Checkpoint (27/08, cierre de la sesión)
+### Estado
 
 | | |
 |---|---|
-| Versión publicada | **v0.8.0** (28/08), firmada y verificada. Se actualiza sola al abrir Ajustes |
-| Repo | `main` en `8d02400`, **público**, sincronizado con GitHub |
+| Versión publicada | **v0.8.0**, firmada y verificada (firma y SHA256 contra lo que descarga la app) |
+| Versión en uso | **0.7.0** instalada y corriendo en el equipo de luisg; la 0.8.0 entra sola al abrir Ajustes |
+| Repo | `main` en `99f67be`, **público**, sincronizado con GitHub |
 | Releases vivas | v0.2.0 … v0.8.0, todas firmadas y verificadas |
 | Tests | `cargo test --lib` → **19 verdes** |
 | Build | `npm run build` limpio |
 | Árbol de trabajo | limpio, nada suelto |
-| Único pendiente crítico | respaldar `dicho.key` (sólo puede hacerlo luisg) |
+| Pendiente crítico | respaldar `dicho.key` — **sólo puede hacerlo luisg** |
 
-Dicho está **en uso diario y estable**, y desde hoy **se actualiza solo**. El veredicto del
-usuario esta mañana: "es bastante preciso ahora y ya puedo hablar con mayor fluidez sin
-miedo a que no lo vaya a entender".
+Dicho está **en uso diario y estable**: 381 dictados en `dicho.log` y **ni un error**. Se
+actualiza solo desde el 27/08 (medido: 7 s de punta a punta, sin intervención). El motor
+por defecto en el equipo de luisg es Groq Whisper; el local (Parakeet V3) queda de reserva
+y para trabajar sin internet.
 
-### Qué pasó el 27/08 y qué se tocó
+### Qué pasó en la última sesión
 
-La sesión empezó como un chequeo de rutina y destapó que **la auto-actualización nunca
-había funcionado**: no existía ninguna release y la copia instalada seguía siendo la 0.1.0,
-sin updater. Arreglarlo de verdad costó cuatro releases y tres bugs encadenados.
+El encargo fue **poder mover el HUD con el ratón**, porque a veces aparece justo encima de
+lo que estás mirando. Salió en la **0.7.0**. Al usarla de verdad, luisg encontró dos cosas
+en minutos, y ésas se arreglaron en la **0.8.0**, la misma tarde.
 
 **Hallazgos, en orden de aparición:**
 
-1. **`publicar.ps1` nunca llegaba a publicar.** Tres trampas encadenadas, ninguna visible
-   en el error que se veía (documentadas en gotchas): la variable de entorno vacía que
-   PowerShell borra, `npm.cmd` lanzado directo, y canalizar la salida del script.
-2. **La versión del panel lateral estaba escrita a mano** (`v0.1` literal en
-   `Settings.tsx`) mientras Ajustes leía la real con `getVersion()`. Lo detectó el usuario
-   al ver las dos a la vez tras actualizar.
-3. **El instalador NSIS no reabría la app.** Instalaba bien y dejaba al usuario sin Dicho.
-   Reproducido en las dos direcciones antes de tocar nada — ésa fue la clave para dar con
-   la causa (ver gotchas).
-4. **La comprobación de actualizaciones sólo ocurre al abrir Ajustes.** Salió al probar la
-   0.5.0: con la ventana ya abierta, decía que estaba al día.
+1. **El HUD no se podía agarrar de ninguna manera.** Era click-through entero
+   (`set_ignore_cursor_events(true)` → `WS_EX_TRANSPARENT`), puesto a propósito para no
+   comerse los clics de lo que hubiera debajo. Y eso es todo o nada: no se puede hacer
+   transparente sólo un trozo de la ventana. Por eso el arrastre es un **ajuste**
+   (`hud_arrastrable`, encendido por defecto) y no una decisión nuestra. Lo que **no** hubo
+   que sacrificar es el foco: `set_focusable(false)` ya es `WS_EX_NOACTIVATE`, y una
+   ventana así recibe el ratón sin activarse — comprobado con `GetForegroundWindow()`
+   antes y después de arrastrar.
+2. **`publicar.ps1` murió después de compilar y firmar.** PowerShell 5.1 no sabe pasarle a
+   un `.exe` una cadena con comillas dentro: partió las notas del release en trozos y `gh`
+   acabó buscando un asset llamado `la`. El instalador y el `.sig` ya estaban hechos y eran
+   válidos, así que bastó crear el release a mano. Arreglado con `--notes-file`.
+3. **La posición del HUD era una sola para todas las pantallas** (bug de la 0.7.0, lo vio
+   luisg). Colocarlo en la 4K lo movía también en el portátil, y soltarlo en una pantalla
+   no evitaba que el siguiente dictado lo sacara en la otra. Se reprodujo en `dicho.log`
+   sin ambigüedad: `HUD movido a (1162,1088)` seguido, dos segundos después, de
+   `HUD: área (2560,-306,…), pos (4179,1248)`.
+4. **Barras de scroll dentro del HUD** (bug de la 0.7.0, lo vio luisg como "unas rayas a
+   los costados"). No eran cosméticas: son barras de verdad, de las que reservan 15 px, que
+   Windows mete cuando WebView2 se queda con el lienzo viejo al cruzar entre monitores de
+   distinto DPI. Medido sin el arreglo: `scroll=360x96 client=345x81`, y hasta
+   `scroll=1032x224 client=705x177` en pleno salto; con el arreglo, `scroll == client` en
+   todas las transiciones.
 
 **Archivos tocados:**
 
 | Archivo | Qué cambió |
 |---|---|
-| `publicar.ps1` | Build lanzado por `ProcessStartInfo` con la password vacía; firma en paso propio |
-| `src-tauri/src/commands.rs` | `programar_relanzamiento()` + `script_relanzador()` con su test |
-| `src-tauri/src/lib.rs` | Registro del comando nuevo |
-| `src/windows/updater.ts` | Programa el relanzador antes de instalar |
-| `src/windows/Settings.tsx` | La versión del sidebar sale del binario |
-| `CLAUDE.md` | Gotchas, auditoría de secretos, este checkpoint |
-| `tauri.conf.json`, `package.json`, `Cargo.toml` | Versión 0.1.0 → 0.5.0 |
-
-**Aprendizaje que vale para el futuro**: en los tres bugs, lo que resolvió no fue leer el
-error sino **reproducir el fallo en las dos direcciones** (con y sin la condición
-sospechosa). El caso del instalador es el ejemplo puro: el mensaje no decía nada, pero
-"app cerrada antes → vuelve / app cerrándose durante → no vuelve" señaló la causa exacta.
-También quedó claro que **verificar que un release existe no es verificar que sirve**: hay
-que comprobar firma y SHA256 contra lo que descarga la app.
+| `src-tauri/src/overlay.rs` | `arrastrar_con_cursor()`, `window_rect()`, `work_area_of()` |
+| `src-tauri/src/settings.rs` | `HudPos` (fracción, clave por pantalla) + `hud_posiciones`, `hud_arrastrable`, y sus 6 tests |
+| `src-tauri/src/pipeline.rs` | `place_hud()` respeta la posición guardada; `modo_colocar()`, `recolocar_hud()`, banderas `ARRASTRANDO`/`COLOCANDO` |
+| `src-tauri/src/commands.rs` | `hud_arrastrar`, `hud_colocar`, `hud_pos_reset`, `aplicar_raton_hud` |
+| `src-tauri/src/lib.rs` | Registro de comandos; el HUD ya no nace click-through a la fuerza |
+| `src/windows/Hud.tsx` | Se agarra por cualquier punto; `overflow: hidden`; aviso `DESBORDE` en el log |
+| `src/windows/Settings.tsx` | Botones "Mover la onda flotante" / "Devolverla a su sitio" + interruptor |
+| `src/types.ts` | `HudPos`, `hud_posiciones`, `hud_arrastrable` |
+| `publicar.ps1` | Notas del release por `--notes-file` |
+| `CLAUDE.md` | Mapa, gotchas nuevos y este checkpoint |
 
 ### Lo que funciona y está probado
 
 - **Dictado push-to-talk completo**: atajo global (hoy `Ctrl Der`) → graba → transcribe →
-  pule → pega donde estés escribiendo → guarda en historial. Motor por defecto: Groq
-  Whisper; el local (Parakeet V3) queda de reserva y para trabajar sin internet.
-- **Dictados largos sin espera**: el audio se trocea en tus pausas y se transcribe
-  mientras hablas. Medido: 45 s de audio → texto pegado **2 s** después de soltar, en
-  6 trozos; los dictados reales de 30-38 s salen en 2-3 trozos. Tope de 10 min con cinta
-  de capacidad en el HUD (azul a la mitad, naranja al 85 %) y autocorte que transcribe lo
-  dicho en vez de tirarlo.
-- **HUD siempre visible**: aparece en el monitor de la ventana activa (no en el primario)
-  y reafirma su z-order cada 250 ms. Probado en las dos pantallas del usuario, incluida la
-  4K al 250 % — que además destapó que WebView2 no reescala solo (ver gotchas).
-- **HUD movible con el ratón** (28/08): se arrastra a donde no estorbe y se
-  queda ahí. **Cada pantalla recuerda su propio rincón** —guardado en fracción,
-  no en píxeles—, así que colocarlo en la 4K no lo mueve en el portátil y sigue
-  saliendo en el monitor donde estés trabajando. Desde Ajustes se puede colocar
-  con calma sin dictar ("Mover la onda flotante"), devolverlo a su sitio de
-  siempre en todas las pantallas, o apagar el arrastre para que vuelva a ser un
-  cristal que los clics atraviesan.
+  pule → pega donde estés escribiendo → guarda en historial.
+- **Dictados largos sin espera**: el audio se trocea en tus pausas y se transcribe mientras
+  hablas. Medido: 45 s de audio → texto pegado **2 s** después de soltar, en 6 trozos. Tope
+  de 10 min con cinta de capacidad en el HUD y autocorte que transcribe lo dicho en vez de
+  tirarlo.
+- **HUD siempre visible**: aparece en el monitor de la ventana activa (no en el primario) y
+  reafirma su z-order cada 250 ms. Probado en las dos pantallas de luisg, incluida la 4K al
+  250 %.
+- **HUD movible con el ratón** (28/08): se agarra por cualquier punto y se suelta donde no
+  estorbe. **Cada pantalla recuerda su propio rincón**, guardado en fracción del hueco
+  libre y no en píxeles. Probado el viaje de ida y vuelta entre las dos pantallas de luisg:
+  al estrenar la 4K sale en **su** abajo-centro (4030,1439) en vez de heredar el rincón del
+  portátil, y cada pantalla conserva el suyo al ir y volver. Con el ajuste apagado vuelve a
+  ser cristal: `WindowFromPoint` contesta la ventana de abajo y arrastrarlo no lo mueve.
 - **26 caritas** con reglas de pixel-art documentadas en `faces.ts`, dos de ellas movidas
   por el volumen real del micro, y catálogo navegable desde Ajustes.
-- **Robustez de voz**: compuerta de silencio, filtro de alucinaciones, y el pulido ya no
-  puede devolver un dictado truncado (comprueba `finish_reason`).
-- **Repartible a otra gente**: el instalador NSIS no exige cuenta ni configuración —
-  los defaults de `settings.rs` son motor local + pulido por reglas, y la app se descarga
-  sola el modelo (670 MB) al primer arranque. Va sin firma de código, así que SmartScreen
-  avisa: "Más información" → "Ejecutar de todas formas". Sólo x64, nada de ARM.
-- **«cámara» ya sale bien** (27/08): aparece escrita correctamente en el historial
-  ("vuelvo a probarlo de cámara, por ejemplo, la usé ahorita"). El prompt de spanglish la
-  sostiene sin necesidad de entrada de diccionario.
-- Tests y build en verde (27/08): `cargo test --lib` → **13 verdes** (chunker, reglas de
-  pulido, diccionario, script del relanzador), `npm run build` limpio y `dicho.log` sin un
-  solo error en 253 dictados registrados.
+- **Robustez de voz**: compuerta de silencio, filtro de alucinaciones, y el pulido no puede
+  devolver un dictado truncado (comprueba `finish_reason`).
+- **Repartible a otra gente**: el instalador NSIS no exige cuenta ni configuración — los
+  defaults son motor local + pulido por reglas, y la app se descarga sola el modelo
+  (670 MB) al primer arranque. Va sin firma de código, así que SmartScreen avisa: "Más
+  información" → "Ejecutar de todas formas". Sólo x64, nada de ARM.
 
-### Auto-actualización (funcionando de punta a punta)
+### Siguiente paso inmediato
 
-**Estado hoy**: v0.5.0 publicada e instalada en el equipo de luisg. Cuatro releases el
-27/08 (0.2.0 → 0.5.0), todas firmadas y verificadas.
+**Probar el modo colocación de punta a punta**, que es lo único que se publicó sin
+verificar en vivo: el botón "Mover la onda flotante" de Ajustes salió en la 0.7.0 y sigue
+en la 0.8.0, pero nunca se llegó a pulsar de verdad (luisg estaba usando la app y no se le
+podía robar el foco). Las piezas de debajo sí están probadas —`place_hud`, el arrastre, el
+cambio de modo de ratón—, o sea que el riesgo está en el cableado del botón.
 
-**El ciclo completo está probado en vivo**, no sólo en frío. Medido en la 0.4.0 → 0.5.0:
+Cómo: abrir Ajustes → Sistema → "Mover la onda flotante", y comprobar las cuatro cosas:
+
+1. La onda sale y **se queda** a la vista (no se esconde a los 3 s) con el aro punteado y
+   "Arrástrame".
+2. Se puede arrastrar aunque el interruptor de arrastre esté **apagado** (durante la
+   colocación se fuerza a que atrape el ratón).
+3. Al pulsar "Listo, déjala ahí" se esconde y, si el interruptor estaba apagado, vuelve a
+   ser cristal — se ve con `GetWindowLong(hwnd, -20)` y el bit `WS_EX_TRANSPARENT` (0x20).
+4. Cerrando la ventana de Ajustes en mitad de la maniobra también se apaga (lo hace
+   `on_window_event` en `lib.rs`).
+
+Ojo al probarlo: cualquier script que robe el foco interrumpe a luisg si está dictando.
+Mirar antes `dicho.log` para ver si hay actividad reciente.
+
+### Lo que viene, por orden de valor
+
+1. **Confirmar que dejó de traducir.** El arreglo (no fijar idioma + prompt de spanglish +
+   troceo) está puesto pero sólo se ha validado en frío. Se comprueba mirando la columna
+   `raw` del historial tras dictar mezclando idiomas a propósito. Si reaparece: segundo
+   pase con `language` forzado sólo sobre los trozos sospechosos. **Depende de luisg.**
+2. **Sincronización con Google de punta a punta.** El código está entero desde el 23/08 y
+   nunca se ha ejecutado de verdad; bloqueado por el cliente OAuth (ver pendientes).
+3. **Modo mascota**: HUD siempre visible. Ahora que se puede colocar donde no estorbe, esto
+   es mucho más viable que antes: las 5 caritas de reposo casi no se ven porque el HUD sólo
+   sale al dictar, y son las que darían personalidad. **Necesita que luisg decida** si
+   quiere una cápsula permanente en pantalla.
+4. **Purga del historial**: `mike.db` crece sin tope (381 dictados). No hay borrado por
+   antigüedad ni límite de tamaño. Se empieza por `store.rs`. Es lo más sustancioso que se
+   puede hacer **sin depender de luisg**.
+5. **Atajo con teclas no-modificadoras** (hoy se exige al menos un modificador), con doble
+   confirmación para no dejar la app inservible por accidente.
+6. **Parakeet local con dictados largos**: el troceo secuencial está escrito pero no se ha
+   probado con audio real largo en local.
+7. **Vocabulario propio en el prompt del STT.** El diccionario personal llega al pulido con
+   IA (`polish/groq.rs`) pero **no** al `prompt` de Whisper (`stt/groq.rs` sólo manda
+   `PRIME_SPANGLISH`), o sea que hoy sólo puede corregir la palabra *después* de oírla mal,
+   nunca ayudar a oírla bien. Cuidado: ese mismo prompt es lo que frena la traducción, así
+   que meterle una lista de palabras puede debilitarlo — hay que medir antes y después.
+   Baja prioridad hasta que haya una palabra concreta que falle ("cámara", el detonante
+   original, se resolvió sola el 27/08).
+
+### Pendientes que sólo puede hacer el usuario
+
+- **Respaldar la clave privada del updater** (`%USERPROFILE%\.tauri\dicho.key`). El único
+  pendiente crítico, y sólo existe una copia, en este disco. Sin ella, ni luisg ni ninguno
+  de sus testers vuelve a recibir una actualización jamás: habría que reinstalar a mano en
+  cada equipo. **Copiarla, no moverla** — `publicar.ps1` la lee de esa ruta exacta. Acordado
+  el 27/08: arrastrarla a Google Drive como
+  `DICHO - llave de actualizaciones - NO BORRAR NUNCA.key`.
+- **Instalar la 0.8.0**: basta con abrir Ajustes; se actualiza sola y vuelve a abrirse.
+- **Volver a colocar la onda** en cada pantalla. El ajuste cambió de forma en la 0.8.0 (de
+  una posición a una por monitor) y arranca de cero: sale abajo-centro hasta que la coloque.
+- **Crear el cliente OAuth de Google** (Perfil → Configurar, ~5 min y gratis). Es lo único
+  que bloquea la sincronización de diccionario e historial entre equipos.
+- **Dictar a propósito una frase mezclada** ("necesito hacer el deploy, but the client wants
+  a demo first, así que preparo el pitch") y revisar en Historial si el texto crudo la
+  respetó. Es la única prueba real del arreglo de traducción.
+- **Decidir sobre el modo mascota**: ver el punto 3 de "lo que viene".
+- **Avisar si cambia de plan en Groq**: con el gratuito hay 20 peticiones/minuto y por eso
+  los trozos son de 20-55 s; con plan de pago se pueden hacer más cortos (mejor aún contra
+  la traducción) y más paralelos.
+- **Calibrar el umbral de silencio** si algún dictado real se marca como "no entendí": el
+  rms de cada dictado queda en `dicho.log` y el umbral está en `pipeline.rs` (0.0012).
+
+### Comprobar en dos minutos
+
+```sh
+cd src-tauri && cargo test --lib        # 19 verdes
+npm run build                           # tsc + vite, sin errores
+git status --short                      # vacío
+```
+```powershell
+# Version instalada y viva (deberia coincidir con la ultima release publicada):
+$exe = "$env:LOCALAPPDATA\Dicho\mike.exe"
+(Get-Item $exe).VersionInfo.FileVersion
+@(Get-Process mike -ErrorAction SilentlyContinue).Count
+# Salud del ultimo uso: rms y trozos de cada dictado, y el aviso de lienzo roto
+Get-Content "$env:APPDATA\dev.mike.app\dicho.log" -Tail 20
+Select-String -Path "$env:APPDATA\dev.mike.app\dicho.log" -Pattern "DESBORDE|error" | Select-Object -Last 5
+```
+
+Revisión visual de las caritas (viva, se actualiza al republicar):
+https://claude.ai/code/artifact/6e51420d-77cd-40b0-bcc5-ec39ce74e18f
+
+## Publicar y actualizar
+
+El ciclo completo está probado en vivo, no sólo en frío. Medido en la 0.4.0 → 0.5.0:
 comprobar, descargar, instalar y volver a abrirse tardó **7 segundos** sin intervención.
 La secuencia queda en `dicho.log` y sirve de patrón para diagnosticar si algún día falla:
 
 ```
 22:42:42  Updater: relanzamiento programado   ← la app deja el vigilante antes de instalar
 22:42:47  arranca el proceso nuevo            ← los 3 s de espera + el primer reintento
-22:42:49  HUD-JS: montado                     ← 0.5.0 viva
+22:42:49  HUD-JS: montado                     ← version nueva viva
 ```
 
 **Qué verificar al publicar** (no basta con que el release exista; un `.sig` que no
@@ -404,13 +495,11 @@ corresponda rompe la actualización en silencio y no avisa nadie):
 
 - El vigilante espera 3 s tras el cierre pero **no espera a que el instalador termine**.
   Bastó siempre hasta ahora, pero con un disco lento o un antivirus escaneando podría
-  arrancar la app a media instalación y el instalador la mataría (el bucle de reintentos ya
-  no vigila: sale en cuanto ve un proceso vivo). Si vuelve a quedarse cerrada tras
-  actualizar, el arreglo es esperar a que desaparezca el proceso del instalador antes del
-  primer intento.
+  arrancar la app a media instalación y el instalador la mataría. Si vuelve a quedarse
+  cerrada tras actualizar, el arreglo es esperar a que desaparezca el proceso del
+  instalador antes del primer intento.
 - **La comprobación sólo ocurre al *abrir* la ventana de Ajustes.** Con la ventana ya
-  abierta no vuelve a mirar nunca: al publicar la 0.5.0 el usuario la tenía abierta desde
-  antes y le decía que estaba al día. El botón de buscar siempre funciona. La mejora, si se
+  abierta no vuelve a mirar nunca. El botón de buscar siempre funciona. La mejora, si se
   quiere, es volver a comprobar cuando la ventana recupera el foco.
 
 **Auditoría de secretos** (hecha el 27/08 antes del primer reparto a terceros; conviene
@@ -428,90 +517,19 @@ repetirla cada vez que se publique). Todo limpio:
 - Quien instale la app arranca con motor **local** y pulido por reglas: no puede gastar
   dinero de nadie sin poner su propia key.
 
-### Lo que viene, por orden de valor
-
-1. **Confirmar que dejó de traducir.** El arreglo (no fijar idioma + prompt de spanglish +
-   troceo) está puesto pero sólo se ha validado en frío. Se comprueba mirando la columna
-   `raw` del historial tras dictar mezclando idiomas a propósito. Si reaparece: segundo
-   pase con `language` forzado sólo sobre los trozos sospechosos.
-2. **Sincronización con Google de punta a punta.** El código está entero desde el 23/08 y
-   nunca se ha ejecutado de verdad; bloqueado por el cliente OAuth (ver pendientes).
-3. **Modo mascota**: HUD siempre visible. Hoy las 5 caritas de reposo casi no se ven
-   porque el HUD sólo sale al dictar, y son las que darían personalidad en reposo.
-4. **Atajo con teclas no-modificadoras** (hoy se exige al menos un modificador), con doble
-   confirmación para no dejar la app inservible por accidente.
-5. **Purga del historial**: `mike.db` crece sin tope. Aún es pequeño, pero no hay borrado
-   por antigüedad ni límite de tamaño.
-6. **Parakeet local con dictados largos**: el troceo secuencial está escrito pero no se ha
-   probado con audio real largo en local.
-7. **Vocabulario propio en el prompt del STT.** El diccionario personal llega al pulido con
-   IA (`polish/groq.rs`) pero **no** al `prompt` de Whisper (`stt/groq.rs` sólo manda
-   `PRIME_SPANGLISH`), o sea que hoy sólo puede corregir la palabra *después* de oírla mal,
-   nunca ayudar a oírla bien. El `prompt` de Whisper es justo la palanca documentada para
-   sesgar vocabulario. Cuidado: ese mismo prompt es lo que frena la traducción, así que
-   meterle una lista de palabras puede debilitarlo — hay que medir antes y después.
-   Ojo: el detonante original ("cámara" no aparecía nunca) **ya no aplica** — se resolvió
-   solo el 27/08. Así que esto baja de prioridad hasta que haya otra palabra que falle.
-
-### Pendientes del usuario (nadie más puede hacerlos)
-
-- **Crear el cliente OAuth de Google** (Perfil → Configurar, ~5 min y gratis). Es lo único
-  que bloquea la sincronización de diccionario e historial entre equipos.
-- **Dictar a propósito una frase mezclada** ("necesito hacer el deploy, but the client
-  wants a demo first, así que preparo el pitch") y revisar en Historial si el texto crudo
-  la respetó. Es la única prueba real del arreglo de traducción.
-- **Decidir sobre el modo mascota**: si quiere ver las caritas en reposo hay que dejar el
-  HUD siempre encima, y eso significa una cápsula permanente en pantalla.
-- **Avisar si cambia de plan en Groq**: con el gratuito hay 20 peticiones/minuto y por eso
-  los trozos son de 20-55 s; con plan de pago se pueden hacer más cortos (mejor aún contra
-  la traducción) y más paralelos.
-- **Calibrar el umbral de silencio** si algún dictado real se marca como "no entendí": el
-  rms de cada dictado queda en `dicho.log` y el umbral está en `pipeline.rs` (0.0012).
-- **Respaldar la clave privada del updater** (`%USERPROFILE%\.tauri\dicho.key`). Es el
-  único pendiente crítico y sólo existe una copia, en este disco. Sin ella, ni luisg ni
-  ninguno de sus testers vuelve a recibir una actualización jamás; habría que reinstalar a
-  mano en cada equipo. **Copiarla, no moverla** — `publicar.ps1` la lee de esa ruta exacta.
-  Acordado el 27/08: arrastrarla a Google Drive como
-  `DICHO - llave de actualizaciones - NO BORRAR NUNCA.key`. No hace falta gestor de
-  contraseñas; el riesgo no es que alguien la robe, es perderla.
-
-### Comprobar en dos minutos que sigue todo vivo
-
-```sh
-cd src-tauri && cargo test --lib        # 19 tests
-npm run build                           # tsc + vite
-```
-```powershell
-# version instalada y viva (deberia coincidir con la ultima release):
-$exe = "$env:LOCALAPPDATA\Dicho\mike.exe"
-(Get-Item $exe).VersionInfo.FileVersion
-@(Get-Process mike -ErrorAction SilentlyContinue).Count
-Get-Content "$env:APPDATA\dev.mike.app\dicho.log" -Tail 20   # rms y trozos de cada dictado
-```
-
-Revisión visual de las caritas (viva, se actualiza al republicar):
-https://claude.ai/code/artifact/6e51420d-77cd-40b0-bcc5-ec39ce74e18f
-
 ## Historial de sesiones
 
-**28/08** — El HUD se mueve con el ratón (v0.7.0). Se agarra por cualquier punto
-y se suelta donde no estorbe; la posición se guarda relativa a la pantalla y el
-HUD sigue apareciendo en el monitor de la ventana activa. Botón "Mover la onda
-flotante" en Ajustes para colocarlo sin tener que dictar, "Devolverla a su sitio"
-e interruptor por si se prefiere el cristal de antes. 18 tests (5 nuevos sobre la
-aritmética de la posición). Probado en vivo en las dos direcciones; de paso
-salieron tres gotchas de banco de pruebas: el DPI virtualizado de PowerShell, el
-`FindWindow($null, …)` que nunca encuentra nada, y que simular el atajo hace que
-Dicho pegue alucinaciones de Whisper en la ventana enfocada. Y por la tarde la
-0.8.0, con las dos cosas que sólo se ven usándolo de verdad: la posición era
-una sola para todos los monitores (colocarlo en la 4K lo movía también en el
-portátil, y soltarlo en una pantalla no evitaba que el siguiente dictado lo
-sacara en la otra), y en los saltos de DPI aparecían barras de scroll dentro
-del HUD. 19 tests.
+**28/08** — El HUD se mueve con el ratón: v0.7.0 por la mañana y v0.8.0 por la tarde, con
+las dos cosas que sólo se ven usándolo de verdad —la posición era una sola para todos los
+monitores, y en los saltos de DPI salían barras de scroll dentro del HUD—. Se agarra por
+cualquier punto, cada pantalla recuerda su rincón, y Ajustes trae "Mover la onda flotante"
+para colocarlo sin tener que dictar. 19 tests. De paso salieron cuatro gotchas de banco de
+pruebas: el DPI virtualizado de PowerShell, el `FindWindow($null, …)` que nunca encuentra
+nada, que simular el atajo hace que Dicho pegue alucinaciones de Whisper en la ventana
+enfocada, y las notas de `gh release create`, que hay que pasar por archivo. Y se estrenó
+la skill `cierre`.
 
-
-**27/08 (tarde)**
- — Estrenada la actualización automática: 0.3.0, 0.4.0 y 0.5.0 publicadas
+**27/08 (tarde)** — Estrenada la actualización automática: 0.3.0, 0.4.0 y 0.5.0 publicadas
 y verificadas, y el ciclo completo funcionando solo en 7 s. La 0.3.0 destapó que el instalador NSIS mata la app
 y no la vuelve a abrir; reproducido en las dos direcciones y arreglado en la 0.4.0 con un
 vigilante que la app deja programado antes de instalar. También se arregló la versión del
