@@ -1,9 +1,10 @@
-use crate::settings::{self, AppSettings, SettingsState};
+use crate::settings::{self, AppSettings, HudPos, SettingsState};
 use crate::store::{DictItem, HistoryItem, Store};
 use crate::stt::groq::{KEYRING_SERVICE, KEYRING_USER};
 use crate::{models, pipeline, PipelineTx};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
 
 #[tauri::command]
@@ -15,9 +16,14 @@ pub fn get_settings(state: State<'_, SettingsState>) -> AppSettings {
 pub fn save_settings(
     app: AppHandle,
     state: State<'_, SettingsState>,
-    new_settings: AppSettings,
+    mut new_settings: AppSettings,
 ) -> Result<(), String> {
+    // La posición del HUD no sale de este formulario, sino de arrastrarlo. Si
+    // se guardara la que trae el front, mover el HUD y luego tocar cualquier
+    // ajuste con la ventana abierta desde antes lo devolvería a su sitio viejo.
+    new_settings.hud_pos = state.read().map(|s| s.hud_pos).unwrap_or(None);
     settings::save(&app, &new_settings).map_err(|e| e.to_string())?;
+    aplicar_raton_hud(&app, new_settings.hud_arrastrable);
     // Solo release toca la entrada Run: un build dev registraría target/debug/mike.exe,
     // que al arrancar Windows abre consola y busca un dev server que no existe.
     if cfg!(debug_assertions) {
@@ -134,6 +140,90 @@ pub async fn google_sync_now(app: AppHandle) -> Result<crate::sync::GoogleStatus
 #[tauri::command]
 pub async fn google_logout(app: AppHandle) -> Result<(), String> {
     crate::sync::logout(app).await.map_err(|e| e.to_string())
+}
+
+/// Decide si el ratón atraviesa el HUD o lo agarra.
+///
+/// El HUD nació siendo un cristal (`ignore_cursor_events`) para no comerse los
+/// clics de lo que hubiera debajo. Para poder arrastrarlo hay que dejar que los
+/// atrape, y es todo o nada: no hay forma de hacer transparente sólo una parte
+/// de la ventana. Por eso es un ajuste y no una decisión nuestra.
+pub fn aplicar_raton_hud(app: &AppHandle, arrastrable: bool) {
+    if let Some(hud) = app.get_webview_window("hud") {
+        let _ = hud.set_ignore_cursor_events(!arrastrable);
+    }
+}
+
+/// Empieza a arrastrar el HUD: lo llama el propio HUD al recibir el ratón.
+///
+/// El seguimiento del cursor se va a un hilo aparte porque dura lo que dure el
+/// gesto —segundos— y no puede quedarse ocupando el hilo de comandos.
+#[tauri::command]
+pub fn hud_arrastrar(app: AppHandle, state: State<'_, SettingsState>) {
+    let Some(hud) = app.get_webview_window("hud") else {
+        return;
+    };
+    let Some(hwnd) = crate::overlay::hwnd_of(&hud) else {
+        return;
+    };
+    let settings = state.inner().clone();
+    std::thread::spawn(move || {
+        pipeline::ARRASTRANDO.store(true, Ordering::SeqCst);
+        let fin = crate::overlay::arrastrar_con_cursor(hwnd);
+        pipeline::ARRASTRANDO.store(false, Ordering::SeqCst);
+
+        // Dónde quedó, medido contra la pantalla en la que quedó: se puede
+        // arrastrar al otro monitor sin que cambie la ventana activa.
+        let (Some((x, y, w, h)), Some((ax, ay, aw, ah))) =
+            (fin, crate::overlay::work_area_of(hwnd))
+        else {
+            return;
+        };
+        let pos = HudPos::desde_pixeles((x, y, w, h), (ax, ay, aw, ah));
+        let copia = {
+            let Ok(mut s) = settings.write() else {
+                return;
+            };
+            s.hud_pos = Some(pos);
+            s.clone()
+        };
+        if let Err(e) = settings::save(&app, &copia) {
+            pipeline::diag(&app, &format!("HUD: no se pudo guardar la posición: {e}"));
+            return;
+        }
+        pipeline::diag(
+            &app,
+            &format!(
+                "HUD movido a ({x},{y}) → fx={:.3} fy={:.3}",
+                pos.fx, pos.fy
+            ),
+        );
+    });
+}
+
+/// Enciende o apaga el modo "colócalo donde quieras" desde Ajustes.
+#[tauri::command]
+pub fn hud_colocar(app: AppHandle, on: bool) {
+    // Mientras se coloca, el HUD atrapa el ratón aunque el usuario lo tenga
+    // configurado como cristal: si no, no habría forma de agarrarlo. Al
+    // apagarlo, `modo_colocar` lo devuelve a como esté en Ajustes.
+    if on {
+        aplicar_raton_hud(&app, true);
+    }
+    pipeline::modo_colocar(&app, on);
+}
+
+/// Devuelve el HUD a su sitio de siempre: abajo, al centro.
+#[tauri::command]
+pub fn hud_pos_reset(app: AppHandle, state: State<'_, SettingsState>) -> Result<(), String> {
+    let copia = {
+        let mut s = state.write().map_err(|e| e.to_string())?;
+        s.hud_pos = None;
+        s.clone()
+    };
+    settings::save(&app, &copia).map_err(|e| e.to_string())?;
+    pipeline::recolocar_hud(&app);
+    Ok(())
 }
 
 /// Diagnóstico desde el webview del HUD (visible incluso en builds release).

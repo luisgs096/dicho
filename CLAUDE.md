@@ -29,15 +29,24 @@ sesión, se reescribe entera. Y commitear el resultado.
   → filtro de alucinaciones → polish → inyectar → historial. Carga perezosa de Parakeet (al pulsar el atajo, en hilo
   aparte) y liberación a los 10 s sin dictar. `diag()` escribe a
   `%APPDATA%/dev.mike.app/dicho.log` (sobrevive en release; cada dictado loguea su rms).
-  `show_hud()` coloca el HUD abajo-centro del **monitor activo** y deja un hilo
+  `show_hud()` coloca el HUD en el **monitor activo** y deja un hilo
   vigilante (tick de 70 ms y luego 250 ms) que reafirma el topmost y lo recoloca
-  si cambias de pantalla o de DPI.
+  si cambias de pantalla o de DPI. Dónde exactamente lo decide `place_hud()`:
+  donde el usuario lo haya soltado arrastrándolo (`settings.hud_pos`, en
+  **fracción del hueco libre**, no en píxeles) o abajo-centro si nunca lo movió.
+  `modo_colocar()` es el botón "Mover la onda flotante" de Ajustes: deja el HUD
+  a la vista y agarrable hasta que el usuario diga que ya, porque si no sólo se
+  podría mover durante los segundos que dura un dictado.
 - `src-tauri/src/chunker.rs` — dónde partir el audio: corta en pausas (4 ventanas de
   100 ms bajo un umbral relativo al pico del hablante), nunca en seco. Con tests.
 - `src-tauri/src/overlay.rs` — Win32 (windows-sys): área de trabajo del monitor de
   la ventana en primer plano (`GetForegroundWindow` → `MonitorFromWindow` →
   `rcWork`) y `SetWindowPos(HWND_TOPMOST, SWP_NOACTIVATE)`. Con dos pantallas el
-  HUD salía siempre en el primario: parecía que no aparecía.
+  HUD salía siempre en el primario: parecía que no aparecía. También
+  `arrastrar_con_cursor()`, que pega la ventana al cursor hasta que se suelta el
+  botón: el arrastre nativo (`start_dragging()` → `WM_NCLBUTTONDOWN`) no sirve
+  porque abre un bucle modal que **activa** la ventana, y el HUD es no activable
+  a propósito para no robarle el foco a lo que estás escribiendo.
 - `src-tauri/src/hotkey.rs` — hook global rdev; lee `settings.hotkey` en cada evento →
   cambios de atajo aplican en vivo sin reiniciar.
 - `src-tauri/src/sync.rs` — OAuth Desktop de Google (PKCE + loopback, tokens en el
@@ -50,7 +59,8 @@ sesión, se reescribe entera. Y commitear el resultado.
 - `src/windows/Settings.tsx` — ventana principal con sidebar: Perfil (cuenta Google +
   editor visual de atajo con teclado laptop/extendido), Diccionario, Historial (chips de
   correcciones + filtro), Ajustes (motores, "no traducir", modelo local, Groq, estilo
-  del HUD + botón "Ver animaciones", autostart, actualizaciones) anclado abajo.
+  del HUD + botones "Ver animaciones" / "Mover la onda flotante" / "Devolverla a su
+  sitio" + interruptor de arrastrable, autostart, actualizaciones) anclado abajo.
   Ojo: `update()` en este archivo es el que guarda **ajustes**, no el de versiones;
   el de versiones se destructura como `actualizacion`/`buscarActualizacion`.
 - `src/windows/updater.ts` — hook `useUpdater()`: consulta la release más reciente al
@@ -74,7 +84,10 @@ sesión, se reescribe entera. Y commitear el resultado.
   Se previsualiza con `npx esbuild src/windows/faces.ts --bundle --format=iife
   --global-name=FACES` + una página que pinte `FACES.V`.
 - `src/windows/Hud.tsx` — HUD con dos estilos conmutables desde Ajustes
-  (`settings.hud_style`, evento `settings-changed` para refrescar al vuelo):
+  (`settings.hud_style`, evento `settings-changed` para refrescar al vuelo). Se
+  agarra por cualquier punto: el `pointerdown` sólo dispara `hud_arrastrar` y el
+  seguimiento del cursor lo hace Win32, no el webview. Escucha `hud-colocar`
+  para saber si está en modo colocación (aro punteado + "Arrástrame"):
   - `tamagotchi` (default): pantalla LCD pixel (viewBox `0 2 48 16`), 26 caritas =
     5 variaciones × 5 estados elegidas al azar por transición, reacción por idioma
     en "listo" (heurística es/en sobre el texto). La variable CSS `--lvl` lleva el
@@ -209,6 +222,37 @@ sesión, se reescribe entera. Y commitear el resultado.
   vale — el proceso hereda el job object de la sesión y Windows lo mata en cuanto termina
   el comando. Parece un crash de la app y no lo es. Hay que re-parentarlo:
   `Start-Process explorer.exe -ArgumentList $exe`.
+- **El HUD atrapa el ratón o lo deja pasar, pero no a medias.** Nació siendo un
+  cristal (`set_ignore_cursor_events(true)` → `WS_EX_TRANSPARENT`) para no comerse
+  los clics de lo que hubiera debajo, y eso es justo lo que impedía arrastrarlo.
+  No hay forma de hacer transparente sólo una parte de la ventana, así que es un
+  ajuste (`hud_arrastrable`, encendido por defecto) y no una decisión nuestra.
+  Lo que **no** hace falta sacrificar es el foco: `set_focusable(false)` es
+  `WS_EX_NOACTIVATE`, y una ventana así recibe los mensajes de ratón sin
+  activarse. Comprobado en las dos direcciones (28/08), y con
+  `WindowFromPoint`, que se salta las ventanas transparentes al ratón, se ve sin
+  ni siquiera pinchar:
+  - `hud_arrastrable` **encendido** → bajo el centro del HUD contesta el HUD, se
+    arrastra, y `GetForegroundWindow()` no cambia.
+  - **apagado** → contesta la ventana de abajo y arrastrarlo no lo mueve.
+- **PowerShell 5.1 no es DPI-aware y Windows le miente con las coordenadas.** En
+  el monitor del usuario (125 %) `GetWindowRect` del HUD devolvía (844,986) 360x96
+  cuando la app lo había puesto en (1055,1233) 450x120: son las mismas cifras
+  divididas entre 1,25. Los clics de prueba caían 200 px arriba y "no pasaba
+  nada". La cura es una línea al principio del script:
+  `SetProcessDpiAwarenessContext(-4)` (per-monitor v2) y ya se trabaja en píxeles
+  de verdad, los mismos que loguea `dicho.log`. Y ojo con otra de PowerShell:
+  `FindWindow($null, "titulo")` **no encuentra nada** porque marshala el `$null`
+  como cadena vacía y busca una clase llamada ""; hay que enumerar con
+  `EnumWindows`.
+- **La prueba E2E del atajo no es muda: Dicho pega texto de verdad.** Mantener
+  el atajo unos segundos graba la habitación, y un rms de 0,03 pasa de sobra la
+  compuerta de silencio (0,0012): Whisper alucina sobre ese ruido —salieron
+  "Thank you." y una frase en chino— y la app lo inyecta **en la ventana que
+  tengas enfocada**. Antes de simular el atajo hay que mandar el foco a una
+  ventana de usar y tirar (`System.Windows.Forms.Form` + el truco del ALT) y
+  borrar después esas entradas del historial. Sólo es inofensivo si el rms sale
+  por debajo del umbral, y eso no se puede dar por hecho.
 - Test E2E sin tocar el mic: simular el atajo con `keybd_event` (P/Invoke) y verificar
   la cadena en `dicho.log` (rms 0 → evento empty → carita). El Notepad de Win11 no
   expone `MainWindowHandle`: para elegir en qué monitor cae el foco, crear un
@@ -285,6 +329,12 @@ que comprobar firma y SHA256 contra lo que descarga la app.
 - **HUD siempre visible**: aparece en el monitor de la ventana activa (no en el primario)
   y reafirma su z-order cada 250 ms. Probado en las dos pantallas del usuario, incluida la
   4K al 250 % — que además destapó que WebView2 no reescala solo (ver gotchas).
+- **HUD movible con el ratón** (28/08): se arrastra a donde no estorbe y se
+  queda ahí. La posición se guarda en **fracción de la pantalla**, no en píxeles,
+  así que el rincón elegido es el mismo rincón en el portátil y en la 4K. Desde
+  Ajustes se puede colocar con calma sin dictar ("Mover la onda flotante"),
+  devolverlo a su sitio de siempre, o apagar el arrastre para que vuelva a ser un
+  cristal que los clics atraviesan.
 - **26 caritas** con reglas de pixel-art documentadas en `faces.ts`, dos de ellas movidas
   por el volumen real del micro, y catálogo navegable desde Ajustes.
 - **Robustez de voz**: compuerta de silencio, filtro de alucinaciones, y el pulido ya no
@@ -418,7 +468,18 @@ https://claude.ai/code/artifact/6e51420d-77cd-40b0-bcc5-ec39ce74e18f
 
 ## Historial de sesiones
 
-**27/08 (tarde)** — Estrenada la actualización automática: 0.3.0, 0.4.0 y 0.5.0 publicadas
+**28/08** — El HUD se mueve con el ratón (v0.7.0). Se agarra por cualquier punto
+y se suelta donde no estorbe; la posición se guarda relativa a la pantalla y el
+HUD sigue apareciendo en el monitor de la ventana activa. Botón "Mover la onda
+flotante" en Ajustes para colocarlo sin tener que dictar, "Devolverla a su sitio"
+e interruptor por si se prefiere el cristal de antes. 18 tests (5 nuevos sobre la
+aritmética de la posición). Probado en vivo en las dos direcciones; de paso
+salieron tres gotchas de banco de pruebas: el DPI virtualizado de PowerShell, el
+`FindWindow($null, …)` que nunca encuentra nada, y que simular el atajo hace que
+Dicho pegue alucinaciones de Whisper en la ventana enfocada.
+
+**27/08 (tarde)**
+ — Estrenada la actualización automática: 0.3.0, 0.4.0 y 0.5.0 publicadas
 y verificadas, y el ciclo completo funcionando solo en 7 s. La 0.3.0 destapó que el instalador NSIS mata la app
 y no la vuelve a abrir; reproducido en las dos direcciones y arreglado en la 0.4.0 con un
 vigilante que la app deja programado antes de instalar. También se arregló la versión del

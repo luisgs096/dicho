@@ -7,7 +7,7 @@ use crate::polish::{self, PolishCtx};
 use crate::settings::{EngineKind, PolishKind, SettingsState};
 use crate::store::Store;
 use crate::stt::{groq, groq::GroqStt, parakeet::ParakeetStt, Stt, SttOpts};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -111,8 +111,20 @@ pub(crate) fn diag(app: &AppHandle, msg: &str) {
 const HUD_W: f64 = 360.0;
 const HUD_H: f64 = 96.0;
 
-/// Coloca el HUD abajo-centro del área de trabajo indicada (píxeles físicos).
-fn place_hud(hud: &tauri::WebviewWindow, area: overlay::WorkArea) -> (i32, i32) {
+/// Mientras arrastras el HUD nadie más lo mueve: el vigilante lo devolvería a
+/// su sitio a media maniobra.
+pub(crate) static ARRASTRANDO: AtomicBool = AtomicBool::new(false);
+/// Modo "colócalo donde quieras" desde Ajustes: el HUD se queda a la vista
+/// hasta que el usuario diga que ya, así que nadie puede ocultarlo.
+pub(crate) static COLOCANDO: AtomicBool = AtomicBool::new(false);
+
+/// Coloca el HUD en el área de trabajo indicada (píxeles físicos): donde lo
+/// dejó el usuario, o abajo-centro si nunca lo movió.
+fn place_hud(
+    app: &AppHandle,
+    hud: &tauri::WebviewWindow,
+    area: overlay::WorkArea,
+) -> (i32, i32) {
     let (ax, ay, aw, ah) = area;
     // Escala del monitor de destino, no la del actual: si venimos de otra
     // pantalla, el tamaño en píxeles cambia.
@@ -137,20 +149,26 @@ fn place_hud(hud: &tauri::WebviewWindow, area: overlay::WorkArea) -> (i32, i32) 
         position: tauri::PhysicalPosition::new(0, 0).into(),
         size: tauri::PhysicalSize::new(w, h).into(),
     });
-    let x = ax + (aw - w as i32) / 2;
-    let y = ay + ah - h as i32 - (22.0 * escala) as i32;
+    let guardada = app
+        .try_state::<SettingsState>()
+        .and_then(|s| s.read().ok().and_then(|s| s.hud_pos));
+    let (x, y) = match guardada {
+        // Donde lo dejó el usuario, en fracción del hueco libre (ver `HudPos`).
+        Some(p) => p.a_pixeles((w as i32, h as i32), area),
+        // Sitio de siempre: abajo al centro, un dedo por encima de la barra.
+        None => (
+            ax + (aw - w as i32).max(0) / 2,
+            ay + ah - h as i32 - (22.0 * escala) as i32,
+        ),
+    };
     let _ = hud.set_position(tauri::PhysicalPosition { x, y });
     (x, y)
 }
 
-fn show_hud(app: &AppHandle, gen: &Arc<AtomicU64>) {
-    let Some(hud) = app.get_webview_window("hud") else {
-        diag(app, "HUD: ventana 'hud' NO EXISTE");
-        return;
-    };
-    // Monitor donde el usuario está trabajando (el de la ventana activa), no
-    // el primario: con dos pantallas el HUD salía en la otra.
-    let area = overlay::active_work_area().unwrap_or_else(|| {
+/// Monitor donde el usuario está trabajando (el de la ventana activa), no el
+/// primario: con dos pantallas el HUD salía en la otra.
+fn area_hud(app: &AppHandle) -> overlay::WorkArea {
+    overlay::active_work_area().unwrap_or_else(|| {
         let (mut x, mut y, mut w, mut h) = (0, 0, 1920, 1080);
         if let Ok(Some(m)) = app.primary_monitor() {
             x = m.position().x;
@@ -159,8 +177,16 @@ fn show_hud(app: &AppHandle, gen: &Arc<AtomicU64>) {
             h = m.size().height as i32;
         }
         (x, y, w, h)
-    });
-    let (x, y) = place_hud(&hud, area);
+    })
+}
+
+fn show_hud(app: &AppHandle, gen: &Arc<AtomicU64>) {
+    let Some(hud) = app.get_webview_window("hud") else {
+        diag(app, "HUD: ventana 'hud' NO EXISTE");
+        return;
+    };
+    let area = area_hud(app);
+    let (x, y) = place_hud(app, &hud, area);
     let _ = hud.show();
     let _ = hud.set_always_on_top(true);
     let hwnd = overlay::hwnd_of(&hud).unwrap_or(0);
@@ -196,6 +222,9 @@ fn show_hud(app: &AppHandle, gen: &Arc<AtomicU64>) {
             if !matches!(hud.is_visible(), Ok(true)) {
                 return;
             }
+            if ARRASTRANDO.load(Ordering::SeqCst) {
+                continue;
+            }
             overlay::assert_topmost(hwnd);
             // Si te cambias de pantalla a media dictada, el HUD te sigue.
             if let Some(nueva) = overlay::active_work_area() {
@@ -206,7 +235,7 @@ fn show_hud(app: &AppHandle, gen: &Arc<AtomicU64>) {
             }
             if recolocar > 0 {
                 recolocar -= 1;
-                place_hud(&hud, area_actual);
+                place_hud(&app, &hud, area_actual);
             }
         }
     });
@@ -218,9 +247,61 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
     let gen = gen.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(delay_ms));
-        if gen.load(Ordering::SeqCst) == expected {
+        if gen.load(Ordering::SeqCst) == expected && !COLOCANDO.load(Ordering::SeqCst) {
             if let Some(hud) = app.get_webview_window("hud") {
                 let _ = hud.hide();
+            }
+        }
+    });
+}
+
+/// Devuelve el HUD a donde digan los ajustes, sin esperar al próximo dictado
+/// (lo usa "Restablecer posición" para que se vea el salto).
+pub(crate) fn recolocar_hud(app: &AppHandle) {
+    if let Some(hud) = app.get_webview_window("hud") {
+        place_hud(app, &hud, area_hud(app));
+    }
+}
+
+/// Modo "colócalo donde quieras", desde Ajustes: deja el HUD a la vista y
+/// agarrable hasta que el usuario diga que ya.
+///
+/// Sin esto sólo se podría mover durante los pocos segundos que dura un
+/// dictado, que es justo cuando el usuario está ocupado hablando.
+pub(crate) fn modo_colocar(app: &AppHandle, on: bool) {
+    // Apagar lo que ya estaba apagado no puede esconder un HUD que esté en
+    // mitad de un dictado; encender dos veces no puede dejar dos vigilantes.
+    if COLOCANDO.swap(on, Ordering::SeqCst) == on {
+        return;
+    }
+    let Some(hud) = app.get_webview_window("hud") else {
+        return;
+    };
+    let _ = app.emit("hud-colocar", on);
+    if !on {
+        // Al salir, el ratón vuelve a lo que diga Ajustes: durante la
+        // colocación el HUD atrapa clics aunque el usuario lo quiera cristal.
+        let arrastrable = app
+            .try_state::<SettingsState>()
+            .and_then(|s| s.read().ok().map(|s| s.hud_arrastrable))
+            .unwrap_or(true);
+        crate::commands::aplicar_raton_hud(app, arrastrable);
+        let _ = hud.hide();
+        return;
+    }
+    place_hud(app, &hud, area_hud(app));
+    emit_state(app, "idle", None);
+    let _ = hud.show();
+    let _ = hud.set_always_on_top(true);
+    let hwnd = overlay::hwnd_of(&hud).unwrap_or(0);
+    overlay::assert_topmost(hwnd);
+    // Vigilante propio mientras dure la colocación: el de show_hud se apaga a
+    // los 20 s, y aquí el usuario puede tardar lo que quiera en decidir.
+    std::thread::spawn(move || {
+        while COLOCANDO.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(400));
+            if !ARRASTRANDO.load(Ordering::SeqCst) {
+                overlay::assert_topmost(hwnd);
             }
         }
     });

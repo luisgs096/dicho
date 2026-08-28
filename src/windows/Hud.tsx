@@ -70,6 +70,17 @@ const CLASSIC_CSS = `
   .cbar-sad { animation: cdroop 2.4s ease-in-out infinite; }
 `;
 
+// ─── arrastre ───────────────────────────────────────────────────────────────
+// El movimiento de la ventana lo hace Windows en el backend (ver
+// `overlay::arrastrar_con_cursor`); aquí sólo se ve que la estás agarrando.
+const DRAG_CSS = `
+  .agarrable { cursor: grab; }
+  .agarrando { cursor: grabbing; }
+  .colocando { outline: 2px dashed var(--a); outline-offset: 4px;
+    border-radius: 14px; animation: destello 1.4s ease-in-out infinite; }
+  @keyframes destello { 50% { outline-color: transparent; } }
+`;
+
 function MicIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className}>
@@ -132,6 +143,9 @@ export default function Hud() {
   const [rec, setRec] = useState<RecordingState>({ state: "idle" });
   const [variant, setVariant] = useState(0);
   const [hudStyle, setHudStyle] = useState<HudStyle>("tamagotchi");
+  // Modo "colócalo donde quieras", encendido desde Ajustes.
+  const [colocando, setColocando] = useState(false);
+  const [agarrando, setAgarrando] = useState(false);
   const [dark, setDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
@@ -217,6 +231,13 @@ export default function Hud() {
     };
   }, []);
 
+  useEffect(() => {
+    const un = listen<boolean>("hud-colocar", (e) => setColocando(e.payload));
+    return () => {
+      un.then((f) => f());
+    };
+  }, []);
+
   // Estilo del HUD desde Ajustes; se refresca al vuelo al guardar cambios.
   useEffect(() => {
     const load = () =>
@@ -278,6 +299,30 @@ export default function Hud() {
     return () => cancelAnimationFrame(raf);
   }, [rec.state, hudStyle]);
 
+  // Agarrar el HUD: el backend se queda siguiendo el cursor hasta que sueltes,
+  // así que desde aquí sólo hay que dar el pistoletazo de salida.
+  const agarrar = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    setAgarrando(true);
+    invoke("hud_arrastrar").catch(() => {});
+  };
+  useEffect(() => {
+    if (!agarrando) return;
+    const soltar = () => setAgarrando(false);
+    window.addEventListener("pointerup", soltar);
+    window.addEventListener("pointercancel", soltar);
+    // Red de seguridad: si la ventana se mueve fuera del cursor y el
+    // "pointerup" nunca llega, el HUD no se queda con la manita cerrada.
+    const t = setTimeout(soltar, 60_000);
+    return () => {
+      window.removeEventListener("pointerup", soltar);
+      window.removeEventListener("pointercancel", soltar);
+      clearTimeout(t);
+    };
+  }, [agarrando]);
+  const gesto = `agarrable ${agarrando ? "agarrando" : ""} select-none`;
+
   const pal = dark ? DARK : LIGHT;
   const vars = useMemo(
     () =>
@@ -306,13 +351,15 @@ export default function Hud() {
   const v = isError ? V["no-entendi"][3] : (V[face][variant] ?? V[face][0]);
   const sad = isError || v.sad;
   const porLimite = rec.state === "processing" && rec.motivo === "limite";
-  const status = isError
-    ? rec.message
-    : rec.state === "done"
-      ? rec.text
-      : porLimite
-        ? `Tope de ${Math.round(topeRef.current / 60)} min: transcribiendo`
-        : v.status;
+  const status = colocando
+    ? "Arrástrame"
+    : isError
+      ? rec.message
+      : rec.state === "done"
+        ? rec.text
+        : porLimite
+          ? `Tope de ${Math.round(topeRef.current / 60)} min: transcribiendo`
+          : v.status;
   const cinta =
     rec.state === "recording" && cap > 0.5 ? (
       <span
@@ -332,9 +379,16 @@ export default function Hud() {
         ? "border-white/10 bg-slate-900/90 text-slate-200"
         : "border-slate-200/80 bg-white/95 text-slate-700";
     return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <style>{CLASSIC_CSS}</style>
-        <div style={{ transform: "scale(var(--k, 1))" }}>
+      <div
+        className={`flex h-screen w-screen items-center justify-center ${gesto}`}
+        style={vars}
+        onPointerDown={agarrar}
+      >
+        <style>{CLASSIC_CSS + DRAG_CSS}</style>
+        <div
+          className={colocando ? "colocando" : ""}
+          style={{ transform: "scale(var(--k, 1))" }}
+        >
           <div
             className={`relative flex h-[64px] w-[336px] items-center gap-3 overflow-hidden rounded-full border px-5 shadow-2xl shadow-blue-900/20 backdrop-blur transition-colors ${
               emptyC ? "classic-shake" : ""
@@ -413,7 +467,7 @@ export default function Hud() {
                   dark ? "text-slate-500" : "text-slate-400"
                 }`}
               >
-                Dicho
+                {colocando ? "Arrástrame donde quieras" : "Dicho"}
               </p>
             )}
           </div>
@@ -424,11 +478,15 @@ export default function Hud() {
 
   return (
     <div
-      className="flex h-screen w-screen items-center justify-center"
+      className={`flex h-screen w-screen items-center justify-center ${gesto}`}
       style={vars}
+      onPointerDown={agarrar}
     >
-      <style>{FACE_CSS}</style>
-      <div style={{ transform: "scale(var(--k, 1))" }}>
+      <style>{FACE_CSS + DRAG_CSS}</style>
+      <div
+        className={colocando ? "colocando" : ""}
+        style={{ transform: "scale(var(--k, 1))" }}
+      >
         <div
           ref={tamaRef}
           className={`tama ${sad ? "sad" : ""} ${v.shake && !isError ? "shake" : ""}`}

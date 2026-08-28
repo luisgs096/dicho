@@ -2,6 +2,12 @@ export type EngineKind = "parakeet" | "groq";
 export type PolishKind = "rules" | "groq_llm";
 export type HudStyle = "tamagotchi" | "classic";
 
+/** Dónde quedó el HUD, en fracción del hueco libre de la pantalla (0-1). */
+export interface HudPos {
+  fx: number;
+  fy: number;
+}
+
 export interface AppSettings {
   hotkey: string[];
   engine: EngineKind;
@@ -10,6 +16,8 @@ export interface AppSettings {
   no_traducir: boolean;
   hud_enabled: boolean;
   hud_style: HudStyle;
+  hud_pos: HudPos | null;
+  hud_arrastrable: boolean;
   autostart: boolean;
   google_client_id: string;
   google_client_secret: string;

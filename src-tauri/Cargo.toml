@@ -40,12 +40,14 @@ env_logger = "0.11"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
 
-# Colocación del HUD sobre el monitor activo y z-order topmost (overlay.rs).
+# Colocación del HUD sobre el monitor activo, z-order topmost y arrastre con
+# el ratón (overlay.rs).
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
 ] }
 
 # Deps optimizados tambien en dev: rubato/ort en debug son 20-30x mas lentos

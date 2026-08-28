@@ -391,6 +391,9 @@ function KeyboardPicker(props: {
 export default function Settings() {
   const [tab, setTab] = useState<Tab>("perfil");
   const [verAnimaciones, setVerAnimaciones] = useState(false);
+  // Modo "colócala donde quieras": la onda se queda a la vista y agarrable
+  // hasta que el usuario diga que ya.
+  const [colocandoHud, setColocandoHud] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [model, setModel] = useState<ModelStatus | null>(null);
   const [progress, setProgress] = useState<ModelProgress | null>(null);
@@ -1231,12 +1234,64 @@ export default function Settings() {
                     Mostrar la onda flotante al dictar
                   </label>
                   {settings.hud_enabled && (
-                    <button
-                      className={`${btnGhostCls} self-start`}
-                      onClick={() => setVerAnimaciones(true)}
-                    >
-                      Ver animaciones
-                    </button>
+                    <>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          className={btnGhostCls}
+                          onClick={() => setVerAnimaciones(true)}
+                        >
+                          Ver animaciones
+                        </button>
+                        <button
+                          className={btnGhostCls}
+                          onClick={() => {
+                            const on = !colocandoHud;
+                            setColocandoHud(on);
+                            invoke("hud_colocar", { on }).catch((e) =>
+                              alert(String(e)),
+                            );
+                          }}
+                        >
+                          {colocandoHud
+                            ? "Listo, déjala ahí"
+                            : "Mover la onda flotante"}
+                        </button>
+                        <button
+                          className={btnGhostCls}
+                          onClick={() =>
+                            invoke("hud_pos_reset").catch((e) =>
+                              alert(String(e)),
+                            )
+                          }
+                        >
+                          Devolverla a su sitio
+                        </button>
+                      </div>
+                      {colocandoHud && (
+                        <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs leading-relaxed text-blue-700 dark:bg-sky-950/50 dark:text-sky-300">
+                          La onda ya está en pantalla: arrástrala con el ratón a
+                          donde no te estorbe y pulsa «Listo». Se queda en ese
+                          rincón en las dos pantallas, no sólo en ésta.
+                        </p>
+                      )}
+                      <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={settings.hud_arrastrable}
+                          onChange={(e) =>
+                            update({ hud_arrastrable: e.target.checked })
+                          }
+                          className="h-4 w-4 accent-blue-600"
+                        />
+                        Poder moverla arrastrándola mientras dictas
+                      </label>
+                      <p className="-mt-1 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+                        Con esto encendido la onda atrapa el ratón mientras está
+                        a la vista, así que los clics que caigan encima van a
+                        ella y no a lo que tengas debajo. Apagándolo vuelve a ser
+                        un cristal y sólo se mueve con el botón de aquí arriba.
+                      </p>
+                    </>
                   )}
 
                   <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">

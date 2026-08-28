@@ -75,11 +75,16 @@ pub fn run() {
             let store = Arc::new(store::Store::init(&handle)?);
             app.manage(store.clone());
 
-            // HUD: nunca roba el foco ni captura clics.
+            // HUD: nunca roba el foco. Que atrape o no los clics depende de si
+            // el usuario quiere poder arrastrarlo (ver `aplicar_raton_hud`).
             if let Some(hud) = app.get_webview_window("hud") {
-                let _ = hud.set_ignore_cursor_events(true);
                 let _ = hud.set_focusable(false);
             }
+            let arrastrable = settings_state
+                .read()
+                .map(|s| s.hud_arrastrable)
+                .unwrap_or(true);
+            commands::aplicar_raton_hud(&handle, arrastrable);
 
             build_tray(app)?;
 
@@ -120,6 +125,9 @@ pub fn run() {
             // Cerrar la ventana principal la oculta: la app vive en la bandeja.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
+                    // Cerrar Ajustes cancela la colocación del HUD: si no, se
+                    // quedaría clavado en pantalla sin nada que lo apagara.
+                    pipeline::modo_colocar(window.app_handle(), false);
                     let _ = window.hide();
                     api.prevent_close();
                 }
@@ -143,6 +151,9 @@ pub fn run() {
             commands::google_sync_now,
             commands::google_logout,
             commands::hud_log,
+            commands::hud_arrastrar,
+            commands::hud_colocar,
+            commands::hud_pos_reset,
             commands::programar_relanzamiento,
         ])
         .run(tauri::generate_context!())
