@@ -4,6 +4,20 @@ App Tauri 2 + React 19 + Tailwind 4 de dictado push-to-talk para Windows. Ver RE
 para la descripción funcional. El usuario (luisg) dicta en español/spanglish y prueba la
 app dictándole a Claude; prioriza soluciones locales y gratuitas.
 
+## Cuando luisg diga "cierre"
+
+Pide un **checkpoint escrito aquí**, no un resumen en el chat: la siguiente instancia tiene
+que poder arrancar leyendo sólo este archivo. Trabaja con instancias que no comparten
+memoria, así que lo que no quede en el `.md` se pierde.
+
+El cierre deja por escrito: **qué se hizo** y **qué archivos se tocaron**; los **hallazgos**
+(bugs, con su causa raíz y cómo se reprodujeron); los **aprendizajes/gotchas** que costaron
+descubrir; las **actualizaciones** publicadas; los **pendientes**, separando lo que puede
+hacer la siguiente instancia de lo que sólo puede hacer él; y **dónde estamos parados**.
+
+Consolidar, no apilar: si una sección se desordenó con ediciones incrementales durante la
+sesión, se reescribe entera. Y commitear el resultado.
+
 ## Mapa del código
 
 - `src-tauri/src/pipeline.rs` — hilo central. Mientras grabas drena el micro cada 400 ms,
@@ -155,10 +169,60 @@ app dictándole a Claude; prioriza soluciones locales y gratuitas.
 
 ## Dónde estamos (27 de agosto de 2026)
 
-Dicho está **en uso diario y estable**. El usuario lo usa para dictarle a Claude a diario;
-en el historial hay 200+ dictados reales, la mayoría de 20-40 s, y su veredicto de hoy:
-"es bastante preciso ahora y ya puedo hablar con mayor fluidez sin miedo a que no lo vaya
-a entender".
+### Checkpoint (27/08, cierre de la sesión)
+
+| | |
+|---|---|
+| Versión publicada e instalada | **v0.5.0**, corriendo |
+| Repo | `main` en `8d02400`, **público**, sincronizado con GitHub |
+| Releases vivas | v0.2.0 … v0.5.0, todas firmadas y verificadas |
+| Tests | `cargo test --lib` → **13 verdes** |
+| Build | `npm run build` limpio |
+| Árbol de trabajo | limpio, nada suelto |
+| Único pendiente crítico | respaldar `dicho.key` (sólo puede hacerlo luisg) |
+
+Dicho está **en uso diario y estable**, y desde hoy **se actualiza solo**. El veredicto del
+usuario esta mañana: "es bastante preciso ahora y ya puedo hablar con mayor fluidez sin
+miedo a que no lo vaya a entender".
+
+### Qué pasó el 27/08 y qué se tocó
+
+La sesión empezó como un chequeo de rutina y destapó que **la auto-actualización nunca
+había funcionado**: no existía ninguna release y la copia instalada seguía siendo la 0.1.0,
+sin updater. Arreglarlo de verdad costó cuatro releases y tres bugs encadenados.
+
+**Hallazgos, en orden de aparición:**
+
+1. **`publicar.ps1` nunca llegaba a publicar.** Tres trampas encadenadas, ninguna visible
+   en el error que se veía (documentadas en gotchas): la variable de entorno vacía que
+   PowerShell borra, `npm.cmd` lanzado directo, y canalizar la salida del script.
+2. **La versión del panel lateral estaba escrita a mano** (`v0.1` literal en
+   `Settings.tsx`) mientras Ajustes leía la real con `getVersion()`. Lo detectó el usuario
+   al ver las dos a la vez tras actualizar.
+3. **El instalador NSIS no reabría la app.** Instalaba bien y dejaba al usuario sin Dicho.
+   Reproducido en las dos direcciones antes de tocar nada — ésa fue la clave para dar con
+   la causa (ver gotchas).
+4. **La comprobación de actualizaciones sólo ocurre al abrir Ajustes.** Salió al probar la
+   0.5.0: con la ventana ya abierta, decía que estaba al día.
+
+**Archivos tocados:**
+
+| Archivo | Qué cambió |
+|---|---|
+| `publicar.ps1` | Build lanzado por `ProcessStartInfo` con la password vacía; firma en paso propio |
+| `src-tauri/src/commands.rs` | `programar_relanzamiento()` + `script_relanzador()` con su test |
+| `src-tauri/src/lib.rs` | Registro del comando nuevo |
+| `src/windows/updater.ts` | Programa el relanzador antes de instalar |
+| `src/windows/Settings.tsx` | La versión del sidebar sale del binario |
+| `CLAUDE.md` | Gotchas, auditoría de secretos, este checkpoint |
+| `tauri.conf.json`, `package.json`, `Cargo.toml` | Versión 0.1.0 → 0.5.0 |
+
+**Aprendizaje que vale para el futuro**: en los tres bugs, lo que resolvió no fue leer el
+error sino **reproducir el fallo en las dos direcciones** (con y sin la condición
+sospechosa). El caso del instalador es el ejemplo puro: el mensaje no decía nada, pero
+"app cerrada antes → vuelve / app cerrándose durante → no vuelve" señaló la causa exacta.
+También quedó claro que **verificar que un release existe no es verificar que sirve**: hay
+que comprobar firma y SHA256 contra lo que descarga la app.
 
 ### Lo que funciona y está probado
 
@@ -184,26 +248,18 @@ a entender".
 - **«cámara» ya sale bien** (27/08): aparece escrita correctamente en el historial
   ("vuelvo a probarlo de cámara, por ejemplo, la usé ahorita"). El prompt de spanglish la
   sostiene sin necesidad de entrada de diccionario.
-- Tests y build en verde (27/08): `cargo test --lib` → 12 verdes (chunker, reglas de
-  pulido, diccionario), `npm run build` limpio y `dicho.log` sin un solo error en 253
-  dictados registrados.
+- Tests y build en verde (27/08): `cargo test --lib` → **13 verdes** (chunker, reglas de
+  pulido, diccionario, script del relanzador), `npm run build` limpio y `dicho.log` sin un
+  solo error en 253 dictados registrados.
 
-### Auto-actualización: publicada y verificada (27/08)
+### Auto-actualización (funcionando de punta a punta)
 
-La **v0.2.0 está publicada** en https://github.com/luisgs096/dicho/releases/tag/v0.2.0 con
-`Dicho_0.2.0_x64-setup.exe` + `latest.json`. Verificado de punta a punta, no sólo que el
-release existiera: `latest.json` se descarga desde la URL exacta que consulta la app
-(`releases/latest/download/latest.json`), va sin BOM, parsea, su campo `signature` es igual
-al `.sig` local, y el `.exe` publicado es **idéntico en SHA256** al que se firmó.
+**Estado hoy**: v0.5.0 publicada e instalada en el equipo de luisg. Cuatro releases el
+27/08 (0.2.0 → 0.5.0), todas firmadas y verificadas.
 
-**Publicadas 0.3.0 y 0.4.0** el mismo día, ya con `publicar.ps1` arreglado (salieron a la
-primera). La 0.3.0 estrenó la actualización automática de verdad: se descargó e instaló
-sola desde Ajustes — **pero dejó al usuario sin app**, porque el instalador la mata y no la
-vuelve a abrir (ver gotchas). La 0.4.0 lleva el arreglo.
-
-**Validado en vivo con la 0.4.0 → 0.5.0** (27/08 22:42): el ciclo entero —comprobar,
-descargar, instalar y volver a abrirse— tardó **7 segundos** sin intervención. La secuencia
-que lo demuestra, en `dicho.log`:
+**El ciclo completo está probado en vivo**, no sólo en frío. Medido en la 0.4.0 → 0.5.0:
+comprobar, descargar, instalar y volver a abrirse tardó **7 segundos** sin intervención.
+La secuencia queda en `dicho.log` y sirve de patrón para diagnosticar si algún día falla:
 
 ```
 22:42:42  Updater: relanzamiento programado   ← la app deja el vigilante antes de instalar
@@ -211,26 +267,31 @@ que lo demuestra, en `dicho.log`:
 22:42:49  HUD-JS: montado                     ← 0.5.0 viva
 ```
 
-Riesgo que queda, por si algún día reaparece: el vigilante espera 3 s tras el cierre pero
-**no espera a que el instalador termine**. Aquí bastó, pero con un disco lento o un
-antivirus de por medio podría arrancar la app a media instalación, y entonces el instalador
-la mataría (el bucle de reintentos ya no estaría vigilando: sale en cuanto ve un proceso
-vivo). Si vuelve a quedarse cerrada tras actualizar, el arreglo es esperar a que el proceso
-del instalador desaparezca antes del primer intento.
+**Qué verificar al publicar** (no basta con que el release exista; un `.sig` que no
+corresponda rompe la actualización en silencio y no avisa nadie):
 
-**La comprobación de actualizaciones sólo ocurre al *abrir* la ventana de Ajustes.** Si se
-queda abierta, no vuelve a mirar: al publicar la 0.5.0 el usuario la tenía abierta desde
-antes y le decía que estaba al día. Hubo que pulsar el botón de buscar. Si algún día se
-quiere, la mejora es volver a comprobar cuando la ventana recupera el foco.
+1. `latest.json` se descarga desde la URL exacta que consulta la app
+   (`releases/latest/download/latest.json`).
+2. Va **sin BOM** y parsea.
+3. Su campo `signature` es idéntico al `.sig` local.
+4. El `.exe` publicado coincide en **SHA256** con el que se firmó.
 
-**Ya instalada** en el equipo de luisg (27/08 17:18): el `mike.exe` de
-`%LOCALAPPDATA%/Dicho` reporta 0.2.0 y su binario sí contiene el endpoint del updater. Los
-ajustes y la API key sobrevivieron a la reinstalación (viven en `%APPDATA%` y en el
-Administrador de credenciales, no dentro del programa). Ése era el único paso manual: de la
-0.3.0 en adelante se actualiza sola al abrir Ajustes.
+**Dos limitaciones conocidas**, ninguna urgente:
 
-**Auditoría de secretos antes del primer reparto a terceros** (27/08). Todo limpio, y
-conviene rehacerla cada vez que se publique:
+- El vigilante espera 3 s tras el cierre pero **no espera a que el instalador termine**.
+  Bastó siempre hasta ahora, pero con un disco lento o un antivirus escaneando podría
+  arrancar la app a media instalación y el instalador la mataría (el bucle de reintentos ya
+  no vigila: sale en cuanto ve un proceso vivo). Si vuelve a quedarse cerrada tras
+  actualizar, el arreglo es esperar a que desaparezca el proceso del instalador antes del
+  primer intento.
+- **La comprobación sólo ocurre al *abrir* la ventana de Ajustes.** Con la ventana ya
+  abierta no vuelve a mirar nunca: al publicar la 0.5.0 el usuario la tenía abierta desde
+  antes y le decía que estaba al día. El botón de buscar siempre funciona. La mejora, si se
+  quiere, es volver a comprobar cuando la ventana recupera el foco.
+
+**Auditoría de secretos** (hecha el 27/08 antes del primer reparto a terceros; conviene
+repetirla cada vez que se publique). Todo limpio:
+
 - La API key de Groq vive en el **Administrador de credenciales de Windows** (`keyring`,
   servicio `mike-dictado`), nunca en el repo ni dentro del binario.
 - Cero coincidencias de `gsk_…`, `sk-…`, `GOCSPX-…` ni `…apps.googleusercontent.com` en el
@@ -265,7 +326,8 @@ conviene rehacerla cada vez que se publique:
    nunca ayudar a oírla bien. El `prompt` de Whisper es justo la palanca documentada para
    sesgar vocabulario. Cuidado: ese mismo prompt es lo que frena la traducción, así que
    meterle una lista de palabras puede debilitarlo — hay que medir antes y después.
-   Detonante: "cámara" no aparece ni una vez en 200+ dictados del historial.
+   Ojo: el detonante original ("cámara" no aparecía nunca) **ya no aplica** — se resolvió
+   solo el 27/08. Así que esto baja de prioridad hasta que haya otra palabra que falle.
 
 ### Pendientes del usuario (nadie más puede hacerlos)
 
@@ -281,20 +343,25 @@ conviene rehacerla cada vez que se publique:
   la traducción) y más paralelos.
 - **Calibrar el umbral de silencio** si algún dictado real se marca como "no entendí": el
   rms de cada dictado queda en `dicho.log` y el umbral está en `pipeline.rs` (0.0012).
-- **Guardar la clave privada del updater** (`%USERPROFILE%\.tauri\dicho.key`) en un gestor
-  de contraseñas. Es irreemplazable: sin ella, ninguna copia instalada vuelve a
-  actualizarse nunca.
+- **Respaldar la clave privada del updater** (`%USERPROFILE%\.tauri\dicho.key`). Es el
+  único pendiente crítico y sólo existe una copia, en este disco. Sin ella, ni luisg ni
+  ninguno de sus testers vuelve a recibir una actualización jamás; habría que reinstalar a
+  mano en cada equipo. **Copiarla, no moverla** — `publicar.ps1` la lee de esa ruta exacta.
+  Acordado el 27/08: arrastrarla a Google Drive como
+  `DICHO - llave de actualizaciones - NO BORRAR NUNCA.key`. No hace falta gestor de
+  contraseñas; el riesgo no es que alguien la robe, es perderla.
 
 ### Comprobar en dos minutos que sigue todo vivo
 
 ```sh
-cd src-tauri && cargo test --lib        # 12 tests
+cd src-tauri && cargo test --lib        # 13 tests
 npm run build                           # tsc + vite
 ```
 ```powershell
-# el binario instalado es el del último build:
+# version instalada y viva (deberia coincidir con la ultima release):
 $exe = "$env:LOCALAPPDATA\Dicho\mike.exe"
-[Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($exe)).Contains("Ayer tuve un meeting")
+(Get-Item $exe).VersionInfo.FileVersion
+@(Get-Process mike -ErrorAction SilentlyContinue).Count
 Get-Content "$env:APPDATA\dev.mike.app\dicho.log" -Tail 20   # rms y trozos de cada dictado
 ```
 
