@@ -125,6 +125,24 @@ app dictándole a Claude; prioriza soluciones locales y gratuitas.
   que Tauri escribe en stderr (hasta un `Info` inocuo) en `NativeCommandError` y aborta el
   script. Es la misma trampa que `2>&1` sobre ejecutables nativos en PowerShell 5.1.
 - En Bash, `cmd | tail` se traga el exit code: usar `set -o pipefail`.
+- **El instalador NSIS no vuelve a abrir la app si la encuentra abierta.** Trae un `/R`
+  para relanzarla y el plugin del updater se lo pasa (`installMode: passive` →
+  `["/P", "/R"]`), pero sólo surte efecto si Dicho ya está cerrado cuando arranca el
+  instalador. Al actualizar desde dentro de la app lo encuentra vivo, entra por
+  `CheckIfAppIsRunning` → `KillProcessCurrentUser`, y por ese camino el relanzamiento no
+  llega. Comprobado en las dos direcciones, y la prueba sirve para validar cualquier
+  arreglo futuro:
+  - App **cerrada** antes de lanzar el instalador con `/P /R /UPDATE /ARGS` → **vuelve
+    sola** (queda su arranque en `dicho.log`).
+  - Instalador lanzado y app cerrada 300 ms después (= actualización real) → **no vuelve**.
+
+  Por eso el relanzamiento lo programa la app antes de instalar
+  (`commands::programar_relanzamiento`). Ojo al probarlo: **no se puede simular desde una
+  sesión automatizada**. Lanzar el vigilante con `Start-Process` lo mete en el job object
+  de la sesión y muere con el comando; lanzarlo por `Invoke-CimMethod Win32_Process Create`
+  lo pone en la sesión 0, donde una app gráfica no arranca. Lo que sí se puede validar sin
+  lanzar nada es el script en sí: `script_relanzador()` tiene test propio que lo vuelca a
+  disco para pasarlo por `[Parser]::ParseFile`.
 - **Relanzar Dicho desde una sesión automatizada**: `Start-Process mike.exe` a secas no
   vale — el proceso hereda el job object de la sesión y Windows lo mata en cuanto termina
   el comando. Parece un crash de la app y no lo es. Hay que re-parentarlo:
@@ -177,6 +195,16 @@ La **v0.2.0 está publicada** en https://github.com/luisgs096/dicho/releases/tag
 release existiera: `latest.json` se descarga desde la URL exacta que consulta la app
 (`releases/latest/download/latest.json`), va sin BOM, parsea, su campo `signature` es igual
 al `.sig` local, y el `.exe` publicado es **idéntico en SHA256** al que se firmó.
+
+**Publicadas 0.3.0 y 0.4.0** el mismo día, ya con `publicar.ps1` arreglado (salieron a la
+primera). La 0.3.0 estrenó la actualización automática de verdad: se descargó e instaló
+sola desde Ajustes — **pero dejó al usuario sin app**, porque el instalador la mata y no la
+vuelve a abrir (ver gotchas). La 0.4.0 lleva el arreglo.
+
+**Pendiente de validar**: el relanzador vive en la versión que *hace* la actualización, así
+que 0.3.0 → 0.4.0 todavía cerró la app. La primera prueba real será la **0.4.0 → 0.5.0**:
+si al actualizar Dicho vuelve solo, el arreglo funciona. En `dicho.log` debe aparecer
+`Updater: relanzamiento programado` justo antes.
 
 **Ya instalada** en el equipo de luisg (27/08 17:18): el `mike.exe` de
 `%LOCALAPPDATA%/Dicho` reporta 0.2.0 y su binario sí contiene el endpoint del updater. Los
@@ -257,6 +285,12 @@ Revisión visual de las caritas (viva, se actualiza al republicar):
 https://claude.ai/code/artifact/6e51420d-77cd-40b0-bcc5-ec39ce74e18f
 
 ## Historial de sesiones
+
+**27/08 (tarde)** — Estrenada la actualización automática con usuarios reales de por medio:
+0.3.0 y 0.4.0 publicadas y verificadas. La 0.3.0 destapó que el instalador NSIS mata la app
+y no la vuelve a abrir; reproducido en las dos direcciones y arreglado en la 0.4.0 con un
+vigilante que la app deja programado antes de instalar. También se arregló la versión del
+panel lateral, que estaba escrita a mano y discrepaba de la real. 13 tests.
 
 **27/08** — Auto-actualización firmada y UX de Groq (commit 2b85a0b). Chequeo de cierre:
 tests 12/12, build limpio, log sin un error en 253 dictados, HUD y caritas bien en las dos
