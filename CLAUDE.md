@@ -201,10 +201,27 @@ primera). La 0.3.0 estrenó la actualización automática de verdad: se descarg�
 sola desde Ajustes — **pero dejó al usuario sin app**, porque el instalador la mata y no la
 vuelve a abrir (ver gotchas). La 0.4.0 lleva el arreglo.
 
-**Pendiente de validar**: el relanzador vive en la versión que *hace* la actualización, así
-que 0.3.0 → 0.4.0 todavía cerró la app. La primera prueba real será la **0.4.0 → 0.5.0**:
-si al actualizar Dicho vuelve solo, el arreglo funciona. En `dicho.log` debe aparecer
-`Updater: relanzamiento programado` justo antes.
+**Validado en vivo con la 0.4.0 → 0.5.0** (27/08 22:42): el ciclo entero —comprobar,
+descargar, instalar y volver a abrirse— tardó **7 segundos** sin intervención. La secuencia
+que lo demuestra, en `dicho.log`:
+
+```
+22:42:42  Updater: relanzamiento programado   ← la app deja el vigilante antes de instalar
+22:42:47  arranca el proceso nuevo            ← los 3 s de espera + el primer reintento
+22:42:49  HUD-JS: montado                     ← 0.5.0 viva
+```
+
+Riesgo que queda, por si algún día reaparece: el vigilante espera 3 s tras el cierre pero
+**no espera a que el instalador termine**. Aquí bastó, pero con un disco lento o un
+antivirus de por medio podría arrancar la app a media instalación, y entonces el instalador
+la mataría (el bucle de reintentos ya no estaría vigilando: sale en cuanto ve un proceso
+vivo). Si vuelve a quedarse cerrada tras actualizar, el arreglo es esperar a que el proceso
+del instalador desaparezca antes del primer intento.
+
+**La comprobación de actualizaciones sólo ocurre al *abrir* la ventana de Ajustes.** Si se
+queda abierta, no vuelve a mirar: al publicar la 0.5.0 el usuario la tenía abierta desde
+antes y le decía que estaba al día. Hubo que pulsar el botón de buscar. Si algún día se
+quiere, la mejora es volver a comprobar cuando la ventana recupera el foco.
 
 **Ya instalada** en el equipo de luisg (27/08 17:18): el `mike.exe` de
 `%LOCALAPPDATA%/Dicho` reporta 0.2.0 y su binario sí contiene el endpoint del updater. Los
@@ -286,8 +303,8 @@ https://claude.ai/code/artifact/6e51420d-77cd-40b0-bcc5-ec39ce74e18f
 
 ## Historial de sesiones
 
-**27/08 (tarde)** — Estrenada la actualización automática con usuarios reales de por medio:
-0.3.0 y 0.4.0 publicadas y verificadas. La 0.3.0 destapó que el instalador NSIS mata la app
+**27/08 (tarde)** — Estrenada la actualización automática: 0.3.0, 0.4.0 y 0.5.0 publicadas
+y verificadas, y el ciclo completo funcionando solo en 7 s. La 0.3.0 destapó que el instalador NSIS mata la app
 y no la vuelve a abrir; reproducido en las dos direcciones y arreglado en la 0.4.0 con un
 vigilante que la app deja programado antes de instalar. También se arregló la versión del
 panel lateral, que estaba escrita a mano y discrepaba de la real. 13 tests.
