@@ -157,6 +157,16 @@ sesión, se reescribe entera. Y commitear el resultado.
   **pegado**: separado, clap se come el argumento siguiente y toma la ruta del instalador
   como password). Es barato y garantiza que el `.sig` corresponde al instalador recién
   construido; un `.sig` viejo rompe la actualización en silencio.
+- **Las notas del release van por archivo, no como argumento** (el fallo de la
+  0.7.0, 28/08). PowerShell 5.1 no sabe pasarle a un `.exe` una cadena con
+  comillas dentro: la parte en trozos, y `gh release create` toma las palabras
+  sueltas como si fueran assets que subir. El síntoma no menciona ni comillas ni
+  notas —``no matches found for `la` ``, por un "Mover la onda flotante" que
+  llevaba el texto— y salta **después** de compilar y firmar, o sea con 5 min de
+  build ya gastados. Se arregla con `--notes-file`, que no tiene nada que citar.
+  Ojo si vuelve a pasar algo parecido: el instalador y el `.sig` ya están hechos
+  y son válidos, así que basta con crear el release a mano en vez de repetir
+  todo el `publicar.ps1`.
 - **No canalizar la salida de `publicar.ps1`.** Un `*>&1 | Tee-Object` convierte cada línea
   que Tauri escribe en stderr (hasta un `Info` inocuo) en `NativeCommandError` y aborta el
   script. Es la misma trampa que `2>&1` sobre ejecutables nativos en PowerShell 5.1.
@@ -265,10 +275,10 @@ sesión, se reescribe entera. Y commitear el resultado.
 
 | | |
 |---|---|
-| Versión publicada e instalada | **v0.6.0**, corriendo (28/08) |
+| Versión publicada | **v0.7.0** (28/08), firmada y verificada. Instalada sigue la 0.6.0: se actualiza sola al abrir Ajustes |
 | Repo | `main` en `8d02400`, **público**, sincronizado con GitHub |
-| Releases vivas | v0.2.0 … v0.6.0, todas firmadas y verificadas |
-| Tests | `cargo test --lib` → **13 verdes** |
+| Releases vivas | v0.2.0 … v0.7.0, todas firmadas y verificadas |
+| Tests | `cargo test --lib` → **18 verdes** |
 | Build | `npm run build` limpio |
 | Árbol de trabajo | limpio, nada suelto |
 | Único pendiente crítico | respaldar `dicho.key` (sólo puede hacerlo luisg) |
@@ -452,7 +462,7 @@ repetirla cada vez que se publique). Todo limpio:
 ### Comprobar en dos minutos que sigue todo vivo
 
 ```sh
-cd src-tauri && cargo test --lib        # 13 tests
+cd src-tauri && cargo test --lib        # 18 tests
 npm run build                           # tsc + vite
 ```
 ```powershell

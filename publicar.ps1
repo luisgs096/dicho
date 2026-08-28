@@ -115,7 +115,13 @@ Escribir $latest ($manifiesto | ConvertTo-Json -Depth 5)
 
 Write-Host "4/5  Creando el Release v$Version en GitHub" -ForegroundColor Cyan
 $cuerpo = if ($Notas) { $Notas } else { "Version $Version" }
-gh release create "v$Version" $exe $latest --repo $repo --title "Dicho $Version" --notes $cuerpo
+# Las notas van por archivo, no como argumento: PowerShell 5.1 no sabe pasarle
+# a un .exe una cadena con comillas dentro —parte el argumento en trozos— y gh
+# acaba tomando las palabras sueltas como si fueran assets que subir. En la
+# 0.7.0 murio con "no matches found for `la`" despues de compilar y firmar.
+$notas = "$nsis\notas.md"
+Escribir $notas $cuerpo
+gh release create "v$Version" $exe $latest --repo $repo --title "Dicho $Version" --notes-file $notas
 if ($LASTEXITCODE -ne 0) { throw "gh release create fallo" }
 
 Write-Host "5/5  Listo." -ForegroundColor Green
