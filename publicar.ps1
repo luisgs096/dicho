@@ -96,6 +96,15 @@ npm run tauri -- signer sign --private-key-path "$clave" --password="" "$exe"
 if ($LASTEXITCODE -ne 0) { throw "La firma fallo. Revisa la clave en $clave" }
 if (-not (Test-Path $sig)) { throw "No aparecio la firma en $sig" }
 
+# Copia con nombre fijo para el boton de descarga del README. GitHub solo sirve
+# un enlace permanente (releases/latest/download/<archivo>) si el archivo se
+# llama siempre igual, y el nuestro lleva la version dentro del nombre.
+# El updater NO usa esta copia: latest.json sigue apuntando a la URL con el
+# numero de version, para que una descarga a medias no se mezcle con la
+# siguiente release. Esta es solo para humanos.
+$fijo = "$nsis\Dicho-setup.exe"
+Copy-Item $exe $fijo -Force
+
 Write-Host "3/5  Generando latest.json" -ForegroundColor Cyan
 # La URL apunta al tag concreto y no a /latest: asi una descarga a medias no
 # se mezcla con la version siguiente.
@@ -121,7 +130,7 @@ $cuerpo = if ($Notas) { $Notas } else { "Version $Version" }
 # 0.7.0 murio con "no matches found for `la`" despues de compilar y firmar.
 $notas = "$nsis\notas.md"
 Escribir $notas $cuerpo
-gh release create "v$Version" $exe $latest --repo $repo --title "Dicho $Version" --notes-file $notas
+gh release create "v$Version" $exe $fijo $latest --repo $repo --title "Dicho $Version" --notes-file $notas
 if ($LASTEXITCODE -ne 0) { throw "gh release create fallo" }
 
 Write-Host "5/5  Listo." -ForegroundColor Green

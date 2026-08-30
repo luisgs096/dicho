@@ -2,7 +2,7 @@
 
 <img src="docs/banner.png" alt="Dicho — dictado por voz para Windows" width="820">
 
-## [⬇ Descargar para Windows](https://github.com/luisgs096/dicho/releases/latest)
+## [⬇ Descargar para Windows](https://github.com/luisgs096/dicho/releases/latest/download/Dicho-setup.exe)
 
 Gratis · sin cuenta · funciona sin internet
 
@@ -19,8 +19,9 @@ los dictados de siempre se rinden y te traducen media frase sin permiso.
 
 ## Instalar
 
-1. Descarga el archivo `Dicho_x.y.z_x64-setup.exe` de la
-   [última versión](https://github.com/luisgs096/dicho/releases/latest).
+1. Pulsa el botón de arriba: baja `Dicho-setup.exe`, que siempre es la última versión.
+   (En [la página de versiones](https://github.com/luisgs096/dicho/releases) están todas,
+   con lo que cambió en cada una.)
 2. Ábrelo. Windows va a decir que **"protegió tu PC"**: es porque la app no lleva un
    certificado de firma, que cuesta unos cientos de euros al año. Pulsa
    **Más información** → **Ejecutar de todas formas**.

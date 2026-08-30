@@ -491,6 +491,14 @@ corresponda rompe la actualización en silencio y no avisa nadie):
 3. Su campo `signature` es idéntico al `.sig` local.
 4. El `.exe` publicado coincide en **SHA256** con el que se firmó.
 
+**Cada release lleva el instalador dos veces**, y no es un descuido: `gh release create`
+sube `Dicho_X.Y.Z_x64-setup.exe` y una copia idéntica llamada `Dicho-setup.exe`. GitHub
+sólo sirve un enlace permanente (`releases/latest/download/<archivo>`) si el nombre no
+cambia nunca, y el del instalador lleva la versión dentro, así que sin la copia el botón
+de descarga del README caducaría en cada versión. **El updater no la usa**: `latest.json`
+sigue apuntando a la URL con el número de versión, para que una descarga a medias no se
+mezcle con la release siguiente. La copia es sólo para humanos.
+
 **Dos limitaciones conocidas**, ninguna urgente:
 
 - El vigilante espera 3 s tras el cierre pero **no espera a que el instalador termine**.
