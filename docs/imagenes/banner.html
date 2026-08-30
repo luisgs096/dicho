@@ -1,0 +1,42 @@
+<meta charset="utf-8">
+<title>banner</title>
+<script src="faces.js"></script>
+<script src="comun.js"></script>
+<style id="base"></style>
+<style>
+  body { zoom: 1.5; width: 1200px; height: 420px; background: #f4f7fc; position: relative;
+         overflow: hidden; display: flex; flex-direction: column;
+         align-items: center; justify-content: center; gap: 26px; }
+  /* Rejilla como la del LCD, pero muy tenue: el guiño al pixel-art sin ruido. */
+  body::before { content: ""; position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(51,65,92,.045) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(51,65,92,.045) 1px, transparent 1px);
+    background-size: 12px 12px; }
+  body::after { content: ""; position: absolute; inset: -20%;
+    background: radial-gradient(50% 55% at 22% 18%, rgba(37,99,235,.10), transparent 70%),
+                radial-gradient(45% 50% at 82% 88%, rgba(23,179,148,.10), transparent 70%); }
+  .capa { position: relative; z-index: 1; display: flex; flex-direction: column;
+          align-items: center; gap: 26px; }
+  h1 { margin: 0; font-size: 68px; font-weight: 800; letter-spacing: -.03em;
+       color: #17233d; line-height: 1; }
+  p { margin: 0; font-size: 20px; color: #5b6b86; text-align: center; line-height: 1.5;
+      max-width: 620px; }
+  p b { color: #33415c; font-weight: 600; }
+  .badges { display: flex; gap: 10px; margin-top: 4px; }
+  .badges span { font-size: 12.5px; font-weight: 600; color: #5b6b86;
+                 border: 1px solid #ccd8e8; background: #fff; border-radius: 999px;
+                 padding: 5px 13px; }
+</style>
+<div class="capa">
+  <h1>Dicho</h1>
+  <p>Mantén la tecla, habla, suelta.<br><b>El texto aparece donde estés escribiendo.</b></p>
+  <div id="hud"></div>
+  <div class="badges"><span>Windows 10 y 11</span><span>Gratis</span><span>Funciona sin internet</span></div>
+</div>
+<script>
+  document.getElementById("base").textContent = CSS_BASE;
+  // "Ajá, sigue": ojos abiertos y sonrisa, sin accesorio encima. Es la que se
+  // lee de un vistazo, que es lo que necesita una imagen fija.
+  document.getElementById("hud").innerHTML = capsula(FACES.V.escuchando[1], { id: "dj" });
+  congelar({ dj: "-.5s" });
+</script>

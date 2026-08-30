@@ -1,0 +1,40 @@
+<meta charset="utf-8">
+<title>caritas</title>
+<script src="faces.js"></script>
+<script src="comun.js"></script>
+<style id="base"></style>
+<style>
+  body { width: 940px; background: #f4f7fc; padding: 26px 30px 30px; }
+  h4 { margin: 0 0 9px; font: 700 11px/1 Consolas, "Cascadia Mono", monospace;
+       letter-spacing: .12em; text-transform: uppercase; color: #8296b2; }
+  .grupo { margin-bottom: 20px; }
+  .grupo:last-child { margin-bottom: 0; }
+  .rejilla { display: flex; gap: 12px; flex-wrap: wrap; }
+</style>
+<div id="todo"></div>
+<script>
+  document.getElementById("base").textContent = CSS_BASE;
+  const frames = {};
+  // Cada carita congelada donde mejor se le ve el gesto: las que tienen algo que
+  // entra (el pulgar, la lágrima, el eructo) necesitan un punto tardío del bucle.
+  const RELOJ = {
+    escuchando: ["-1.1s", "-.4s", "-.5s", "-.5s", "-.35s"],
+    pensando: ["-.5s", "-.5s", "-1.1s", "-.2s", "-1.2s"],
+    listo: ["-.9s", "-.9s", "-.9s", "-.3s", "-1.3s", "-1.05s"],
+    "no-entendi": ["-.6s", "-.9s", "-.5s", "-.5s", "-.6s"],
+    reposo: ["-.5s", "-.5s", "-.9s", "-.4s", "-.95s"],
+  };
+  document.getElementById("todo").innerHTML = FACES.ESTADOS
+    .map(({ key, titulo }) => {
+      const tiles = FACES.V[key]
+        .map((v, i) => {
+          const id = key.replace("-", "") + i;
+          frames[id] = RELOJ[key][i];
+          return mini(v, { id, sad: v.sad });
+        })
+        .join("");
+      return `<div class="grupo"><h4>${titulo}</h4><div class="rejilla">${tiles}</div></div>`;
+    })
+    .join("");
+  congelar(frames);
+</script>

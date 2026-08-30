@@ -1,0 +1,36 @@
+<meta charset="utf-8">
+<title>estados</title>
+<script src="faces.js"></script>
+<script src="comun.js"></script>
+<style id="base"></style>
+<style>
+  body { width: 860px; background: #f4f7fc; padding: 22px 34px; }
+  .fila { display: flex; align-items: center; gap: 26px; padding: 13px 0; }
+  .txt h3 { margin: 0 0 3px; font-size: 16px; font-weight: 700; color: #17233d; }
+  .txt p { margin: 0; font-size: 13.5px; line-height: 1.45; color: #5b6b86; max-width: 420px; }
+</style>
+<div id="lista"></div>
+<script>
+  document.getElementById("base").textContent = CSS_BASE;
+  // Un ejemplo por estado, en el orden en que los ve el usuario al dictar.
+  const MUESTRA = [
+    ["escuchando", 0, "Te escucho", "Mientras mantienes la tecla. Las barras se mueven con el volumen real de tu voz."],
+    ["pensando", 3, "Escribiendo", "Transcribe y pule lo que dijiste. Uno o dos segundos."],
+    ["listo", 0, "Listo", "El texto ya está pegado donde estabas escribiendo."],
+    ["no-entendi", 0, "No entendí", "El micrófono no captó nada. No pega nada ni te lo inventa."],
+    ["reposo", 2, "En reposo", "Entre dictado y dictado, antes de esconderse."],
+  ];
+  const frames = {};
+  document.getElementById("lista").innerHTML = MUESTRA
+    .map(([estado, i, titulo, texto], n) => {
+      const v = FACES.V[estado][i];
+      const id = "f" + n;
+      frames[id] = ["-1.5s", "-.2s", "-.9s", "-.6s", "-.5s"][n];
+      return `<div class="fila">
+        ${capsula(v, { id, sad: v.sad, texto: estado === "listo" || estado === "no-entendi" })}
+        <div class="txt"><h3>${titulo}</h3><p>${texto}</p></div>
+      </div>`;
+    })
+    .join("");
+  congelar(frames);
+</script>

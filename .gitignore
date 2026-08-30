@@ -26,3 +26,6 @@ dist-ssr
 # Claves de firma del updater (viven en %USERPROFILE%\.tauri)
 *.key
 *.key.pub
+
+# Bundle que se genera para pintar las imágenes del README (ver docs/generar-imagenes.md)
+docs/imagenes/faces.js
