@@ -308,6 +308,16 @@ conocimiento. Y se commitea con el resto.
   vale — el proceso hereda el job object de la sesión y Windows lo mata en cuanto termina
   el comando. Parece un crash de la app y no lo es. Hay que re-parentarlo:
   `Start-Process explorer.exe -ArgumentList $exe`.
+- **…y ni aun así, si hereda una tubería que va a morir** (15/09). Lanzada desde una
+  sesión automatizada, Dicho hereda el `stdout`/`stderr` de ese comando; cuando el
+  comando termina, la tubería se cierra y **el siguiente apunte de `env_logger`
+  revienta contra un descriptor muerto**: `0xc0000409` en el visor de eventos, que
+  es el abort de Rust. Parece que la versión recién publicada está rota —cuatro
+  crashes seguidos, ninguno con línea en `dicho.log` porque muere antes— y no lo
+  está. La prueba que lo separa: lanzarla **con la salida redirigida a un archivo**
+  (`start "" /b mike.exe > salida.txt 2>&1` dentro de un `.cmd` que abra explorer).
+  Si así vive, era la tubería. Al usuario no le pasa: al arrancar desde el menú o
+  desde el Run key no hay tubería que cerrar.
 - **El HUD atrapa el ratón o lo deja pasar, pero no a medias.** Nació siendo un
   cristal (`set_ignore_cursor_events(true)` → `WS_EX_TRANSPARENT`) para no comerse
   los clics de lo que hubiera debajo, y eso es justo lo que impedía arrastrarlo.
