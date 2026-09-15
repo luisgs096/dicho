@@ -52,7 +52,17 @@ conocimiento. Y se commitea con el resto.
   porque abre un bucle modal que **activa** la ventana, y el HUD es no activable
   a propósito para no robarle el foco a lo que estás escribiendo.
 - `src-tauri/src/hotkey.rs` — hook global rdev; lee `settings.hotkey` en cada evento →
-  cambios de atajo aplican en vivo sin reiniciar.
+  cambios de atajo aplican en vivo sin reiniciar. **Escape mientras grabas manda
+  `Cmd::Cancel`**: se tira el audio y no se transcribe nada. Ojo con la trampa —
+  al cancelar el atajo *sigue apretado*, así que hay una bandera
+  `esperando_soltar`; sin ella `all_down` seguiría siendo cierto y arrancaría un
+  dictado nuevo en el acto.
+- **El menú vive en la onda, no en Ajustes** (`MenuOnda` en `Hud.tsx`). Un botón
+  de lápiz que aparece al pasar el ratón y despliega [clavar | mover]; si eliges
+  mover, los mismos botones pasan a ser [listo | devolver a su sitio]. Clavada
+  (`settings.hud_pin`) la onda no se esconde nunca —`hide_hud_later` la deja en
+  reposo en vez de ocultarla— y **atrapa el ratón sí o sí**, porque si no su
+  propio menú sería un dibujo. En reposo se vela a `hud_opacidad_reposo`.
 - `src-tauri/src/sync.rs` — OAuth Desktop de Google (PKCE + loopback, tokens en el
   Administrador de credenciales, servicio keyring `mike-dictado`) y sync de
   diccionario+historial como JSON en el appDataFolder de Drive, con fusión sin
@@ -60,13 +70,27 @@ conocimiento. Y se commitea con el resto.
   Perfil). **Aún sin probar de punta a punta: falta que el usuario cree su cliente OAuth.**
 - `src-tauri/src/store.rs` — SQLite (`mike.db`): history (con columna `corrections`
   JSON), dictionary, meta (email de Google, last_sync).
-- `src/windows/Settings.tsx` — ventana principal con sidebar: Perfil (cuenta Google +
-  editor visual de atajo con teclado laptop/extendido), Diccionario, Historial (chips de
-  correcciones + filtro), Ajustes (motores, "no traducir", modelo local, Groq, estilo
-  del HUD + botones "Ver animaciones" / "Mover la onda flotante" / "Devolverla a su
-  sitio" + interruptor de arrastrable, autostart, actualizaciones) anclado abajo.
-  Ojo: `update()` en este archivo es el que guarda **ajustes**, no el de versiones;
-  el de versiones se destructura como `actualizacion`/`buscarActualizacion`.
+- `src/windows/Settings.tsx` — ventana principal con sidebar de tres: **Inicio**
+  (editor visual del atajo con teclado laptop/extendido + la onda flotante entera:
+  vista previa, "Ver las 26 caritas", "Mover la onda flotante", "Devolverla a su
+  sitio" e interruptor de arrastrable), Diccionario, Historial (chips de correcciones
+  + filtro), y **Ajustes** anclado abajo con lo de debajo del capó (motores, "no
+  traducir", modelo local, key de Groq, cuenta de Google, autostart, novedades y
+  actualizaciones). El reparto es deliberado: en Inicio lo que se usa a diario y se
+  ve; en Ajustes lo que se toca una vez. Ojo: `update()` en este archivo es el que
+  guarda **ajustes**, no el de versiones; el de versiones se destructura como
+  `actualizacion`/`buscarActualizacion`.
+- `CAMBIOS.md` + `src/windows/cambios.ts` — qué trajo cada versión, en guiones. **Una
+  sola fuente para dos consumidores**: la app lo importa con `?raw`, así que viaja
+  dentro del binario y se lee sin internet (Ajustes → "Novedades de esta versión"), y
+  `publicar.ps1` saca de ahí las notas del Release. El formato es mínimo a propósito
+  —`## X.Y.Z — fecha` y guiones— para que una expresión regular de PowerShell también
+  lo entienda. Si falta el apartado de la versión que se publica, `publicar.ps1`
+  **aborta antes de compilar**, que enterarse a los 40 minutos es tirar el build.
+- `src/windows/VistaPrevia.tsx` — los dos estilos de onda, animados y en el mismo
+  punto del recorrido (te escucho → escribiendo → listo → no entendí), para elegir
+  viendo en vez de leyendo una lista. Reusa `faces.ts`, o sea que enseña exactamente
+  lo que saldrá al dictar. A tamaño real y sin escalar: el pixel-art se deforma.
 - `src/windows/updater.ts` — hook `useUpdater()`: consulta la release más reciente al
   abrir Ajustes (callado si no hay nada o no hay internet, ruidoso sólo si el usuario
   pulsó el botón), descarga con progreso e instala. La verificación de firma la hace
@@ -84,7 +108,17 @@ conocimiento. Y se commitea con el resto.
   con destello, de par en par, entrecerrado, cerrado, contento, caído, estrella,
   corazón, aspa— y **todos son de ancho impar**: `eyes()` centra con
   `(3 - ancho) / 2`, así que un ancho par los dejaría a medio píxel.
-  Exporta `CARITA_COMILONA`/`CARITA_ERUCTO`, los dos índices que el HUD encadena.
+  Exporta `CARITA_COMILONA`/`CARITA_ERUCTO`, los dos índices que el HUD encadena,
+  y **`MAREO`**: las tres caritas que sólo salen al zarandear la onda mientras la
+  colocas (mareada → aguantándose → vomita). Van **fuera de `V`** a propósito, que
+  si no saldrían al azar en mitad de un dictado. Dos aprendizajes de dibujarlas:
+  los cachetes sueltos a los lados se leen como **orejas** —hay que hinchar toda
+  la parte baja de la cara de un trazo, y dejar la raya de la boca dentro para que
+  no parezca una bocaza— y el chorro tiene que salir **en arco hacia la derecha**,
+  porque cayendo a plomo se sale del lienzo (la boca ya acaba en y=14 de 17).
+  El detector del zarandeo vive en Rust (`overlay::Meneo`, con 4 tests): durante
+  el arrastre la ventana persigue al cursor, así que **visto desde el webview el
+  ratón no se mueve ni un píxel**.
   Se previsualiza con `npx esbuild src/windows/faces.ts --bundle --format=iife
   --global-name=FACES` + una página que pinte `FACES.V`.
 - `src/windows/Hud.tsx` — HUD con dos estilos conmutables desde Ajustes
@@ -183,6 +217,42 @@ conocimiento. Y se commitea con el resto.
   Ojo si vuelve a pasar algo parecido: el instalador y el `.sig` ya están hechos
   y son válidos, así que basta con crear el release a mano en vez de repetir
   todo el `publicar.ps1`.
+- **Nunca pongas la duración de una animación en una variable CSS** (el fallo de
+  las caritas, 14/09). Los gestos se declaraban
+  `animation: fl3_0 var(--d) steps(1, end) infinite`. Cuando algo escribe **otra**
+  variable en la carita o en un ancestro —`--lvl`, el volumen de la voz— Chromium
+  recalcula el subárbol, vuelve a resolver ese `var()` y **recrea la animación
+  desde cero**. Como el HUD refresca `--lvl` en cada fotograma mientras grabas,
+  **los gestos llevaban congelados desde siempre durante el dictado**: sólo se
+  movían las dos caritas reactivas, que no usan `animation` sino un `transform`
+  que lee la variable. Nadie lo vio porque el HUD sale pocos segundos; en la
+  pantalla de Inicio, con la carita fija a la vista, saltó enseguida.
+  Arreglado de raíz: la duración va **inline y literal** en cada fotograma
+  (`style="animation-duration:.6s"`) y el CSS usa longhands (`animation-name`,
+  `-duration`, `-timing-function`, `-iteration-count`) en vez del atajo, que
+  reinicia la duración a 0. Medido después: **103 de 103 animaciones siguen
+  avanzando** con `--lvl` escribiéndose a 60 fps.
+  Se diagnostica en 10 s sin mirar nada a ojo:
+  `el.getAnimations({subtree:true})[0].currentTime` dos veces seguidas — si no
+  avanza o va hacia atrás, es esto.
+- **Redibujar React también los reinicia**: la escena entra por
+  `dangerouslySetInnerHTML`, así que cada render reescribe el interior del `<svg>`
+  y se lleva por delante los `<g>` que llevan las animaciones. Un componente que
+  pinte caritas debe redibujarse **sólo cuando la carita cambia**.
+- **El Release se crea sobre un commit que GitHub ya tiene que conocer** (el fallo de
+  la 0.8.2, 14/09). `gh release create` sin `--target` pone el tag en la rama por
+  defecto: publicando desde una rama, el tag apuntaría a un `main` sin ese código y el
+  Release mentiría sobre lo que contiene. Con `--target` hay dos trampas encadenadas,
+  y las dos dan el mismo mensaje —`Release.target_commitish is invalid`— **después** de
+  compilar y firmar:
+  - El SHA tiene que ir **completo**. Abreviado (`c9f3a06`) también lo rechaza.
+  - Y el commit tiene que estar **empujado**. Un `git push` que faltaba tira los 40
+    minutos de build. Ya hay guarda al principio de `publicar.ps1`
+    (`git branch -r --contains HEAD`), probada en las dos direcciones.
+
+  Si vuelve a pasar: el instalador y el `.sig` ya están hechos y son válidos, así que
+  se crea el release a mano con los artefactos de `target/release/bundle/nsis` en vez
+  de repetir la compilación.
 - **No canalizar la salida de `publicar.ps1`.** Un `*>&1 | Tee-Object` convierte cada línea
   que Tauri escribe en stderr (hasta un `Info` inocuo) en `NativeCommandError` y aborta el
   script. Es la misma trampa que `2>&1` sobre ejecutables nativos en PowerShell 5.1.
@@ -248,6 +318,16 @@ conocimiento. Y se commitea con el resto.
   vale — el proceso hereda el job object de la sesión y Windows lo mata en cuanto termina
   el comando. Parece un crash de la app y no lo es. Hay que re-parentarlo:
   `Start-Process explorer.exe -ArgumentList $exe`.
+- **…y ni aun así, si hereda una tubería que va a morir** (15/09). Lanzada desde una
+  sesión automatizada, Dicho hereda el `stdout`/`stderr` de ese comando; cuando el
+  comando termina, la tubería se cierra y **el siguiente apunte de `env_logger`
+  revienta contra un descriptor muerto**: `0xc0000409` en el visor de eventos, que
+  es el abort de Rust. Parece que la versión recién publicada está rota —cuatro
+  crashes seguidos, ninguno con línea en `dicho.log` porque muere antes— y no lo
+  está. La prueba que lo separa: lanzarla **con la salida redirigida a un archivo**
+  (`start "" /b mike.exe > salida.txt 2>&1` dentro de un `.cmd` que abra explorer).
+  Si así vive, era la tubería. Al usuario no le pasa: al arrancar desde el menú o
+  desde el Run key no hay tubería que cerrar.
 - **El HUD atrapa el ratón o lo deja pasar, pero no a medias.** Nació siendo un
   cristal (`set_ignore_cursor_events(true)` → `WS_EX_TRANSPARENT`) para no comerse
   los clics de lo que hubiera debajo, y eso es justo lo que impedía arrastrarlo.

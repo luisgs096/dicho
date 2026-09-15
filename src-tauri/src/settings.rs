@@ -102,11 +102,24 @@ pub struct AppSettings {
     /// Si el HUD atrapa el ratón para poder arrastrarlo. Apagado vuelve a ser
     /// un cristal: los clics lo atraviesan y llegan a lo que haya debajo.
     pub hud_arrastrable: bool,
+    /// Clavada: la onda se queda a la vista siempre, no sólo mientras dictas.
+    /// Es el "modo mascota": la cápsula vive en tu escritorio.
+    #[serde(default)]
+    pub hud_pin: bool,
+    /// Lo transparente que se pone la onda **cuando no está en uso**. 1 = opaca.
+    /// Sólo aplica clavada: mientras dictas siempre se ve entera.
+    #[serde(default = "opacidad_reposo_default")]
+    pub hud_opacidad_reposo: f32,
     pub autostart: bool,
     /// Cliente OAuth "Desktop" de Google para la sincronización vía Drive.
     /// En apps instaladas el client_secret no es confidencial por diseño.
     pub google_client_id: String,
     pub google_client_secret: String,
+}
+
+/// Medio velo: se ve que está ahí sin competir con lo que estés leyendo.
+fn opacidad_reposo_default() -> f32 {
+    0.45
 }
 
 impl Default for AppSettings {
@@ -121,6 +134,8 @@ impl Default for AppSettings {
             hud_style: HudStyle::Tamagotchi,
             hud_posiciones: HashMap::new(),
             hud_arrastrable: true,
+            hud_pin: false,
+            hud_opacidad_reposo: opacidad_reposo_default(),
             autostart: false,
             google_client_id: String::new(),
             google_client_secret: String::new(),

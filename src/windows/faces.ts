@@ -190,21 +190,57 @@ const PAC_CERRADA = [".......", ".......", "XXXXXXX", "XXXXXXX", ".......", "...
 /** Burbuja del eructo: cuatro filas para que salga redonda. Con tres se
  *  leía como una cruz verde, que no es lo que queremos decir. */
 const PUFF = [".XX.", "XXXX", "XXXX", ".XX."];
+/**
+ * La cara llena de aire, aguantando la náusea. Se probaron primero dos
+ * cachetes sueltos a los lados —como el rubor, pero más grandes— y a 3 px se
+ * leían como **orejas**: dos bloques flotando lejos de la boca. Lo que sí
+ * funciona es hinchar toda la parte baja de la cara de un solo trazo, hueca
+ * como la cuenca o el bostezo, en dos tamaños para que se vea inflarse.
+ * Centradas en x=22: la mediana (11 de ancho) en x=17, la llena (15) en x=15.
+ */
+/** Charco: se queda en el suelo después de la arcada y no se va. Plano y ancho
+ *  para que se lea como líquido y no como otra burbuja. */
+const CHARCO_CHICO = ["..XX..", ".XXXX."];
+const CHARCO = ["..XXXX..", ".XXXXXX.", "XXXXXXXX"];
+/** Hilo que escurre de la comisura. Un píxel de ancho: más, y es un chorro. */
+const ESCURRE = ["X", "X", "X"];
+/** Aspa flotante: en los tamagotchi el significado va en el símbolo de al lado,
+ *  no en la cara. Ésta es la de "no, olvídalo". */
+const ASPA = ["X...X", ".X.X.", "..X..", ".X.X.", "X...X"];
+
+const CARRILLOS_MEDIO = [".XXXXXXXXX.", "X.........X", ".XXXXXXXXX."];
+const CARRILLOS_LLENO = [
+  ".XXXXXXXXXXXXX.",
+  "X.............X",
+  "X.............X",
+  ".XXXXXXXXXXXXX.",
+];
 
 // ─── motorcito de fotogramas ────────────────────────────────────────────────
+//
+// OJO con cómo viaja la duración. Antes iba en una variable (`style="--d:.6s"`
+// en el padre, y `animation: … var(--d) …` en el CSS) y eso congelaba las
+// caritas: **cualquier** escritura de otra variable CSS —`--lvl`, el volumen de
+// la voz, que el HUD refresca en cada fotograma— obliga a Chromium a recalcular
+// el subárbol, volver a resolver ese `var()` y **recrear la animación desde
+// cero**. Ningún gesto pasaba de unos milisegundos. Ahora la duración va inline
+// y literal en cada fotograma: no hay `var()` que re-resolver, así que el
+// volumen puede cambiar 60 veces por segundo sin tocar los gestos.
 /** Alterna N dibujos a partes iguales (el clásico flipbook). */
 const flip = (list: string[], dur: string) =>
-  `<g class="flip flip${list.length}" style="--d:${dur}">` +
-  list.map((h) => `<g>${h}</g>`).join("") +
+  `<g class="flip flip${list.length}">` +
+  list.map((h) => `<g style="animation-duration:${dur}">${h}</g>`).join("") +
   `</g>`;
 
 /** Parpadeo: abierto casi todo el ciclo, cerrado un instante. */
 const blink = (open: string, shut: string, dur = "3.2s") =>
-  `<g class="blink" style="--d:${dur}"><g>${open}</g><g>${shut}</g></g>`;
+  `<g class="blink"><g style="animation-duration:${dur}">${open}</g>` +
+  `<g style="animation-duration:${dur}">${shut}</g></g>`;
 
 /** Guiño: como el parpadeo pero el ojo se queda cerrado un rato largo. */
 const wink = (open: string, shut: string, dur = "1.6s") =>
-  `<g class="wink" style="--d:${dur}"><g>${open}</g><g>${shut}</g></g>`;
+  `<g class="wink"><g style="animation-duration:${dur}">${open}</g>` +
+  `<g style="animation-duration:${dur}">${shut}</g></g>`;
 
 /** Ocho fotogramas con un punto dando la vuelta: "cargando" de toda la vida. */
 const SPINNER = ([
@@ -506,6 +542,118 @@ export const V: Record<FaceState, Variant[]> = {
 export const CARITA_COMILONA = 4;
 export const CARITA_ERUCTO = 5;
 
+/**
+ * El mareo: tres caritas que **no salen dictando**, sólo mientras colocas la
+ * onda y la zarandeas con el ratón. Cada sacudida sube un escalón y no se
+ * vuelve atrás hasta que paras: la broma es que se va poniendo peor.
+ *
+ * Fuera del repertorio normal (`V`) a propósito: son un premio por jugar, no
+ * un estado del dictado, y mezclarlas allí las sacaría al azar en mitad de tu
+ * trabajo. El catálogo de Ajustes sí las enseña, en su propia sección.
+ *
+ * Las tres respetan la rejilla de siempre: coordenadas enteras, ojos de 3 px
+ * en x=15 y x=27, cara centrada en 22, bucles ≤1,4 s y todo a `steps(1, end)`
+ * para que el pixel-art no tiemble. Y cada una estrena su gesto de ojos, que
+ * es la regla que las separa: **balancín** (uno sube mientras el otro baja),
+ * **pulso** (se abren de golpe y vuelven) y **apretón** (un cuadro de susto y
+ * el resto cerrados).
+ */
+/**
+ * Dictado cancelado: te arrepentiste a media frase y no se transcribe nada.
+ *
+ * Copia la convención del P1 para el rechazo —**girar la cara**, que es como
+ * el bicho dice que no cuando no quiere comer— y la de poner el significado en
+ * un **símbolo al lado** en vez de en la cara. La cabeza barre de un lado a
+ * otro en dos cuadros alternos repetidos cuatro veces, que es la unidad de
+ * animación de los tamagotchi de siempre (dos fotogramas, 3-4 repeticiones).
+ */
+export const CARITA_CANCELADO: Variant = {
+  status: "Cancelado",
+  scene: `<g class="a-niega">${flip(
+    [eyes(OJO_ARCO, 6), eyes(OJO_LINEA, 7)],
+    ".72s",
+  )}${spr(RAYA, 20, 12)}</g>
+    <g class="a-aspa">${spr(tint(ASPA, "w"), 35, 5)}</g>`,
+};
+
+export const MAREO: Variant[] = [
+  {
+    // 1 · Mareada. Los ojos hacen balancín en contrafase —el izquierdo arriba
+    // mientras el derecho abajo— que es lo que de verdad lee como "todo me da
+    // vueltas"; el espiral clásico a 3 px se convierte en una mancha. La cara
+    // entera se bambolea un píxel a cada lado y dos chispas le giran encima.
+    status: "Me mareas",
+    scene: `<g class="a-mareo">${flip(
+      [
+        spr(OJO, LX, 5) + spr(OJO_MEDIO, RX, 7),
+        spr(OJO_MEDIO, LX, 6) + spr(OJO_MEDIO, RX, 6),
+        spr(OJO_MEDIO, LX, 7) + spr(OJO, RX, 5),
+        spr(OJO_MEDIO, LX, 6) + spr(OJO_MEDIO, RX, 6),
+      ],
+      "1.28s",
+    )}${spr(ZIGZAG, 18, 12)}</g>
+      <g class="a-orb1">${spr(tint(CHISPITA, "w"), 37, 3)}</g>
+      <g class="a-orb2">${spr(tint(CHISPITA, "w"), 37, 3)}</g>`,
+  },
+  {
+    // 2 · Aguantándose. Cuatro tiempos que cuentan la historia entera: boca
+    // sellada, se llena, se llena del todo, y el trago —los carrillos
+    // desaparecen de golpe, la boca se hace chiquita y la cara baja un píxel—.
+    // Los ojos pulsan de 3 a 5 px de ancho al doble de ritmo: es el esfuerzo
+    // de no soltarlo. La gota de sudor, en la sien, remata la idea.
+    status: "¡Aguanta!",
+    scene: `<g class="a-glup">${flip(
+      [eyes(OJO, 5), eyes(OJO_ANCHO, 5), eyes(OJO, 5), eyes(OJO_ANCHO, 5)],
+      ".64s",
+    )}${flip(
+      [
+        spr(RAYA, 20, 12),
+        // La raya de la boca sigue dentro del bulto: sin ella el hueco se leía
+        // como una bocaza abierta, que es justo lo contrario de aguantarse.
+        spr(CARRILLOS_MEDIO, 17, 11) + spr(RAYA, 20, 12),
+        spr(CARRILLOS_LLENO, 15, 10) + spr(RAYA, 20, 12),
+        spr(BOCA_CHICA, 21, 12),
+      ],
+      "1.28s",
+    )}</g>
+      <g class="a-sudor">${spr(tint(GOTA, "s"), 33, 4)}</g>`,
+  },
+  {
+    // 3 · Ya no aguantó. Cinco tiempos, que es una historia y no un gesto: el
+    // "ay, no" con los ojos de par en par, la boca abriéndose, el chorro, y al
+    // final **se limpia la boca con la manita** mientras el charco se queda ahí.
+    // Los tamagotchi ponen el significado en el símbolo de al lado y no en la
+    // cara: por eso el charco vive fuera, en el suelo, y no encima del bicho.
+    status: "¡Blegh!",
+    scene: `<g class="a-arcada">${flip(
+      [
+        eyes(OJO_ANCHO, 5),
+        eyes(OJO_ARCO, 6),
+        eyes(OJO_ARCO, 6),
+        eyes(OJO_ARCO, 6),
+        eyes(OJO_MEDIO, 7),
+      ],
+      "1.4s",
+    )}${flip(
+      [
+        spr(BOCA_O, 20, 11),
+        spr(BOSTEZO, 19, 10),
+        spr(BOSTEZO, 19, 10),
+        spr(BOSTEZO, 19, 10),
+        // El último cuadro: boca chica y la manita limpiándosela.
+        spr(BOCA_CHICA, 21, 12) + spr(MANO, 25, 12),
+      ],
+      "1.4s",
+    )}</g>
+      <g class="a-vom1">${spr(tint(PUFF, "m"), 26, 12)}</g>
+      <g class="a-vom2">${spr(tint(PUFF, "m"), 26, 12)}</g>
+      <g class="a-vom3">${spr(tint(PUNTO, "m"), 26, 13)}</g>
+      <g class="a-escurre">${spr(tint(ESCURRE, "m"), 25, 14)}</g>
+      <g class="a-charco1">${spr(tint(CHARCO_CHICO, "m"), 31, 15)}</g>
+      <g class="a-charco2">${spr(tint(CHARCO, "m"), 30, 15)}</g>`,
+  },
+];
+
 export const MIC_SVG = `<svg viewBox="0 0 7 13">${spr(
   [".aaa.", "aaaaa", "a.a.a", "aaaaa", "a.a.a", "aaaaa", ".aaa.", "..a..", "..a..", ".aaa."],
   1,
@@ -524,7 +672,10 @@ const FLIP_CSS = [2, 3, 4, 5, 6, 7, 8]
     for (let i = 0; i < n; i++) {
       const ini = ((i / n) * 100).toFixed(2);
       const fin = (((i + 1) / n) * 100).toFixed(2);
-      css += `  .flip${n} > g:nth-child(${i + 1}) { animation: fl${n}_${i} var(--d, .8s) steps(1, end) infinite; }
+      // Longhands y no el atajo `animation`: el atajo reinicia
+      // `animation-duration` a 0s y la duración viaja inline en cada fotograma.
+      // El .8s de aquí es sólo el respaldo por si algún sprite no la trae.
+      css += `  .flip${n} > g:nth-child(${i + 1}) { animation-name: fl${n}_${i}; animation-duration: .8s; animation-timing-function: steps(1, end); animation-iteration-count: infinite; }
 `;
       css +=
         i === 0
@@ -582,12 +733,14 @@ export const FACE_CSS = `
 
   .flip > g { opacity: 0; }
 ${FLIP_CSS}
-  .blink > g:nth-child(1) { animation: blinkA var(--d) steps(1, end) infinite; }
-  .blink > g:nth-child(2) { animation: blinkB var(--d) steps(1, end) infinite; }
+  .blink > g { animation-duration: 3.2s; animation-timing-function: steps(1, end); animation-iteration-count: infinite; }
+  .blink > g:nth-child(1) { animation-name: blinkA; }
+  .blink > g:nth-child(2) { animation-name: blinkB; }
   @keyframes blinkA { 0% { opacity: 1; } 92% { opacity: 0; } 97% { opacity: 1; } }
   @keyframes blinkB { 0% { opacity: 0; } 92% { opacity: 1; } 97% { opacity: 0; } }
-  .wink > g:nth-child(1) { animation: winkA var(--d) steps(1, end) infinite; }
-  .wink > g:nth-child(2) { animation: winkB var(--d) steps(1, end) infinite; }
+  .wink > g { animation-duration: 1.6s; animation-timing-function: steps(1, end); animation-iteration-count: infinite; }
+  .wink > g:nth-child(1) { animation-name: winkA; }
+  .wink > g:nth-child(2) { animation-name: winkB; }
   @keyframes winkA { 0% { opacity: 1; } 35% { opacity: 0; } 72% { opacity: 1; } }
   @keyframes winkB { 0% { opacity: 0; } 35% { opacity: 1; } 72% { opacity: 0; } }
 
@@ -681,6 +834,56 @@ ${FLIP_CSS}
                     85.7% { transform: translateX(-18px); opacity: 1; }
                     100% { transform: translateX(-18px); opacity: 0; } }
   /* El eructo aparece al 75 % del bucle, que es cuando la boca se abre. */
+  /* El "no" de toda la vida: la cabeza barre de un lado a otro. Tres píxeles
+     de recorrido, que con uno parecía un temblor y no una negación. */
+  @keyframes niega { 0% { transform: translateX(-3px); } 50% { transform: translateX(3px); } }
+  /* El aspa entra de golpe, late una vez y se queda: es la que da el mensaje. */
+  @keyframes aspa { 0% { opacity: 0; } 12% { opacity: 1; } 24% { opacity: .35; }
+                    36%, 100% { opacity: 1; } }
+
+  /* ── el mareo, sólo al zarandear la onda mientras la colocas ───────────── */
+  /* Bamboleo: un píxel a cada lado. Con dos ya no parecía mareo sino temblor. */
+  @keyframes mareo { 0% { transform: translateX(-1px); } 25% { transform: translateX(0); }
+                     50% { transform: translateX(1px); } 75% { transform: translateX(0); } }
+  /* Las chispas dan la vuelta por las cuatro esquinas de un cuadrado de 4 px:
+     en pixel-art un círculo de verdad se sale de la rejilla entera. */
+  @keyframes orbita { 0% { transform: translate(0, 0); } 25% { transform: translate(4px, 2px); }
+                      50% { transform: translate(0, 4px); } 75% { transform: translate(-4px, 2px); } }
+  /* El trago: la cara aguanta arriba y en el último cuarto baja de golpe. */
+  @keyframes glup { 0%, 74% { transform: translateY(0); }
+                    75%, 88% { transform: translateY(1px); }
+                    89%, 100% { transform: translateY(0); } }
+  /* La gota de sudor resbala y desaparece antes de llegar a la boca. */
+  @keyframes sudor { 0% { transform: translateY(0); opacity: 0; }
+                     20% { opacity: 1; } 50% { transform: translateY(2px); }
+                     80% { transform: translateY(4px); opacity: 1; }
+                     100% { transform: translateY(5px); opacity: 0; } }
+  /* La arcada: se echa atrás para tomar impulso y luego va hacia adelante. */
+  @keyframes arcada { 0%, 20% { transform: translate(0, 0); }
+                      25% { transform: translate(0, -1px); }
+                      30%, 100% { transform: translate(0, 1px); } }
+  /* El chorro sale en el mismo cuadro en que la boca se abre (20 %) y describe
+     un arco hacia la derecha y abajo. En arco y no en caída recta porque la
+     pantalla sólo tiene 16 px de alto (y=2 a 17) y la boca ya acaba en y=14:
+     cayendo a plomo se salía del lienzo antes de leerse. */
+  @keyframes vomito { 0%, 18% { transform: translate(0, 0); opacity: 0; }
+                      20% { transform: translate(0, 0); opacity: 1; }
+                      32% { transform: translate(2px, 1px); }
+                      44% { transform: translate(4px, 2px); }
+                      56% { transform: translate(6px, 3px); }
+                      68% { transform: translate(8px, 4px); opacity: 1; }
+                      76%, 100% { transform: translate(9px, 5px); opacity: 0; } }
+  /* El hilo que queda colgando de la comisura, y que se corta al limpiarse. */
+  @keyframes escurre { 0%, 24% { transform: scaleY(0); opacity: 0; }
+                       28% { transform: scaleY(.34); opacity: 1; }
+                       44% { transform: scaleY(.67); }
+                       60%, 74% { transform: scaleY(1); opacity: 1; }
+                       78%, 100% { transform: scaleY(1); opacity: 0; } }
+  /* El charco no se va: aparece cuando aterriza el primer chorro, crece con el
+     segundo y se queda hasta el final del ciclo. */
+  @keyframes charco { 0%, 36% { opacity: 0; } 40%, 100% { opacity: 1; } }
+  @keyframes charco2 { 0%, 60% { opacity: 0; } 64%, 100% { opacity: 1; } }
+
   @keyframes eructo { 0% { transform: translate(0, 0); opacity: 0; }
                       75% { transform: translate(0, 0); opacity: 1; }
                       81% { transform: translate(2px, -1px); opacity: 1; }
@@ -721,6 +924,25 @@ ${FLIP_CSS}
   .a-rubor { animation: rubor 1.2s steps(1, end) infinite; }
   .a-lupa { animation: lupa 1.6s steps(1, end) infinite; }
   .a-dj { animation: dj .8s steps(1, end) infinite; }
+  .a-niega { animation: niega .36s steps(1, end) infinite; }
+  .a-aspa { opacity: 0; animation: aspa 1.44s steps(1, end) infinite; }
+  .a-mareo { animation: mareo .32s steps(1, end) infinite; }
+  .a-orb1 { animation: orbita 1.28s steps(1, end) infinite; }
+  /* Media vuelta por detrás: se leen como una sola chispa dando vueltas. */
+  .a-orb2 { opacity: .55; animation: orbita 1.28s steps(1, end) .64s infinite; }
+  .a-glup { animation: glup 1.28s steps(1, end) infinite; }
+  .a-sudor { opacity: 0; animation: sudor 1.28s steps(1, end) infinite; }
+  .a-arcada { animation: arcada 1.4s steps(1, end) infinite; }
+  .a-vom1, .a-vom2, .a-vom3 { opacity: 0; animation: vomito 1.4s steps(1, end) infinite; }
+  /* Escalonados por medio paso cada uno: se leen como un chorro y no como tres
+     bolas sueltas. */
+  .a-vom2 { animation-delay: .06s; }
+  .a-vom3 { animation-delay: .12s; }
+  .a-escurre { opacity: 0; transform-box: fill-box; transform-origin: center top;
+               animation: escurre 1.4s steps(1, end) infinite; }
+  .a-charco1 { opacity: 0; animation: charco 1.4s steps(1, end) infinite; }
+  .a-charco2 { opacity: 0; animation: charco2 1.4s steps(1, end) infinite; }
+
   .a-onda > g { opacity: 0; animation: onda 1.4s steps(1, end) infinite; }
   .a-eructo, .a-eructo2 { opacity: 0; animation: eructo 1.2s steps(1, end) infinite; }
   /* Dos pasos exactos (2 × 6 % de 1,2 s) por detrás de la burbuja grande:

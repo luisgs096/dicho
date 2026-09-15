@@ -5,7 +5,9 @@ import type { AppSettings, HudStyle, RecordingState } from "../types";
 import {
   CARITA_COMILONA,
   CARITA_ERUCTO,
+  CARITA_CANCELADO,
   FACE_CSS,
+  MAREO,
   MIC_SVG,
   V,
   type FaceState,
@@ -60,6 +62,10 @@ const BAR_GAIN = [0.72, 0.9, 1, 0.9, 0.72];
 const BAR_MIN = 8;
 const BAR_MAX = 30;
 
+/** Lo que aguanta cada escalón del mareo antes de dejar pasar al siguiente:
+ *  un bucle entero de la carita (los más largos duran 1,4 s) y un respiro. */
+const PLANTON_MAREO = 1600;
+
 const CLASSIC_CSS = `
   .classic-shake { animation: cshake .55s ease-in-out; }
   @keyframes cshake { 0%, 100% { transform: translateX(0); }
@@ -83,10 +89,225 @@ const DRAG_CSS = `
   ::-webkit-scrollbar { width: 0; height: 0; }
   .agarrable { cursor: grab; }
   .agarrando { cursor: grabbing; }
+  /* Relevo entre caritas: la pantalla da un golpe de luz, como un LCD al
+     refrescar. Sin él, una carita se convertía en otra de un fotograma a otro
+     y parecía un fallo en vez de una transición. */
+  .relevo .screen { filter: brightness(1.35) contrast(.9); }
   .colocando { outline: 2px dashed var(--a); outline-offset: 4px;
     border-radius: 14px; animation: destello 1.4s ease-in-out infinite; }
   @keyframes destello { 50% { outline-color: transparent; } }
 `;
+
+// ─── el menú de la propia onda ──────────────────────────────────────────────
+// Todo lo que se hace con la cápsula se hace **sobre la cápsula**, no en
+// Ajustes: es donde está la mano. El menú es adaptativo — un botón de editar
+// que despliega [clavar | mover], y si eliges mover se convierte en
+// [listo | devolver a su sitio], que son las dos únicas cosas que tienen
+// sentido mientras la estás colocando.
+//
+// `stopPropagation` en el `pointerdown` de cada botón es obligatorio: sin él,
+// pulsarlos dispararía también el arrastre de la ventana y la onda saldría
+// persiguiendo al cursor en vez de obedecer.
+
+const ICONO = {
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2.4,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  className: "h-[15px] w-[15px]",
+} as const;
+
+/** Separación entre los botones del abanico, en píxeles del lienzo del HUD. */
+const PASO_ABANICO = 31;
+/** Retardo entre un botón y el siguiente: lo que hace que se lea como abanico
+ *  y no como que aparecen los tres de golpe. */
+const ESCALON_MS = 55;
+
+const MENU_CSS = `
+  /* Al pasar el ratón el botón crece y se enciende: el aviso de que se puede
+     pulsar, antes de pulsarlo. */
+  .bo { transition: transform .14s ease-out, background-color .14s, box-shadow .14s, opacity .18s; }
+  .bo:hover { transform: scale(1.18); box-shadow: 0 0 0 3px var(--halo), 0 6px 14px -4px rgba(10,25,60,.5); }
+  .bo:active { transform: scale(1.04); }
+  /* El "más" gira media vuelta al abrirse y pierde su palito vertical: queda
+     un "menos". Rotar un "+" no lo convierte en "−", así que el palito se va
+     aparte mientras el conjunto gira. */
+  .mas svg { transition: transform .26s cubic-bezier(.34, 1.4, .5, 1); }
+  .mas.abierto svg { transform: rotate(180deg); }
+  .mas .palito { transition: opacity .16s; }
+  .mas.abierto .palito { opacity: 0; }
+`;
+
+function BotonOnda(props: {
+  titulo: string;
+  onClick: () => void;
+  tono?: "normal" | "ok" | "activo";
+  clase?: string;
+  estilo?: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  const tono = props.tono ?? "normal";
+  const cls =
+    tono === "ok"
+      ? "bg-emerald-500 text-white hover:bg-emerald-600"
+      : tono === "activo"
+        ? "bg-blue-600 text-white hover:bg-blue-700"
+        : "border border-slate-300/80 bg-white/95 text-slate-600 hover:bg-white";
+  const halo =
+    tono === "ok"
+      ? "rgba(16,185,129,.35)"
+      : tono === "activo"
+        ? "rgba(37,99,235,.35)"
+        : "rgba(148,163,184,.4)";
+  return (
+    <button
+      title={props.titulo}
+      aria-label={props.titulo}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={props.onClick}
+      style={{ ["--halo" as string]: halo, ...props.estilo }}
+      className={`bo absolute right-0 top-0 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full shadow-md ${cls} ${props.clase ?? ""}`}
+    >
+      {props.children}
+    </button>
+  );
+}
+
+const IconoReset = () => (
+  <svg {...ICONO}>
+    <path d="M3 12a9 9 0 1 0 2.64-6.36" />
+    <path d="M3 4v5h5" />
+  </svg>
+);
+const IconoPin = () => (
+  <svg {...ICONO}>
+    <path d="M9 4h6l-1 6 3 3H7l3-3-1-6Z" />
+    <path d="M12 13v7" />
+  </svg>
+);
+const IconoMover = () => (
+  <svg {...ICONO}>
+    <path d="M12 3v18M3 12h18" />
+    <path d="M12 3 9.5 5.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5" />
+    <path d="M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5" />
+  </svg>
+);
+
+/**
+ * El menú de la propia onda, arriba a la derecha y **asomando** un poco por
+ * fuera de la cápsula: dentro tapaba la leyenda de lo que estaba haciendo
+ * («Anotando…», «Escribiendo…»), que es justo lo que hay que poder leer.
+ *
+ * Es un "más" que al pulsarlo gira media vuelta, se queda en "menos" y suelta
+ * los tres botones en abanico hacia la izquierda, uno detrás de otro. No los
+ * sustituye: se quedan en su órbita, y al cerrar vuelven a plegarse dentro de
+ * él en orden inverso.
+ *
+ * Mientras colocas la onda el menú se reduce a lo único que sirve entonces:
+ * devolverla a su sitio y dar por buena la posición.
+ */
+export function MenuOnda(props: {
+  abierto: boolean;
+  colocando: boolean;
+  pin: boolean;
+  onAbrir: () => void;
+  onPin: () => void;
+  onMover: () => void;
+  onListo: () => void;
+  onReset: () => void;
+}) {
+  // Asomando por la esquina, pero con cuentas: la ventana del HUD deja 16 px de
+  // aire por arriba y 12 por los lados, y al pasar el ratón el botón crece un
+  // 18 % (≈2,4 px por lado) y saca un halo de 3. Sobresalir 8 arriba y 4 a la
+  // derecha deja margen justo para eso sin que Windows lo recorte.
+  const marco = "absolute -right-1 -top-2 z-10 h-[26px] w-[26px]";
+
+  if (props.colocando) {
+    return (
+      <div className={marco}>
+        <style>{MENU_CSS}</style>
+        <BotonOnda
+          titulo="Devolverla a su sitio de siempre"
+          onClick={props.onReset}
+          estilo={{ transform: `translateX(-${PASO_ABANICO}px)` }}
+        >
+          <IconoReset />
+        </BotonOnda>
+        <BotonOnda titulo="Listo, déjala aquí" tono="ok" onClick={props.onListo}>
+          <svg {...ICONO} strokeWidth={3}>
+            <path d="m5 13 4 4L19 7" />
+          </svg>
+        </BotonOnda>
+      </div>
+    );
+  }
+
+  // De dentro hacia fuera: el primero en salir es el que queda pegado al más.
+  // Leídos de izquierda a derecha quedan en el orden de siempre — devolver,
+  // clavar, mover — y el que más viaja es el que sale el último.
+  const orbita = [
+    {
+      titulo: "Devolverla a su sitio de siempre",
+      icono: <IconoReset />,
+      onClick: props.onReset,
+      tono: "normal" as const,
+    },
+    {
+      titulo: props.pin ? "Desclavarla" : "Clavarla en pantalla",
+      icono: <IconoPin />,
+      onClick: props.onPin,
+      tono: props.pin ? ("activo" as const) : ("normal" as const),
+    },
+    {
+      titulo: "Cambiarla de sitio",
+      icono: <IconoMover />,
+      onClick: props.onMover,
+      tono: "normal" as const,
+    },
+  ];
+
+  return (
+    <div className={marco}>
+      <style>{MENU_CSS}</style>
+      {orbita.map((it, i) => {
+        // i=0 es el más lejano; sale el último al abrir y se pliega el primero
+        // al cerrar, que es lo que dibuja el abanico.
+        const distancia = orbita.length - i;
+        const turno = props.abierto ? orbita.length - 1 - i : i;
+        return (
+          <BotonOnda
+            key={it.titulo}
+            titulo={it.titulo}
+            tono={it.tono}
+            onClick={it.onClick}
+            estilo={{
+              transform: props.abierto
+                ? `translateX(-${distancia * PASO_ABANICO}px) scale(1)`
+                : "translateX(0) scale(.35)",
+              opacity: props.abierto ? 1 : 0,
+              pointerEvents: props.abierto ? "auto" : "none",
+              transitionDelay: `${turno * ESCALON_MS}ms`,
+            }}
+          >
+            {it.icono}
+          </BotonOnda>
+        );
+      })}
+      <BotonOnda
+        titulo={props.abierto ? "Cerrar el menú" : "Opciones de la onda"}
+        onClick={props.onAbrir}
+        clase={`mas ${props.abierto ? "abierto" : ""}`}
+      >
+        <svg {...ICONO} strokeWidth={2.8}>
+          <path d="M5 12h14" />
+          <path className="palito" d="M12 5v14" />
+        </svg>
+      </BotonOnda>
+    </div>
+  );
+}
 
 function MicIcon({ className }: { className?: string }) {
   return (
@@ -152,6 +373,18 @@ export default function Hud() {
   const [hudStyle, setHudStyle] = useState<HudStyle>("tamagotchi");
   // Modo "colócalo donde quieras", encendido desde Ajustes.
   const [colocando, setColocando] = useState(false);
+  /** 0 = entera; 1…3 = los tres escalones del mareo al zarandearla. */
+  const [mareo, setMareo] = useState(0);
+  /** Clavada en pantalla: no se esconde al acabar el dictado. */
+  const [pin, setPin] = useState(false);
+  const [opacidadReposo, setOpacidadReposo] = useState(0.45);
+  /** El menú de la onda está desplegado. */
+  const [menu, setMenu] = useState(false);
+  /** El ratón está encima: saca los controles y le quita el velo. */
+  const [encima, setEncima] = useState(false);
+  /** Destello de relevo entre una carita del mareo y la siguiente. */
+  const [relevo, setRelevo] = useState(false);
+  const mareoDesde = useRef(0);
   const [agarrando, setAgarrando] = useState(false);
   const [dark, setDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
@@ -254,11 +487,61 @@ export default function Hud() {
     };
   }, []);
 
+  // Zarandéala mientras la colocas y se marea. Cada meneo sube un escalón:
+  // mareada → aguantándose → ya no aguantó. El backend sólo avisa de que hubo
+  // meneo; la escalada es cosa de aquí, que es presentación pura.
+  //
+  // **Cada escalón tiene que dar su vuelta antes de ceder el sitio.** Zarandeando
+  // sin parar los meneos llegaban en ráfaga y las caritas se atropellaban: no se
+  // veía ninguna entera. Los tamagotchi resuelven esto igual —dos fotogramas
+  // repetidos tres o cuatro veces antes de cambiar de estado—, así que aquí hay
+  // un plantón mínimo del tamaño de un bucle completo. Agitando cinco segundos
+  // se recorren las tres con tiempo de mirarlas.
+  useEffect(() => {
+    if (!colocando) {
+      setMareo(0);
+      return;
+    }
+    const un = listen("hud-meneo", () => {
+      const ahora = Date.now();
+      if (ahora - mareoDesde.current < PLANTON_MAREO) return;
+      mareoDesde.current = ahora;
+      setMareo((m) => Math.min(MAREO.length, m + 1));
+    });
+    return () => {
+      un.then((f) => f());
+    };
+  }, [colocando]);
+
+  // El destello de la pantalla al cambiar de escalón: es el relevo entre una
+  // carita y la siguiente, para que no parezca un corte.
+  useEffect(() => {
+    if (mareo === 0) return;
+    setRelevo(true);
+    const t = setTimeout(() => setRelevo(false), 200);
+    return () => clearTimeout(t);
+  }, [mareo]);
+
+  // Se le pasa solo: los dos primeros escalones aguantan un rato por si sigues,
+  // y el vómito dura lo justo para verse entero y volver a la normalidad.
+  useEffect(() => {
+    if (mareo === 0) return;
+    const t = setTimeout(
+      () => setMareo(0),
+      mareo === MAREO.length ? 2600 : 4200,
+    );
+    return () => clearTimeout(t);
+  }, [mareo]);
+
   // Estilo del HUD desde Ajustes; se refresca al vuelo al guardar cambios.
   useEffect(() => {
     const load = () =>
       invoke<AppSettings>("get_settings")
-        .then((s) => setHudStyle(s.hud_style))
+        .then((s) => {
+          setHudStyle(s.hud_style);
+          setPin(s.hud_pin);
+          setOpacidadReposo(s.hud_opacidad_reposo ?? 0.45);
+        })
         .catch(console.error);
     load();
     const un = listen("settings-changed", load);
@@ -362,12 +645,44 @@ export default function Hud() {
   );
 
   const face = stateFor(rec);
+  // ── acciones del menú de la onda ──────────────────────────────────────────
+  const alternarPin = () => {
+    const nuevo = !pin;
+    setPin(nuevo); // optimista: el backend confirma con `settings-changed`
+    invoke("hud_pin", { on: nuevo }).catch(() => setPin(!nuevo));
+  };
+  const moverla = () => {
+    setMenu(false);
+    invoke("hud_colocar", { on: true }).catch(() => {});
+  };
+  const listoDeColocar = () => invoke("hud_colocar", { on: false }).catch(() => {});
+  const resetearPos = () => invoke("hud_pos_reset").catch(() => {});
+
+  // Clavada y sin nada que decir, la onda se pone a medio velo para no competir
+  // con lo que estés leyendo. Al pasarle el ratón por encima vuelve entera, y
+  // mientras dictas nunca se vela: es justo cuando hay que verla.
+  const velo =
+    pin && rec.state === "idle" && !encima && !colocando && mareo === 0
+      ? opacidadReposo
+      : 1;
+
   const isError = rec.state === "error";
+  // Zarandeada gana a todo: es el único momento en que la carita no cuenta en
+  // qué va el dictado, y para entonces no hay dictado ninguno.
+  const mareada = mareo > 0 ? MAREO[mareo - 1] : null;
+  const cancelada = rec.state === "cancelado" ? CARITA_CANCELADO : null;
   // En error se reutiliza la carita de "señal perdida" con el mensaje real.
-  const v = isError ? V["no-entendi"][3] : (V[face][variant] ?? V[face][0]);
-  const sad = isError || v.sad;
+  const v =
+    mareada ??
+    cancelada ??
+    (isError ? V["no-entendi"][3] : (V[face][variant] ?? V[face][0]));
+  const sad = (isError && !mareada && !cancelada) || v.sad;
   const porLimite = rec.state === "processing" && rec.motivo === "limite";
-  const status = colocando
+  const status = mareada
+    ? mareada.status
+    : cancelada
+    ? cancelada.status
+    : colocando
     ? "Arrástrame"
     : isError
       ? rec.message
@@ -386,8 +701,12 @@ export default function Hud() {
 
   // ── modo clásico: pill claro + barras reactivas a la voz ──────────────────
   if (hudStyle === "classic") {
+    // El cancelado comparte con "no te escuché" el tono naranja y el meneo —los
+    // dos son "esto no salió"— pero cada uno dice lo suyo, así que el contenido
+    // se decide aparte.
+    const naranja = rec.state === "empty" || rec.state === "cancelado";
     const emptyC = rec.state === "empty";
-    const pill = emptyC
+    const pill = naranja
       ? dark
         ? "border-orange-400/30 bg-slate-900/90 text-orange-200"
         : "border-orange-200 bg-orange-50/95 text-orange-900"
@@ -397,17 +716,31 @@ export default function Hud() {
     return (
       <div
         className={`flex h-screen w-screen items-center justify-center ${gesto}`}
-        style={vars}
+        style={{ ...vars, opacity: velo, transition: "opacity .18s" }}
         onPointerDown={agarrar}
+        onPointerEnter={() => setEncima(true)}
+        onPointerLeave={() => { setEncima(false); setMenu(false); }}
       >
         <style>{CLASSIC_CSS + DRAG_CSS}</style>
         <div
-          className={colocando ? "colocando" : ""}
+          className={`relative ${colocando ? "colocando" : ""}`}
           style={{ transform: "scale(var(--k, 1))" }}
         >
+          {(colocando || menu || encima) && (
+            <MenuOnda
+              abierto={menu}
+              colocando={colocando}
+              pin={pin}
+              onAbrir={() => setMenu((m) => !m)}
+              onPin={alternarPin}
+              onMover={moverla}
+              onListo={listoDeColocar}
+              onReset={resetearPos}
+            />
+          )}
           <div
             className={`relative flex h-[64px] w-[336px] items-center gap-3 overflow-hidden rounded-full border px-5 shadow-2xl shadow-blue-900/20 backdrop-blur transition-colors ${
-              emptyC ? "classic-shake" : ""
+              naranja ? "classic-shake" : ""
             } ${pill}`}
           >
             {(rec.state === "recording" || rec.state === "processing") && (
@@ -461,6 +794,17 @@ export default function Hud() {
               </>
             )}
 
+            {rec.state === "cancelado" && (
+              <>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">
+                  ✕
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm">
+                  Cancelado, no escribí nada
+                </p>
+              </>
+            )}
+
             {rec.state === "done" && (
               <>
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white dark:bg-sky-500">
@@ -495,17 +839,31 @@ export default function Hud() {
   return (
     <div
       className={`flex h-screen w-screen items-center justify-center ${gesto}`}
-      style={vars}
+      style={{ ...vars, opacity: velo, transition: "opacity .18s" }}
       onPointerDown={agarrar}
+      onPointerEnter={() => setEncima(true)}
+      onPointerLeave={() => { setEncima(false); setMenu(false); }}
     >
       <style>{FACE_CSS + DRAG_CSS}</style>
       <div
-        className={colocando ? "colocando" : ""}
+        className={`relative ${colocando ? "colocando" : ""}`}
         style={{ transform: "scale(var(--k, 1))" }}
       >
+        {(colocando || menu || encima) && (
+            <MenuOnda
+              abierto={menu}
+              colocando={colocando}
+              pin={pin}
+              onAbrir={() => setMenu((m) => !m)}
+              onPin={alternarPin}
+              onMover={moverla}
+              onListo={listoDeColocar}
+              onReset={resetearPos}
+            />
+          )}
         <div
           ref={tamaRef}
-          className={`tama ${sad ? "sad" : ""} ${v.shake && !isError ? "shake" : ""}`}
+          className={`tama ${sad ? "sad" : ""} ${v.shake && !isError ? "shake" : ""} ${relevo ? "relevo" : ""}`}
         >
           <div className="screen" style={{ color: sad ? pal.w : pal.face }}>
             <span

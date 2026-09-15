@@ -172,7 +172,13 @@ pub fn hud_arrastrar(app: AppHandle, state: State<'_, SettingsState>) {
     let settings = state.inner().clone();
     std::thread::spawn(move || {
         pipeline::ARRASTRANDO.store(true, Ordering::SeqCst);
-        let fin = crate::overlay::arrastrar_con_cursor(hwnd);
+        // Cada meneo del ratón avisa al HUD; él lleva la cuenta de por cuál de
+        // las tres caritas del mareo va. La escalada vive en el webview porque
+        // es presentación pura, y así aquí no hay estado que reiniciar.
+        let app_meneo = app.clone();
+        let fin = crate::overlay::arrastrar_con_cursor(hwnd, move || {
+            let _ = app_meneo.emit("hud-meneo", ());
+        });
         pipeline::ARRASTRANDO.store(false, Ordering::SeqCst);
 
         // Dónde quedó, medido contra la pantalla en la que quedó: se puede
@@ -216,6 +222,32 @@ pub fn hud_colocar(app: AppHandle, on: bool) {
         aplicar_raton_hud(&app, true);
     }
     pipeline::modo_colocar(&app, on);
+}
+
+/// Clava o desclava la onda en pantalla, desde su propio menú.
+///
+/// Clavada no se esconde al acabar el dictado: vuelve a reposo y se queda ahí
+/// —el "modo mascota"—. Y atrapa el ratón sí o sí mientras esté clavada, que si
+/// no, su menú sería un dibujo: los clics la atravesarían.
+#[tauri::command]
+pub fn hud_pin(app: AppHandle, state: State<'_, SettingsState>, on: bool) -> Result<(), String> {
+    let (copia, arrastrable) = {
+        let mut s = state.write().map_err(|e| e.to_string())?;
+        s.hud_pin = on;
+        (s.clone(), s.hud_arrastrable)
+    };
+    settings::save(&app, &copia).map_err(|e| e.to_string())?;
+    aplicar_raton_hud(&app, on || arrastrable);
+    let _ = app.emit("settings-changed", ());
+    if let Some(hud) = app.get_webview_window("hud") {
+        if on {
+            pipeline::recolocar_hud(&app);
+            let _ = hud.show();
+        } else if !pipeline::grabando() {
+            let _ = hud.hide();
+        }
+    }
+    Ok(())
 }
 
 /// Devuelve el HUD a su sitio de siempre —abajo, al centro— en **todas** las
