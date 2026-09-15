@@ -52,28 +52,6 @@ function HomeIcon() {
   );
 }
 
-/** Cuatro flechas: el gesto universal de "arrastra esto a donde quieras". */
-function ArrastrarIcon() {
-  return (
-    <svg {...iconProps} className="h-4 w-4">
-      <path d="M12 3v18M3 12h18" />
-      <path d="M12 3 9.5 5.5M12 3l2.5 2.5" />
-      <path d="M12 21l-2.5-2.5M12 21l2.5-2.5" />
-      <path d="M3 12l2.5-2.5M3 12l2.5 2.5" />
-      <path d="M21 12l-2.5-2.5M21 12l-2.5 2.5" />
-    </svg>
-  );
-}
-
-/** Flecha circular de deshacer: devolver algo a como estaba. */
-function DeshacerIcon() {
-  return (
-    <svg {...iconProps} className="h-4 w-4">
-      <path d="M3 12a9 9 0 1 0 2.64-6.36" />
-      <path d="M3 4v5h5" />
-    </svg>
-  );
-}
 
 function BookIcon() {
   return (
@@ -419,9 +397,6 @@ export default function Settings() {
   const [verAnimaciones, setVerAnimaciones] = useState(false);
   // Novedades: por defecto sólo las de la versión puesta; el resto se despliega.
   const [verCambios, setVerCambios] = useState(false);
-  // Modo "colócala donde quieras": la onda se queda a la vista y agarrable
-  // hasta que el usuario diga que ya.
-  const [colocandoHud, setColocandoHud] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [model, setModel] = useState<ModelStatus | null>(null);
   const [progress, setProgress] = useState<ModelProgress | null>(null);
@@ -492,14 +467,10 @@ export default function Settings() {
     // El modo colocación también se apaga solo al cerrar esta ventana, así que
     // el botón se entera por el mismo evento que el HUD y no se queda diciendo
     // "Listo, déjala ahí" cuando ya no hay nada que colocar.
-    const unColocar = listen<boolean>("hud-colocar", (e) =>
-      setColocandoHud(e.payload),
-    );
     return () => {
       unProgress.then((f) => f());
       unHistory.then((f) => f());
       unDict.then((f) => f());
-      unColocar.then((f) => f());
     };
   }, [refreshHistory, refreshDict, refreshGoogle]);
 
@@ -701,41 +672,24 @@ export default function Settings() {
                           onVerCaritas={() => setVerAnimaciones(true)}
                         />
 
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            className={`${btnGhostCls} flex items-center gap-2`}
-                            onClick={() => {
-                              const on = !colocandoHud;
-                              setColocandoHud(on);
-                              invoke("hud_colocar", { on }).catch((e) =>
-                                alert(String(e)),
-                              );
-                            }}
-                          >
-                            <ArrastrarIcon />
-                            {colocandoHud
-                              ? "Listo, déjala ahí"
-                              : "Seleccionar posición en pantalla"}
-                          </button>
-                          <button
-                            className={`${btnGhostCls} flex items-center gap-2`}
-                            onClick={() =>
-                              invoke("hud_pos_reset").catch((e) => alert(String(e)))
-                            }
-                          >
-                            <DeshacerIcon />
-                            Devolverla a su sitio
-                          </button>
-                        </div>
-
-                        {colocandoHud && (
-                          <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs leading-relaxed text-blue-700 dark:bg-sky-950/50 dark:text-sky-300">
-                            La onda ya está en pantalla: arrástrala con el ratón a
-                            donde no te estorbe y pulsa «Listo». Cada pantalla
-                            recuerda su propio rincón, así que si trabajas en dos
-                            tendrás que colocarla en cada una.
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
+                          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                            Todo lo demás se hace sobre la onda misma
                           </p>
-                        )}
+                          <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            Pásale el ratón por encima y aparece un botón de lápiz
+                            a la derecha. Ahí puedes <strong>clavarla</strong> para
+                            que se quede siempre a la vista, o{" "}
+                            <strong>cambiarla de sitio</strong> —y entonces los
+                            botones se convierten en «listo» y «devolverla a su
+                            sitio»—. Clavada y sin dictar se pone translúcida para
+                            no estorbar.
+                          </p>
+                          <p className="mt-2 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+                            Si la onda no está a la vista, enciéndela abajo o
+                            dicta una vez: sale sola.
+                          </p>
+                        </div>
 
                         <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
                           <input

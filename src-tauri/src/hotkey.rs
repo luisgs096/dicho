@@ -11,9 +11,25 @@ pub fn spawn(tx: Sender<Cmd>, settings: SettingsState) {
     std::thread::spawn(move || {
         let mut pressed: HashSet<Key> = HashSet::new();
         let mut active = false;
+        // Tras cancelar, el atajo sigue apretado: sin esto `all_down` seguiría
+        // siendo cierto y arrancaría un dictado nuevo en el acto. Se levanta
+        // cuando por fin sueltas.
+        let mut esperando_soltar = false;
         let result = rdev::listen(move |event| {
             match event.event_type {
                 EventType::KeyPress(k) => {
+                    // Escape a media grabación = me arrepentí. Se cancela y se
+                    // baja la bandera, así que soltar luego el atajo ya no
+                    // manda Stop: el audio se tira y no se transcribe nada.
+                    // Fuera de la grabación, Escape no se toca — es una tecla
+                    // de todo el mundo.
+                    if active && k == Key::Escape {
+                        active = false;
+                        esperando_soltar = true;
+                        let _ = tx.send(Cmd::Cancel);
+                        pressed.insert(k);
+                        return;
+                    }
                     pressed.insert(k);
                 }
                 EventType::KeyRelease(k) => {
@@ -29,6 +45,12 @@ pub fn spawn(tx: Sender<Cmd>, settings: SettingsState) {
                 return;
             }
             let all_down = combo.iter().all(|k| pressed.contains(k));
+            if esperando_soltar {
+                if !all_down {
+                    esperando_soltar = false;
+                }
+                return;
+            }
             if !active && all_down {
                 active = true;
                 let _ = tx.send(Cmd::Start);

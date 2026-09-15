@@ -52,7 +52,17 @@ conocimiento. Y se commitea con el resto.
   porque abre un bucle modal que **activa** la ventana, y el HUD es no activable
   a propósito para no robarle el foco a lo que estás escribiendo.
 - `src-tauri/src/hotkey.rs` — hook global rdev; lee `settings.hotkey` en cada evento →
-  cambios de atajo aplican en vivo sin reiniciar.
+  cambios de atajo aplican en vivo sin reiniciar. **Escape mientras grabas manda
+  `Cmd::Cancel`**: se tira el audio y no se transcribe nada. Ojo con la trampa —
+  al cancelar el atajo *sigue apretado*, así que hay una bandera
+  `esperando_soltar`; sin ella `all_down` seguiría siendo cierto y arrancaría un
+  dictado nuevo en el acto.
+- **El menú vive en la onda, no en Ajustes** (`MenuOnda` en `Hud.tsx`). Un botón
+  de lápiz que aparece al pasar el ratón y despliega [clavar | mover]; si eliges
+  mover, los mismos botones pasan a ser [listo | devolver a su sitio]. Clavada
+  (`settings.hud_pin`) la onda no se esconde nunca —`hide_hud_later` la deja en
+  reposo en vez de ocultarla— y **atrapa el ratón sí o sí**, porque si no su
+  propio menú sería un dibujo. En reposo se vela a `hud_opacidad_reposo`.
 - `src-tauri/src/sync.rs` — OAuth Desktop de Google (PKCE + loopback, tokens en el
   Administrador de credenciales, servicio keyring `mike-dictado`) y sync de
   diccionario+historial como JSON en el appDataFolder de Drive, con fusión sin

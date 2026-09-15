@@ -80,11 +80,26 @@ pub fn run() {
             if let Some(hud) = app.get_webview_window("hud") {
                 let _ = hud.set_focusable(false);
             }
-            let arrastrable = settings_state
+            let (arrastrable, clavado) = settings_state
                 .read()
-                .map(|s| s.hud_arrastrable)
-                .unwrap_or(true);
-            commands::aplicar_raton_hud(&handle, arrastrable);
+                .map(|s| (s.hud_arrastrable, s.hud_pin && s.hud_enabled))
+                .unwrap_or((true, false));
+            // Clavada atrapa el ratón sí o sí: si no, su propio menú sería un
+            // dibujo y los clics la atravesarían.
+            commands::aplicar_raton_hud(&handle, arrastrable || clavado);
+            if clavado {
+                // Al arrancar, la onda vuelve sola a donde la dejaste.
+                let h = handle.clone();
+                std::thread::spawn(move || {
+                    // Un respiro para que el webview del HUD esté montado: si se
+                    // coloca antes, WebView2 aún no sabe de qué tamaño es.
+                    std::thread::sleep(std::time::Duration::from_millis(900));
+                    pipeline::recolocar_hud(&h);
+                    if let Some(hud) = h.get_webview_window("hud") {
+                        let _ = hud.show();
+                    }
+                });
+            }
 
             build_tray(app)?;
 
@@ -154,6 +169,7 @@ pub fn run() {
             commands::hud_arrastrar,
             commands::hud_colocar,
             commands::hud_pos_reset,
+            commands::hud_pin,
             commands::programar_relanzamiento,
         ])
         .run(tauri::generate_context!())

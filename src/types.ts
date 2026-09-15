@@ -19,6 +19,10 @@ export interface AppSettings {
   /** Un rincón por pantalla, por tamaño del área de trabajo ("3840x2040"). */
   hud_posiciones: Record<string, HudPos>;
   hud_arrastrable: boolean;
+  /** Clavada: la onda se queda a la vista siempre, no sólo mientras dictas. */
+  hud_pin: boolean;
+  /** Lo transparente que se pone clavada y en reposo. 1 = opaca. */
+  hud_opacidad_reposo: number;
   autostart: boolean;
   google_client_id: string;
   google_client_secret: string;
@@ -50,6 +54,8 @@ export type RecordingState =
   | { state: "done"; text: string }
   /** Hubo grabación pero no se entendió nada. */
   | { state: "empty" }
+  /** Te arrepentiste a media frase: el audio se tiró sin transcribir. */
+  | { state: "cancelado" }
   | { state: "error"; message: string };
 
 /** Corrección del diccionario aplicada a un dictado. */

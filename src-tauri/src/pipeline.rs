@@ -28,6 +28,9 @@ const MAX_TROZO: usize = 55 * 16_000;
 pub enum Cmd {
     Start,
     Stop,
+    /// Te arrepentiste a media frase: se tira el audio y no se transcribe ni se
+    /// pega nada. Lo manda el Escape mientras grabas.
+    Cancel,
     /// El modelo terminó de descargarse; se cargará al dictar.
     ModelReady,
 }
@@ -117,6 +120,13 @@ pub(crate) static ARRASTRANDO: AtomicBool = AtomicBool::new(false);
 /// Modo "colócalo donde quieras" desde Ajustes: el HUD se queda a la vista
 /// hasta que el usuario diga que ya, así que nadie puede ocultarlo.
 pub(crate) static COLOCANDO: AtomicBool = AtomicBool::new(false);
+/// Hay un dictado en curso. La consulta el menú de la onda: desclavarla a media
+/// frase no puede esconderla y dejarte dictando a ciegas.
+pub(crate) static GRABANDO: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn grabando() -> bool {
+    GRABANDO.load(Ordering::SeqCst)
+}
 
 /// Coloca el HUD en el área de trabajo indicada (píxeles físicos): donde lo
 /// dejó el usuario, o abajo-centro si nunca lo movió.
@@ -244,6 +254,14 @@ fn show_hud(app: &AppHandle, gen: &Arc<AtomicU64>) {
     });
 }
 
+/// ¿El usuario dejó la onda clavada en pantalla? Clavada no se esconde nunca:
+/// vuelve a reposo y se queda ahí, a medio velo.
+pub(crate) fn hud_clavado(app: &AppHandle) -> bool {
+    app.try_state::<SettingsState>()
+        .and_then(|s| s.read().ok().map(|s| s.hud_pin && s.hud_enabled))
+        .unwrap_or(false)
+}
+
 fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
     let expected = gen.load(Ordering::SeqCst);
     let app = app.clone();
@@ -252,7 +270,13 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
         std::thread::sleep(Duration::from_millis(delay_ms));
         if gen.load(Ordering::SeqCst) == expected && !COLOCANDO.load(Ordering::SeqCst) {
             if let Some(hud) = app.get_webview_window("hud") {
-                let _ = hud.hide();
+                // Clavada se queda: sólo vuelve a reposo, que es su cara de
+                // "aquí estoy, sin molestar".
+                if hud_clavado(&app) {
+                    emit_state(&app, "idle", None);
+                } else {
+                    let _ = hud.hide();
+                }
             }
         }
     });
@@ -289,7 +313,11 @@ pub(crate) fn modo_colocar(app: &AppHandle, on: bool) {
             .and_then(|s| s.read().ok().map(|s| s.hud_arrastrable))
             .unwrap_or(true);
         crate::commands::aplicar_raton_hud(app, arrastrable);
-        let _ = hud.hide();
+        if hud_clavado(app) {
+            emit_state(app, "idle", None);
+        } else {
+            let _ = hud.hide();
+        }
         return;
     }
     place_hud(app, &hud, area_hud(app));
@@ -761,8 +789,26 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                 }
             }
 
+            // Cancelar: el audio se tira entero y no se toca ni el historial ni
+            // el portapapeles. Va antes que el Stop para ganarle siempre.
+            if matches!(cmd, Some(Cmd::Cancel)) {
+                if let (Some(rec), Some(_)) = (recorder.take(), vivo.take()) {
+                    GRABANDO.store(false, Ordering::SeqCst);
+                    let held = started_at.elapsed();
+                    let _ = rec.stop();
+                    diag(
+                        &app,
+                        &format!("Dictado cancelado a los {:.1} s", held.as_secs_f32()),
+                    );
+                    emit_state(&app, "cancelado", None);
+                    hide_hud_later(&app, &hud_gen, 2200);
+                }
+                continue;
+            }
+
             if por_limite || matches!(cmd, Some(Cmd::Stop)) {
                 if let (Some(rec), Some(mut v)) = (recorder.take(), vivo.take()) {
+                    GRABANDO.store(false, Ordering::SeqCst);
                     let held = started_at.elapsed();
                     if por_limite {
                         diag(
@@ -830,7 +876,7 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                 Some(Cmd::ModelReady) => {
                     log::info!("Modelo local disponible; se cargará al dictar");
                 }
-                Some(Cmd::Stop) => {}
+                Some(Cmd::Stop) | Some(Cmd::Cancel) => {}
                 Some(Cmd::Start) => {
                     if recorder.is_some() {
                         continue;
@@ -920,6 +966,7 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                             recorder = Some(r);
                             vivo = Some(EnVivo::nuevo(caliente, opts));
                             started_at = Instant::now();
+                            GRABANDO.store(true, Ordering::SeqCst);
                         }
                         Err(e) => {
                             emit_state(

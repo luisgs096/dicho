@@ -5,6 +5,7 @@ import type { AppSettings, HudStyle, RecordingState } from "../types";
 import {
   CARITA_COMILONA,
   CARITA_ERUCTO,
+  CARITA_CANCELADO,
   FACE_CSS,
   MAREO,
   MIC_SVG,
@@ -61,6 +62,10 @@ const BAR_GAIN = [0.72, 0.9, 1, 0.9, 0.72];
 const BAR_MIN = 8;
 const BAR_MAX = 30;
 
+/** Lo que aguanta cada escalón del mareo antes de dejar pasar al siguiente:
+ *  un bucle entero de la carita (los más largos duran 1,4 s) y un respiro. */
+const PLANTON_MAREO = 1600;
+
 const CLASSIC_CSS = `
   .classic-shake { animation: cshake .55s ease-in-out; }
   @keyframes cshake { 0%, 100% { transform: translateX(0); }
@@ -84,68 +89,135 @@ const DRAG_CSS = `
   ::-webkit-scrollbar { width: 0; height: 0; }
   .agarrable { cursor: grab; }
   .agarrando { cursor: grabbing; }
+  /* Relevo entre caritas: la pantalla da un golpe de luz, como un LCD al
+     refrescar. Sin él, una carita se convertía en otra de un fotograma a otro
+     y parecía un fallo en vez de una transición. */
+  .relevo .screen { filter: brightness(1.35) contrast(.9); }
   .colocando { outline: 2px dashed var(--a); outline-offset: 4px;
     border-radius: 14px; animation: destello 1.4s ease-in-out infinite; }
   @keyframes destello { 50% { outline-color: transparent; } }
 `;
 
-/**
- * Los dos botones que salen sobre la onda mientras la estás colocando.
- *
- * Viven **aquí y no en Ajustes** porque es donde los busca la mano: acabas de
- * soltar la onda en su sitio y quieres decir "ya". La posición se guarda sola
- * al soltarla, así que la palomita no confirma nada — sólo sale del modo
- * colocación. La flecha la devuelve a su rincón de siempre en todas las
- * pantallas.
- *
- * `stopPropagation` en el `pointerdown` es obligatorio: sin él, pulsar un botón
- * dispararía también el arrastre de la ventana y la onda saldría persiguiendo al
- * cursor en vez de hacerte caso.
- */
-function BotonesColocar() {
-  const parar = (e: React.PointerEvent) => e.stopPropagation();
+// ─── el menú de la propia onda ──────────────────────────────────────────────
+// Todo lo que se hace con la cápsula se hace **sobre la cápsula**, no en
+// Ajustes: es donde está la mano. El menú es adaptativo — un botón de editar
+// que despliega [clavar | mover], y si eliges mover se convierte en
+// [listo | devolver a su sitio], que son las dos únicas cosas que tienen
+// sentido mientras la estás colocando.
+//
+// `stopPropagation` en el `pointerdown` de cada botón es obligatorio: sin él,
+// pulsarlos dispararía también el arrastre de la ventana y la onda saldría
+// persiguiendo al cursor en vez de obedecer.
+
+const ICONO = {
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2.4,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  className: "h-[15px] w-[15px]",
+} as const;
+
+function BotonOnda(props: {
+  titulo: string;
+  onClick: () => void;
+  tono?: "normal" | "ok" | "activo";
+  children: React.ReactNode;
+}) {
+  const tono = props.tono ?? "normal";
+  const cls =
+    tono === "ok"
+      ? "bg-emerald-500 text-white hover:bg-emerald-600"
+      : tono === "activo"
+        ? "bg-blue-600 text-white hover:bg-blue-700"
+        : "border border-slate-300/80 bg-white/95 text-slate-600 hover:bg-slate-100";
   return (
+    <button
+      title={props.titulo}
+      aria-label={props.titulo}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={props.onClick}
+      className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full shadow-md transition-colors ${cls}`}
+    >
+      {props.children}
+    </button>
+  );
+}
+
+function MenuOnda(props: {
+  abierto: boolean;
+  colocando: boolean;
+  pin: boolean;
+  onAbrir: () => void;
+  onPin: () => void;
+  onMover: () => void;
+  onListo: () => void;
+  onReset: () => void;
+}) {
+  const fila = (hijos: React.ReactNode) => (
     <div className="absolute right-2 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1.5">
-      <button
-        title="Devolverla a su sitio de siempre"
-        aria-label="Devolverla a su sitio de siempre"
-        onPointerDown={parar}
-        onClick={() => invoke("hud_pos_reset").catch(() => {})}
-        className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-white/95 text-slate-600 shadow-md transition-colors hover:bg-slate-100"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2.4}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-4 w-4"
-        >
-          <path d="M3 12a9 9 0 1 0 2.64-6.36" />
-          <path d="M3 4v5h5" />
-        </svg>
-      </button>
-      <button
-        title="Listo, déjala aquí"
-        aria-label="Listo, déjala aquí"
-        onPointerDown={parar}
-        onClick={() => invoke("hud_colocar", { on: false }).catch(() => {})}
-        className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md transition-colors hover:bg-emerald-600"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={3}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-4 w-4"
-        >
-          <path d="m5 13 4 4L19 7" />
-        </svg>
-      </button>
+      {hijos}
     </div>
+  );
+
+  // Colocando: sólo lo que sirve para colocar.
+  if (props.colocando) {
+    return fila(
+      <>
+        <BotonOnda titulo="Devolverla a su sitio de siempre" onClick={props.onReset}>
+          <svg {...ICONO}>
+            <path d="M3 12a9 9 0 1 0 2.64-6.36" />
+            <path d="M3 4v5h5" />
+          </svg>
+        </BotonOnda>
+        <BotonOnda titulo="Listo, déjala aquí" tono="ok" onClick={props.onListo}>
+          <svg {...ICONO} strokeWidth={3}>
+            <path d="m5 13 4 4L19 7" />
+          </svg>
+        </BotonOnda>
+      </>,
+    );
+  }
+
+  // Menú desplegado: clavar y mover.
+  if (props.abierto) {
+    return fila(
+      <>
+        <BotonOnda
+          titulo={props.pin ? "Desclavarla" : "Clavarla en pantalla"}
+          tono={props.pin ? "activo" : "normal"}
+          onClick={props.onPin}
+        >
+          <svg {...ICONO}>
+            <path d="M9 4h6l-1 6 3 3H7l3-3-1-6Z" />
+            <path d="M12 13v7" />
+          </svg>
+        </BotonOnda>
+        <BotonOnda titulo="Cambiarla de sitio" onClick={props.onMover}>
+          <svg {...ICONO}>
+            <path d="M12 3v18M3 12h18" />
+            <path d="M12 3 9.5 5.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5" />
+            <path d="M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5" />
+          </svg>
+        </BotonOnda>
+        <BotonOnda titulo="Cerrar el menú" onClick={props.onAbrir}>
+          <svg {...ICONO}>
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </BotonOnda>
+      </>,
+    );
+  }
+
+  // En reposo: sólo el botoncito de editar.
+  return fila(
+    <BotonOnda titulo="Opciones de la onda" onClick={props.onAbrir}>
+      <svg {...ICONO}>
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+      </svg>
+    </BotonOnda>,
   );
 }
 
@@ -215,6 +287,16 @@ export default function Hud() {
   const [colocando, setColocando] = useState(false);
   /** 0 = entera; 1…3 = los tres escalones del mareo al zarandearla. */
   const [mareo, setMareo] = useState(0);
+  /** Clavada en pantalla: no se esconde al acabar el dictado. */
+  const [pin, setPin] = useState(false);
+  const [opacidadReposo, setOpacidadReposo] = useState(0.45);
+  /** El menú de la onda está desplegado. */
+  const [menu, setMenu] = useState(false);
+  /** El ratón está encima: saca los controles y le quita el velo. */
+  const [encima, setEncima] = useState(false);
+  /** Destello de relevo entre una carita del mareo y la siguiente. */
+  const [relevo, setRelevo] = useState(false);
+  const mareoDesde = useRef(0);
   const [agarrando, setAgarrando] = useState(false);
   const [dark, setDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
@@ -320,18 +402,37 @@ export default function Hud() {
   // Zarandéala mientras la colocas y se marea. Cada meneo sube un escalón:
   // mareada → aguantándose → ya no aguantó. El backend sólo avisa de que hubo
   // meneo; la escalada es cosa de aquí, que es presentación pura.
+  //
+  // **Cada escalón tiene que dar su vuelta antes de ceder el sitio.** Zarandeando
+  // sin parar los meneos llegaban en ráfaga y las caritas se atropellaban: no se
+  // veía ninguna entera. Los tamagotchi resuelven esto igual —dos fotogramas
+  // repetidos tres o cuatro veces antes de cambiar de estado—, así que aquí hay
+  // un plantón mínimo del tamaño de un bucle completo. Agitando cinco segundos
+  // se recorren las tres con tiempo de mirarlas.
   useEffect(() => {
     if (!colocando) {
       setMareo(0);
       return;
     }
-    const un = listen("hud-meneo", () =>
-      setMareo((m) => Math.min(MAREO.length, m + 1)),
-    );
+    const un = listen("hud-meneo", () => {
+      const ahora = Date.now();
+      if (ahora - mareoDesde.current < PLANTON_MAREO) return;
+      mareoDesde.current = ahora;
+      setMareo((m) => Math.min(MAREO.length, m + 1));
+    });
     return () => {
       un.then((f) => f());
     };
   }, [colocando]);
+
+  // El destello de la pantalla al cambiar de escalón: es el relevo entre una
+  // carita y la siguiente, para que no parezca un corte.
+  useEffect(() => {
+    if (mareo === 0) return;
+    setRelevo(true);
+    const t = setTimeout(() => setRelevo(false), 200);
+    return () => clearTimeout(t);
+  }, [mareo]);
 
   // Se le pasa solo: los dos primeros escalones aguantan un rato por si sigues,
   // y el vómito dura lo justo para verse entero y volver a la normalidad.
@@ -348,7 +449,11 @@ export default function Hud() {
   useEffect(() => {
     const load = () =>
       invoke<AppSettings>("get_settings")
-        .then((s) => setHudStyle(s.hud_style))
+        .then((s) => {
+          setHudStyle(s.hud_style);
+          setPin(s.hud_pin);
+          setOpacidadReposo(s.hud_opacidad_reposo ?? 0.45);
+        })
         .catch(console.error);
     load();
     const un = listen("settings-changed", load);
@@ -452,17 +557,43 @@ export default function Hud() {
   );
 
   const face = stateFor(rec);
+  // ── acciones del menú de la onda ──────────────────────────────────────────
+  const alternarPin = () => {
+    const nuevo = !pin;
+    setPin(nuevo); // optimista: el backend confirma con `settings-changed`
+    invoke("hud_pin", { on: nuevo }).catch(() => setPin(!nuevo));
+  };
+  const moverla = () => {
+    setMenu(false);
+    invoke("hud_colocar", { on: true }).catch(() => {});
+  };
+  const listoDeColocar = () => invoke("hud_colocar", { on: false }).catch(() => {});
+  const resetearPos = () => invoke("hud_pos_reset").catch(() => {});
+
+  // Clavada y sin nada que decir, la onda se pone a medio velo para no competir
+  // con lo que estés leyendo. Al pasarle el ratón por encima vuelve entera, y
+  // mientras dictas nunca se vela: es justo cuando hay que verla.
+  const velo =
+    pin && rec.state === "idle" && !encima && !colocando && mareo === 0
+      ? opacidadReposo
+      : 1;
+
   const isError = rec.state === "error";
   // Zarandeada gana a todo: es el único momento en que la carita no cuenta en
   // qué va el dictado, y para entonces no hay dictado ninguno.
   const mareada = mareo > 0 ? MAREO[mareo - 1] : null;
+  const cancelada = rec.state === "cancelado" ? CARITA_CANCELADO : null;
   // En error se reutiliza la carita de "señal perdida" con el mensaje real.
   const v =
-    mareada ?? (isError ? V["no-entendi"][3] : (V[face][variant] ?? V[face][0]));
-  const sad = (isError && !mareada) || v.sad;
+    mareada ??
+    cancelada ??
+    (isError ? V["no-entendi"][3] : (V[face][variant] ?? V[face][0]));
+  const sad = (isError && !mareada && !cancelada) || v.sad;
   const porLimite = rec.state === "processing" && rec.motivo === "limite";
   const status = mareada
     ? mareada.status
+    : cancelada
+    ? cancelada.status
     : colocando
     ? // Sin texto: ese rincón lo ocupan ahora la palomita y la flecha, y el
       // aro punteado ya dice que la estás colocando.
@@ -484,8 +615,12 @@ export default function Hud() {
 
   // ── modo clásico: pill claro + barras reactivas a la voz ──────────────────
   if (hudStyle === "classic") {
+    // El cancelado comparte con "no te escuché" el tono naranja y el meneo —los
+    // dos son "esto no salió"— pero cada uno dice lo suyo, así que el contenido
+    // se decide aparte.
+    const naranja = rec.state === "empty" || rec.state === "cancelado";
     const emptyC = rec.state === "empty";
-    const pill = emptyC
+    const pill = naranja
       ? dark
         ? "border-orange-400/30 bg-slate-900/90 text-orange-200"
         : "border-orange-200 bg-orange-50/95 text-orange-900"
@@ -495,18 +630,31 @@ export default function Hud() {
     return (
       <div
         className={`flex h-screen w-screen items-center justify-center ${gesto}`}
-        style={vars}
+        style={{ ...vars, opacity: velo, transition: "opacity .18s" }}
         onPointerDown={agarrar}
+        onPointerEnter={() => setEncima(true)}
+        onPointerLeave={() => { setEncima(false); setMenu(false); }}
       >
         <style>{CLASSIC_CSS + DRAG_CSS}</style>
         <div
           className={`relative ${colocando ? "colocando" : ""}`}
           style={{ transform: "scale(var(--k, 1))" }}
         >
-          {colocando && <BotonesColocar />}
+          {(colocando || menu || encima) && (
+            <MenuOnda
+              abierto={menu}
+              colocando={colocando}
+              pin={pin}
+              onAbrir={() => setMenu((m) => !m)}
+              onPin={alternarPin}
+              onMover={moverla}
+              onListo={listoDeColocar}
+              onReset={resetearPos}
+            />
+          )}
           <div
             className={`relative flex h-[64px] w-[336px] items-center gap-3 overflow-hidden rounded-full border px-5 shadow-2xl shadow-blue-900/20 backdrop-blur transition-colors ${
-              emptyC ? "classic-shake" : ""
+              naranja ? "classic-shake" : ""
             } ${colocando ? "!pr-[76px]" : ""} ${pill}`}
           >
             {(rec.state === "recording" || rec.state === "processing") && (
@@ -560,6 +708,17 @@ export default function Hud() {
               </>
             )}
 
+            {rec.state === "cancelado" && (
+              <>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">
+                  ✕
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm">
+                  Cancelado, no escribí nada
+                </p>
+              </>
+            )}
+
             {rec.state === "done" && (
               <>
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white dark:bg-sky-500">
@@ -594,18 +753,31 @@ export default function Hud() {
   return (
     <div
       className={`flex h-screen w-screen items-center justify-center ${gesto}`}
-      style={vars}
+      style={{ ...vars, opacity: velo, transition: "opacity .18s" }}
       onPointerDown={agarrar}
+      onPointerEnter={() => setEncima(true)}
+      onPointerLeave={() => { setEncima(false); setMenu(false); }}
     >
       <style>{FACE_CSS + DRAG_CSS}</style>
       <div
         className={`relative ${colocando ? "colocando" : ""}`}
         style={{ transform: "scale(var(--k, 1))" }}
       >
-        {colocando && <BotonesColocar />}
+        {(colocando || menu || encima) && (
+            <MenuOnda
+              abierto={menu}
+              colocando={colocando}
+              pin={pin}
+              onAbrir={() => setMenu((m) => !m)}
+              onPin={alternarPin}
+              onMover={moverla}
+              onListo={listoDeColocar}
+              onReset={resetearPos}
+            />
+          )}
         <div
           ref={tamaRef}
-          className={`tama ${sad ? "sad" : ""} ${v.shake && !isError ? "shake" : ""}`}
+          className={`tama ${sad ? "sad" : ""} ${v.shake && !isError ? "shake" : ""} ${relevo ? "relevo" : ""}`}
         >
           <div className="screen" style={{ color: sad ? pal.w : pal.face }}>
             <span

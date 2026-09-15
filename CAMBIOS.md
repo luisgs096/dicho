@@ -10,6 +10,24 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.9.0 — 15 de septiembre de 2026
+
+- **Cancelar a media frase.** Si te arrepientes mientras dictas, pulsa
+  **Escape** sin soltar el atajo: el audio se tira entero, no se transcribe ni se
+  pega nada, y la carita te dice que no con la cabeza.
+- **La onda se maneja desde la onda.** Pásale el ratón por encima y sale un botón
+  de lápiz: desde ahí puedes **clavarla** —se queda siempre a la vista, el modo
+  mascota— o **cambiarla de sitio**, y entonces los mismos botones se convierten
+  en «listo» y «devolverla a su sitio». Ya no hay que ir a Ajustes para nada de
+  esto.
+- **Clavada y en reposo se pone translúcida**, para acompañar sin estorbar; al
+  pasarle el ratón vuelve entera.
+- **El mareo ahora se deja ver.** Cada carita da su vuelta completa antes de
+  ceder el sitio, con un destello de relevo entre una y otra: zarandeando cinco
+  segundos las recorres las tres con tiempo de mirarlas.
+- **Y vomita en condiciones**: más chorro, un hilo que escurre de la comisura, un
+  charco que se queda en el suelo y, al final, se limpia la boca con la manita.
+
 ## 0.8.5 — 15 de septiembre de 2026
 
 - **Zarandea la onda mientras la colocas y se marea.** Ve a Inicio →
