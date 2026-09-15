@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ESTADOS, FACE_CSS, MIC_SVG, V, cssVars, type FaceState } from "./faces";
 import type { AppSettings } from "../types";
 
@@ -38,16 +38,29 @@ const CLASSIC_TEXTO: Record<FaceState, string> = {
  * Pinta con los mismos sprites y el mismo CSS que el HUD (`faces.ts`), así que
  * lo que se ve aquí es exactamente lo que saldrá al dictar. A tamaño real y sin
  * escalar a propósito: el pixel-art se deforma en cuanto lo estiras.
+ *
+ * **Ojo con los redibujados.** La escena de la carita entra por
+ * `dangerouslySetInnerHTML`, así que cada render de React reescribe el interior
+ * del `<svg>` y **destruye los `<g>` que llevan las animaciones**: vuelven a
+ * empezar de cero. La primera versión refrescaba el volumen simulado por estado
+ * de React cada 140 ms y ningún gesto pasaba de los 80 ms — las caritas se veían
+ * congeladas. Por eso `--lvl` se escribe **a mano sobre el nodo** (igual que hace
+ * el HUD de verdad con `tamaRef`) y este componente sólo se redibuja cuando
+ * cambia de estado, cada 2,6 s. Comprobado: tocar `--lvl` en un ancestro no
+ * reinicia nada; redibujar, sí.
  */
 export default function VistaPrevia(props: {
   value: Estilo;
   onChange: (v: Estilo) => void;
+  /** Abre el catálogo completo de caritas. Vive dentro de la tarjeta del
+   *  tamagotchi porque sólo tiene sentido para ese estilo. */
+  onVerCaritas?: () => void;
 }) {
   const [dark, setDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
   const [paso, setPaso] = useState(0);
-  const [nivel, setNivel] = useState(0.3);
+  const tamaRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
@@ -61,27 +74,35 @@ export default function VistaPrevia(props: {
     return () => clearInterval(t);
   }, []);
 
-  // Volumen de mentira para las caritas reactivas (el DJ y el Pac-Man leen
-  // --lvl). Sin esto se quedarían congeladas y parecerían rotas.
-  useEffect(() => {
-    const t = setInterval(() => setNivel(0.15 + Math.random() * 0.75), 140);
-    return () => clearInterval(t);
-  }, []);
-
   const estado = TOUR[paso % TOUR.length];
+
+  // Volumen para las caritas reactivas (el DJ y el Pac-Man leen --lvl). Se pone
+  // UNA vez por estado, nunca en bucle: cambiar una variable CSS obliga a
+  // Chromium a recalcular el subárbol, y como la duración de los gestos sale de
+  // `var(--d)`, **recrea las animaciones** y todas vuelven a 0. Refrescándolo
+  // cada 140 ms ningún gesto pasaba de ahí y las caritas se veían congeladas.
+  // El precio es que aquí esas dos caritas no laten con el volumen; al dictar sí,
+  // porque el HUD de verdad no tiene alrededor nada más que animar.
+  useEffect(() => {
+    tamaRef.current?.style.setProperty(
+      "--lvl",
+      estado === "escuchando" ? "0.55" : "0.12",
+    );
+  }, [estado]);
+
   const meta = ESTADOS.find((e) => e.key === estado)!;
   // Una carita distinta en cada vuelta: el repertorio son 5 por estado y
   // enseñar siempre la misma haría creer que sólo hay una.
   const vuelta = Math.floor(paso / TOUR.length);
   const variante = V[estado][vuelta % V[estado].length];
 
-  const vars = {
-    ...cssVars(dark),
-    "--lvl": estado === "escuchando" ? nivel.toFixed(2) : "0.12",
-  } as React.CSSProperties;
+  const vars = cssVars(dark) as React.CSSProperties;
 
   const tamagotchi = (
-    <div className={`tama ${variante.sad ? "sad" : ""}`}>
+    <div
+      ref={tamaRef}
+      className={`tama ${variante.sad ? "sad" : ""} ${variante.shake ? "shake" : ""}`}
+    >
       <div className="screen">
         <span className="mic-px" dangerouslySetInnerHTML={{ __html: MIC_SVG }} />
         <span className="scene">
@@ -117,7 +138,9 @@ export default function VistaPrevia(props: {
           ✓
         </span>
       )}
-      <div className={`flex h-8 items-center gap-2.5 ${triste ? "shrink-0 pl-1" : "flex-1 justify-center"}`}>
+      <div
+        className={`flex h-8 items-center gap-2.5 ${triste ? "shrink-0 pl-1" : "flex-1 justify-center"}`}
+      >
         {estado !== "listo" &&
           DESFASE.map((d, i) => (
             <span
@@ -150,14 +173,30 @@ export default function VistaPrevia(props: {
     </div>
   );
 
-  const tarjeta = (id: Estilo, titulo: string, pie: string, hijo: React.ReactNode) => {
+  // La tarjeta es un div y no un button: dentro lleva otro botón (el catálogo de
+  // caritas) y un botón dentro de otro es HTML inválido. Con rol de radio y
+  // teclado se comporta igual para quien no usa ratón.
+  const tarjeta = (
+    id: Estilo,
+    titulo: string,
+    pie: string,
+    hijo: React.ReactNode,
+    extra?: React.ReactNode,
+  ) => {
     const activo = props.value === id;
     return (
-      <button
-        type="button"
+      <div
+        role="radio"
+        aria-checked={activo}
+        tabIndex={0}
         onClick={() => props.onChange(id)}
-        aria-pressed={activo}
-        className={`flex w-full flex-col items-center gap-2.5 rounded-2xl border p-4 text-center transition-colors ${
+        onKeyDown={(e) => {
+          if (e.key === " " || e.key === "Enter") {
+            e.preventDefault();
+            props.onChange(id);
+          }
+        }}
+        className={`flex cursor-pointer flex-col items-center gap-2.5 rounded-2xl border p-4 text-center transition-colors ${
           activo
             ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/20 dark:border-sky-400 dark:bg-sky-950/40 dark:ring-sky-400/20"
             : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
@@ -188,7 +227,8 @@ export default function VistaPrevia(props: {
         <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
           {pie}
         </p>
-      </button>
+        {extra}
+      </div>
     );
   };
 
@@ -214,12 +254,24 @@ export default function VistaPrevia(props: {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div role="radiogroup" className="flex flex-col gap-3">
         {tarjeta(
           "tamagotchi",
           "Caritas tamagotchi",
           "26 caritas distintas, 5 por estado, elegidas al azar. Dos se mueven con el volumen real de tu voz.",
           tamagotchi,
+          props.onVerCaritas && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                props.onVerCaritas!();
+              }}
+              className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Ver las 26 caritas
+            </button>
+          ),
         )}
         {tarjeta(
           "classic",

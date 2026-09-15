@@ -52,6 +52,29 @@ function HomeIcon() {
   );
 }
 
+/** Cuatro flechas: el gesto universal de "arrastra esto a donde quieras". */
+function ArrastrarIcon() {
+  return (
+    <svg {...iconProps} className="h-4 w-4">
+      <path d="M12 3v18M3 12h18" />
+      <path d="M12 3 9.5 5.5M12 3l2.5 2.5" />
+      <path d="M12 21l-2.5-2.5M12 21l2.5-2.5" />
+      <path d="M3 12l2.5-2.5M3 12l2.5 2.5" />
+      <path d="M21 12l-2.5-2.5M21 12l-2.5 2.5" />
+    </svg>
+  );
+}
+
+/** Flecha circular de deshacer: devolver algo a como estaba. */
+function DeshacerIcon() {
+  return (
+    <svg {...iconProps} className="h-4 w-4">
+      <path d="M3 12a9 9 0 1 0 2.64-6.36" />
+      <path d="M3 4v5h5" />
+    </svg>
+  );
+}
+
 function BookIcon() {
   return (
     <svg {...iconProps}>
@@ -675,17 +698,12 @@ export default function Settings() {
                         <VistaPrevia
                           value={settings.hud_style}
                           onChange={(v) => update({ hud_style: v })}
+                          onVerCaritas={() => setVerAnimaciones(true)}
                         />
 
                         <div className="flex flex-wrap gap-2">
                           <button
-                            className={btnGhostCls}
-                            onClick={() => setVerAnimaciones(true)}
-                          >
-                            Ver las 26 caritas
-                          </button>
-                          <button
-                            className={btnGhostCls}
+                            className={`${btnGhostCls} flex items-center gap-2`}
                             onClick={() => {
                               const on = !colocandoHud;
                               setColocandoHud(on);
@@ -694,16 +712,18 @@ export default function Settings() {
                               );
                             }}
                           >
+                            <ArrastrarIcon />
                             {colocandoHud
                               ? "Listo, déjala ahí"
-                              : "Mover la onda flotante"}
+                              : "Seleccionar posición en pantalla"}
                           </button>
                           <button
-                            className={btnGhostCls}
+                            className={`${btnGhostCls} flex items-center gap-2`}
                             onClick={() =>
                               invoke("hud_pos_reset").catch((e) => alert(String(e)))
                             }
                           >
+                            <DeshacerIcon />
                             Devolverla a su sitio
                           </button>
                         </div>

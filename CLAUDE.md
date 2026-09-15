@@ -197,6 +197,25 @@ conocimiento. Y se commitea con el resto.
   Ojo si vuelve a pasar algo parecido: el instalador y el `.sig` ya están hechos
   y son válidos, así que basta con crear el release a mano en vez de repetir
   todo el `publicar.ps1`.
+- **Tocar una variable CSS congela las caritas** (el fallo de la vista previa,
+  14/09). Los gestos se declaran `animation: fl3_0 var(--d) steps(1, end) infinite`,
+  o sea que la **duración sale de una variable**. Cuando algo escribe otra variable
+  en la carita o en un ancestro —`--lvl`, el volumen de la voz— Chromium recalcula
+  el subárbol, vuelve a resolver ese `var(--d)` y **recrea la animación desde cero**.
+  Refrescando `--lvl` cada 140 ms ningún gesto pasaba de los 80 ms: se veían
+  congeladas. Se diagnostica en 10 s sin mirar nada a ojo:
+  `el.getAnimations({subtree:true})[0].currentTime` dos veces seguidas — si no
+  avanza, es esto. En la vista previa `--lvl` se pone **una vez por estado**.
+  ⚠️ **`Hud.tsx` sigue escribiendo `--lvl` en cada frame mientras grabas**, así que
+  durante el dictado los gestos de la carita están igual de congelados; se mueven
+  sólo las dos reactivas, que no dependen de `animation` sino del `transform` que
+  lee la variable. Sin verificar en vivo y sin arreglar: la cura de raíz es sacar
+  `var(--d)` del atajo `animation` en `faces.ts`, y eso toca el motor de las
+  caritas.
+- **Redibujar React también los reinicia**: la escena entra por
+  `dangerouslySetInnerHTML`, así que cada render reescribe el interior del `<svg>`
+  y se lleva por delante los `<g>` que llevan las animaciones. Un componente que
+  pinte caritas debe redibujarse **sólo cuando la carita cambia**.
 - **El Release se crea sobre un commit que GitHub ya tiene que conocer** (el fallo de
   la 0.8.2, 14/09). `gh release create` sin `--target` pone el tag en la rama por
   defecto: publicando desde una rama, el tag apuntaría a un `main` sin ese código y el
