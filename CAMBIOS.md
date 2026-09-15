@@ -10,6 +10,17 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.9.1 — 15 de septiembre de 2026
+
+- **El menú de la onda se abre en abanico.** Ahora es un **+** asomando por la
+  esquina de arriba: al pulsarlo gira, se queda en **−** y suelta los tres
+  botones uno detrás de otro hacia la izquierda. Al cerrarlo se pliegan dentro
+  de él en orden inverso.
+- **Ya no tapa la leyenda.** Estaba en medio de la cápsula y se comía el
+  «Anotando…»; se subió a la esquina, donde no estorba a nada.
+- **Los botones responden al ratón**: al pasar por encima crecen y se encienden,
+  antes de pulsarlos.
+
 ## 0.9.0 — 15 de septiembre de 2026
 
 - **Cancelar a media frase.** Si te arrepientes mientras dictas, pulsa

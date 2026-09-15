@@ -119,10 +119,33 @@ const ICONO = {
   className: "h-[15px] w-[15px]",
 } as const;
 
+/** Separación entre los botones del abanico, en píxeles del lienzo del HUD. */
+const PASO_ABANICO = 31;
+/** Retardo entre un botón y el siguiente: lo que hace que se lea como abanico
+ *  y no como que aparecen los tres de golpe. */
+const ESCALON_MS = 55;
+
+const MENU_CSS = `
+  /* Al pasar el ratón el botón crece y se enciende: el aviso de que se puede
+     pulsar, antes de pulsarlo. */
+  .bo { transition: transform .14s ease-out, background-color .14s, box-shadow .14s, opacity .18s; }
+  .bo:hover { transform: scale(1.18); box-shadow: 0 0 0 3px var(--halo), 0 6px 14px -4px rgba(10,25,60,.5); }
+  .bo:active { transform: scale(1.04); }
+  /* El "más" gira media vuelta al abrirse y pierde su palito vertical: queda
+     un "menos". Rotar un "+" no lo convierte en "−", así que el palito se va
+     aparte mientras el conjunto gira. */
+  .mas svg { transition: transform .26s cubic-bezier(.34, 1.4, .5, 1); }
+  .mas.abierto svg { transform: rotate(180deg); }
+  .mas .palito { transition: opacity .16s; }
+  .mas.abierto .palito { opacity: 0; }
+`;
+
 function BotonOnda(props: {
   titulo: string;
   onClick: () => void;
   tono?: "normal" | "ok" | "activo";
+  clase?: string;
+  estilo?: React.CSSProperties;
   children: React.ReactNode;
 }) {
   const tono = props.tono ?? "normal";
@@ -131,21 +154,61 @@ function BotonOnda(props: {
       ? "bg-emerald-500 text-white hover:bg-emerald-600"
       : tono === "activo"
         ? "bg-blue-600 text-white hover:bg-blue-700"
-        : "border border-slate-300/80 bg-white/95 text-slate-600 hover:bg-slate-100";
+        : "border border-slate-300/80 bg-white/95 text-slate-600 hover:bg-white";
+  const halo =
+    tono === "ok"
+      ? "rgba(16,185,129,.35)"
+      : tono === "activo"
+        ? "rgba(37,99,235,.35)"
+        : "rgba(148,163,184,.4)";
   return (
     <button
       title={props.titulo}
       aria-label={props.titulo}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={props.onClick}
-      className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full shadow-md transition-colors ${cls}`}
+      style={{ ["--halo" as string]: halo, ...props.estilo }}
+      className={`bo absolute right-0 top-0 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full shadow-md ${cls} ${props.clase ?? ""}`}
     >
       {props.children}
     </button>
   );
 }
 
-function MenuOnda(props: {
+const IconoReset = () => (
+  <svg {...ICONO}>
+    <path d="M3 12a9 9 0 1 0 2.64-6.36" />
+    <path d="M3 4v5h5" />
+  </svg>
+);
+const IconoPin = () => (
+  <svg {...ICONO}>
+    <path d="M9 4h6l-1 6 3 3H7l3-3-1-6Z" />
+    <path d="M12 13v7" />
+  </svg>
+);
+const IconoMover = () => (
+  <svg {...ICONO}>
+    <path d="M12 3v18M3 12h18" />
+    <path d="M12 3 9.5 5.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5" />
+    <path d="M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5" />
+  </svg>
+);
+
+/**
+ * El menú de la propia onda, arriba a la derecha y **asomando** un poco por
+ * fuera de la cápsula: dentro tapaba la leyenda de lo que estaba haciendo
+ * («Anotando…», «Escribiendo…»), que es justo lo que hay que poder leer.
+ *
+ * Es un "más" que al pulsarlo gira media vuelta, se queda en "menos" y suelta
+ * los tres botones en abanico hacia la izquierda, uno detrás de otro. No los
+ * sustituye: se quedan en su órbita, y al cerrar vuelven a plegarse dentro de
+ * él en orden inverso.
+ *
+ * Mientras colocas la onda el menú se reduce a lo único que sirve entonces:
+ * devolverla a su sitio y dar por buena la posición.
+ */
+export function MenuOnda(props: {
   abierto: boolean;
   colocando: boolean;
   pin: boolean;
@@ -155,69 +218,94 @@ function MenuOnda(props: {
   onListo: () => void;
   onReset: () => void;
 }) {
-  const fila = (hijos: React.ReactNode) => (
-    <div className="absolute right-2 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1.5">
-      {hijos}
-    </div>
-  );
+  // Asomando por la esquina, pero con cuentas: la ventana del HUD deja 16 px de
+  // aire por arriba y 12 por los lados, y al pasar el ratón el botón crece un
+  // 18 % (≈2,4 px por lado) y saca un halo de 3. Sobresalir 8 arriba y 4 a la
+  // derecha deja margen justo para eso sin que Windows lo recorte.
+  const marco = "absolute -right-1 -top-2 z-10 h-[26px] w-[26px]";
 
-  // Colocando: sólo lo que sirve para colocar.
   if (props.colocando) {
-    return fila(
-      <>
-        <BotonOnda titulo="Devolverla a su sitio de siempre" onClick={props.onReset}>
-          <svg {...ICONO}>
-            <path d="M3 12a9 9 0 1 0 2.64-6.36" />
-            <path d="M3 4v5h5" />
-          </svg>
+    return (
+      <div className={marco}>
+        <style>{MENU_CSS}</style>
+        <BotonOnda
+          titulo="Devolverla a su sitio de siempre"
+          onClick={props.onReset}
+          estilo={{ transform: `translateX(-${PASO_ABANICO}px)` }}
+        >
+          <IconoReset />
         </BotonOnda>
         <BotonOnda titulo="Listo, déjala aquí" tono="ok" onClick={props.onListo}>
           <svg {...ICONO} strokeWidth={3}>
             <path d="m5 13 4 4L19 7" />
           </svg>
         </BotonOnda>
-      </>,
+      </div>
     );
   }
 
-  // Menú desplegado: clavar y mover.
-  if (props.abierto) {
-    return fila(
-      <>
-        <BotonOnda
-          titulo={props.pin ? "Desclavarla" : "Clavarla en pantalla"}
-          tono={props.pin ? "activo" : "normal"}
-          onClick={props.onPin}
-        >
-          <svg {...ICONO}>
-            <path d="M9 4h6l-1 6 3 3H7l3-3-1-6Z" />
-            <path d="M12 13v7" />
-          </svg>
-        </BotonOnda>
-        <BotonOnda titulo="Cambiarla de sitio" onClick={props.onMover}>
-          <svg {...ICONO}>
-            <path d="M12 3v18M3 12h18" />
-            <path d="M12 3 9.5 5.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5" />
-            <path d="M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5" />
-          </svg>
-        </BotonOnda>
-        <BotonOnda titulo="Cerrar el menú" onClick={props.onAbrir}>
-          <svg {...ICONO}>
-            <path d="M6 6l12 12M18 6L6 18" />
-          </svg>
-        </BotonOnda>
-      </>,
-    );
-  }
+  // De dentro hacia fuera: el primero en salir es el que queda pegado al más.
+  // Leídos de izquierda a derecha quedan en el orden de siempre — devolver,
+  // clavar, mover — y el que más viaja es el que sale el último.
+  const orbita = [
+    {
+      titulo: "Devolverla a su sitio de siempre",
+      icono: <IconoReset />,
+      onClick: props.onReset,
+      tono: "normal" as const,
+    },
+    {
+      titulo: props.pin ? "Desclavarla" : "Clavarla en pantalla",
+      icono: <IconoPin />,
+      onClick: props.onPin,
+      tono: props.pin ? ("activo" as const) : ("normal" as const),
+    },
+    {
+      titulo: "Cambiarla de sitio",
+      icono: <IconoMover />,
+      onClick: props.onMover,
+      tono: "normal" as const,
+    },
+  ];
 
-  // En reposo: sólo el botoncito de editar.
-  return fila(
-    <BotonOnda titulo="Opciones de la onda" onClick={props.onAbrir}>
-      <svg {...ICONO}>
-        <path d="M12 20h9" />
-        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
-      </svg>
-    </BotonOnda>,
+  return (
+    <div className={marco}>
+      <style>{MENU_CSS}</style>
+      {orbita.map((it, i) => {
+        // i=0 es el más lejano; sale el último al abrir y se pliega el primero
+        // al cerrar, que es lo que dibuja el abanico.
+        const distancia = orbita.length - i;
+        const turno = props.abierto ? orbita.length - 1 - i : i;
+        return (
+          <BotonOnda
+            key={it.titulo}
+            titulo={it.titulo}
+            tono={it.tono}
+            onClick={it.onClick}
+            estilo={{
+              transform: props.abierto
+                ? `translateX(-${distancia * PASO_ABANICO}px) scale(1)`
+                : "translateX(0) scale(.35)",
+              opacity: props.abierto ? 1 : 0,
+              pointerEvents: props.abierto ? "auto" : "none",
+              transitionDelay: `${turno * ESCALON_MS}ms`,
+            }}
+          >
+            {it.icono}
+          </BotonOnda>
+        );
+      })}
+      <BotonOnda
+        titulo={props.abierto ? "Cerrar el menú" : "Opciones de la onda"}
+        onClick={props.onAbrir}
+        clase={`mas ${props.abierto ? "abierto" : ""}`}
+      >
+        <svg {...ICONO} strokeWidth={2.8}>
+          <path d="M5 12h14" />
+          <path className="palito" d="M12 5v14" />
+        </svg>
+      </BotonOnda>
+    </div>
   );
 }
 
@@ -595,9 +683,7 @@ export default function Hud() {
     : cancelada
     ? cancelada.status
     : colocando
-    ? // Sin texto: ese rincón lo ocupan ahora la palomita y la flecha, y el
-      // aro punteado ya dice que la estás colocando.
-      ""
+    ? "Arrástrame"
     : isError
       ? rec.message
       : rec.state === "done"
@@ -655,7 +741,7 @@ export default function Hud() {
           <div
             className={`relative flex h-[64px] w-[336px] items-center gap-3 overflow-hidden rounded-full border px-5 shadow-2xl shadow-blue-900/20 backdrop-blur transition-colors ${
               naranja ? "classic-shake" : ""
-            } ${colocando ? "!pr-[76px]" : ""} ${pill}`}
+            } ${pill}`}
           >
             {(rec.state === "recording" || rec.state === "processing") && (
               <>
@@ -794,9 +880,6 @@ export default function Hud() {
             </span>
             <span
               className={`status ${rec.state === "done" || isError ? "texto" : ""}`}
-              // Mientras la colocas, ese rincón lo ocupan la palomita y la
-              // flecha: el texto se aparta para que quepan los dos.
-              style={colocando ? { marginRight: 66 } : undefined}
             >
               {status}
             </span>
