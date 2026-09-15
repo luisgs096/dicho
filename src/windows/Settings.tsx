@@ -10,11 +10,13 @@ import type {
   ModelProgress,
   ModelStatus,
 } from "../types";
-import { hotkeyLabel, keyLabel } from "../types";
+import { keyLabel } from "../types";
 import Animaciones from "./Animaciones";
+import VistaPrevia from "./VistaPrevia";
+import { CAMBIOS, cambioDe, sinMarcas } from "./cambios";
 import { useUpdater } from "./updater";
 
-type Tab = "perfil" | "diccionario" | "historial" | "ajustes";
+type Tab = "inicio" | "diccionario" | "historial" | "ajustes";
 
 function fmtBytes(n: number): string {
   if (n >= 1e9) return `${(n / 1e9).toFixed(2)} GB`;
@@ -40,11 +42,12 @@ const iconProps = {
   strokeLinejoin: "round",
 } as const;
 
-function UserIcon() {
+function HomeIcon() {
   return (
     <svg {...iconProps}>
-      <path d="M20 21a8 8 0 0 0-16 0" />
-      <circle cx="12" cy="7" r="4" />
+      <path d="M3 10.5 12 3l9 7.5" />
+      <path d="M5 9.5V21h14V9.5" />
+      <path d="M9.5 21v-6h5v6" />
     </svg>
   );
 }
@@ -150,9 +153,9 @@ const btnGhostCls =
 const labelCls = "text-xs font-medium text-slate-500 dark:text-slate-400";
 
 const TAB_META: Record<Tab, { title: string; desc: string }> = {
-  perfil: {
-    title: "Perfil",
-    desc: "Tu cuenta para sincronizar entre dispositivos y tu atajo de dictado.",
+  inicio: {
+    title: "Inicio",
+    desc: "Tu atajo para dictar y cómo se ve la onda flotante mientras hablas.",
   },
   diccionario: {
     title: "Diccionario",
@@ -164,7 +167,7 @@ const TAB_META: Record<Tab, { title: string; desc: string }> = {
   },
   ajustes: {
     title: "Ajustes",
-    desc: "Motores de voz, limpieza del texto y comportamiento en el sistema.",
+    desc: "Lo de debajo del capó: motores de voz, claves, tu cuenta de Google y actualizaciones.",
   },
 };
 
@@ -389,8 +392,10 @@ function KeyboardPicker(props: {
 // ─── Pantalla principal ──────────────────────────────────────────────────────
 
 export default function Settings() {
-  const [tab, setTab] = useState<Tab>("perfil");
+  const [tab, setTab] = useState<Tab>("inicio");
   const [verAnimaciones, setVerAnimaciones] = useState(false);
+  // Novedades: por defecto sólo las de la versión puesta; el resto se despliega.
+  const [verCambios, setVerCambios] = useState(false);
   // Modo "colócala donde quieras": la onda se queda a la vista y agarrable
   // hasta que el usuario diga que ya.
   const [colocandoHud, setColocandoHud] = useState(false);
@@ -419,6 +424,9 @@ export default function Settings() {
     buscar: buscarActualizacion,
     instalar: instalarActualizacion,
   } = useUpdater();
+  // Lo que trajo la versión que corre ahora. Sale de CAMBIOS.md, que viaja
+  // dentro del binario: se ve sin internet y no depende de GitHub.
+  const novedades = cambioDe(versionActual);
 
   const refreshHistory = useCallback((q: string) => {
     invoke<HistoryItem[]>("get_history", { search: q || null, limit: 100 })
@@ -540,10 +548,10 @@ export default function Settings() {
         </p>
         <nav className="flex flex-1 flex-col gap-1">
           <NavItem
-            active={tab === "perfil"}
-            onClick={() => setTab("perfil")}
-            icon={<UserIcon />}
-            label="Perfil"
+            active={tab === "inicio"}
+            onClick={() => setTab("inicio")}
+            icon={<HomeIcon />}
+            label="Inicio"
           />
           <NavItem
             active={tab === "diccionario"}
@@ -584,136 +592,8 @@ export default function Settings() {
             </p>
           </header>
 
-          {tab === "perfil" && (
+          {tab === "inicio" && (
             <>
-              <Section
-                title="Cuenta de Google"
-                hint="Inicia sesión para llevar tu diccionario y tu historial a cualquier dispositivo. Se guardan en un espacio privado de tu propio Google Drive: nadie más los ve, ni siquiera nosotros."
-              >
-                {google?.email ? (
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold uppercase text-white dark:bg-sky-500">
-                      {google.email[0]}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
-                        {google.email}
-                      </p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500">
-                        {google.last_sync_ms
-                          ? `Última sincronización: ${fmtDate(google.last_sync_ms)}`
-                          : "Aún sin sincronizar"}
-                      </p>
-                    </div>
-                    <button
-                      className={btnGhostCls}
-                      disabled={googleBusy !== null}
-                      onClick={googleSync}
-                    >
-                      {googleBusy === "sync"
-                        ? "Sincronizando…"
-                        : "Sincronizar ahora"}
-                    </button>
-                    <button
-                      className="text-xs text-slate-400 transition-colors hover:text-amber-600 dark:text-slate-500 dark:hover:text-amber-400"
-                      onClick={googleLogout}
-                    >
-                      Cerrar sesión
-                    </button>
-                  </div>
-                ) : google?.configured ? (
-                  <button
-                    className="flex items-center gap-2.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-                    disabled={googleBusy !== null}
-                    onClick={googleLogin}
-                  >
-                    <GoogleG />
-                    {googleBusy === "login"
-                      ? "Esperando al navegador…"
-                      : "Continuar con Google"}
-                  </button>
-                ) : google ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
-                      Para activar la sincronización hace falta un cliente OAuth
-                      gratuito de Google (una sola vez, ~5 minutos).
-                    </p>
-                    <button
-                      className={`${btnGhostCls} self-start`}
-                      onClick={() => setShowSetup(!showSetup)}
-                    >
-                      {showSetup ? "Ocultar pasos" : "Configurar"}
-                    </button>
-                    {showSetup && settings && (
-                      <div className="mt-1 flex flex-col gap-2 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
-                        <ol className="list-inside list-decimal space-y-1">
-                          <li>
-                            Abre la{" "}
-                            <button
-                              className="font-semibold text-blue-600 underline dark:text-sky-400"
-                              onClick={() =>
-                                openUrl("https://console.cloud.google.com")
-                              }
-                            >
-                              Google Cloud Console
-                            </button>{" "}
-                            y crea un proyecto (p. ej. "Dicho").
-                          </li>
-                          <li>
-                            En "APIs y servicios → Biblioteca" habilita{" "}
-                            <b>Google Drive API</b>.
-                          </li>
-                          <li>
-                            En "Pantalla de consentimiento OAuth" elige
-                            "Externo" y agrégate como usuario de prueba.
-                          </li>
-                          <li>
-                            En "Credenciales → Crear credenciales → ID de
-                            cliente de OAuth" elige tipo{" "}
-                            <b>App de escritorio</b>.
-                          </li>
-                          <li>Copia aquí el ID y el secreto de cliente:</li>
-                        </ol>
-                        <input
-                          className={`${inputCls} w-full`}
-                          placeholder="Client ID (…apps.googleusercontent.com)"
-                          value={settings.google_client_id}
-                          onChange={(e) =>
-                            update({ google_client_id: e.target.value })
-                          }
-                        />
-                        <input
-                          type="password"
-                          className={`${inputCls} w-full`}
-                          placeholder="Client secret (GOCSPX-…)"
-                          value={settings.google_client_secret}
-                          onChange={(e) =>
-                            update({ google_client_secret: e.target.value })
-                          }
-                        />
-                        <button
-                          className={`${btnCls} self-start`}
-                          disabled={
-                            !settings.google_client_id.trim() ||
-                            !settings.google_client_secret.trim()
-                          }
-                          onClick={refreshGoogle}
-                        >
-                          Listo
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-400">Cargando…</p>
-                )}
-                {googleError && (
-                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                    {googleError}
-                  </p>
-                )}
-              </Section>
-
               <Section
                 title="Atajo para dictar"
                 hint="Mantén estas teclas y habla; suéltalas y el texto aparece donde estés escribiendo. Haz clic en el teclado para armar tu combinación (máximo 4 teclas, al menos un modificador como Ctrl, Win, Alt o Mayús)."
@@ -771,6 +651,94 @@ export default function Settings() {
                     Incluye al menos un modificador (Ctrl, Win, Alt o Mayús);
                     si no, el dictado se activaría al escribir normal.
                   </p>
+                )}
+              </Section>
+
+              <Section
+                title="La onda flotante"
+                hint="La cápsula que aparece mientras hablas. Las dos hacen exactamente lo mismo: sólo cambia la cara. Pulsa la que te guste y se queda puesta."
+              >
+                {settings ? (
+                  <div className="flex flex-col gap-3">
+                    <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={settings.hud_enabled}
+                        onChange={(e) => update({ hud_enabled: e.target.checked })}
+                        className="h-4 w-4 accent-blue-600"
+                      />
+                      Mostrarla mientras dicto
+                    </label>
+
+                    {settings.hud_enabled && (
+                      <>
+                        <VistaPrevia
+                          value={settings.hud_style}
+                          onChange={(v) => update({ hud_style: v })}
+                        />
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            className={btnGhostCls}
+                            onClick={() => setVerAnimaciones(true)}
+                          >
+                            Ver las 26 caritas
+                          </button>
+                          <button
+                            className={btnGhostCls}
+                            onClick={() => {
+                              const on = !colocandoHud;
+                              setColocandoHud(on);
+                              invoke("hud_colocar", { on }).catch((e) =>
+                                alert(String(e)),
+                              );
+                            }}
+                          >
+                            {colocandoHud
+                              ? "Listo, déjala ahí"
+                              : "Mover la onda flotante"}
+                          </button>
+                          <button
+                            className={btnGhostCls}
+                            onClick={() =>
+                              invoke("hud_pos_reset").catch((e) => alert(String(e)))
+                            }
+                          >
+                            Devolverla a su sitio
+                          </button>
+                        </div>
+
+                        {colocandoHud && (
+                          <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs leading-relaxed text-blue-700 dark:bg-sky-950/50 dark:text-sky-300">
+                            La onda ya está en pantalla: arrástrala con el ratón a
+                            donde no te estorbe y pulsa «Listo». Cada pantalla
+                            recuerda su propio rincón, así que si trabajas en dos
+                            tendrás que colocarla en cada una.
+                          </p>
+                        )}
+
+                        <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={settings.hud_arrastrable}
+                            onChange={(e) =>
+                              update({ hud_arrastrable: e.target.checked })
+                            }
+                            className="h-4 w-4 accent-blue-600"
+                          />
+                          Poder moverla arrastrándola mientras dictas
+                        </label>
+                        <p className="-mt-1 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+                          Con esto encendido la onda atrapa el ratón mientras está
+                          a la vista, así que los clics que caigan encima van a
+                          ella y no a lo que tengas debajo. Apagándolo vuelve a ser
+                          un cristal y sólo se mueve con el botón de aquí arriba.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">Cargando…</p>
                 )}
               </Section>
             </>
@@ -1206,112 +1174,219 @@ export default function Settings() {
                 )}
               </Section>
 
-              <Section title="Sistema">
-                <div className="flex flex-col gap-3">
-                  <p className="text-xs text-slate-400 dark:text-slate-500">
-                    El atajo de dictado ({hotkeyLabel(settings.hotkey)}) se
-                    cambia en la pestaña Perfil.
-                  </p>
-                  <label className="flex max-w-xs flex-col gap-1.5">
-                    <span className={labelCls}>Estilo de la onda flotante</span>
-                    <select
-                      className={fieldCls}
-                      value={settings.hud_style}
-                      onChange={(e) =>
-                        update({
-                          hud_style: e.target.value as AppSettings["hud_style"],
-                        })
-                      }
+              <Section
+                title="Cuenta de Google"
+                hint="Inicia sesión para llevar tu diccionario y tu historial a cualquier dispositivo. Se guardan en un espacio privado de tu propio Google Drive: nadie más los ve, ni siquiera nosotros."
+              >
+                {google?.email ? (
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold uppercase text-white dark:bg-sky-500">
+                      {google.email[0]}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+                        {google.email}
+                      </p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                        {google.last_sync_ms
+                          ? `Última sincronización: ${fmtDate(google.last_sync_ms)}`
+                          : "Aún sin sincronizar"}
+                      </p>
+                    </div>
+                    <button
+                      className={btnGhostCls}
+                      disabled={googleBusy !== null}
+                      onClick={googleSync}
                     >
-                      <option value="tamagotchi">
-                        Caritas tamagotchi (5 por estado, al azar)
-                      </option>
-                      <option value="classic">
-                        Clásico — barras que crecen con tu voz
-                      </option>
-                    </select>
-                  </label>
-                  <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={settings.hud_enabled}
-                      onChange={(e) => update({ hud_enabled: e.target.checked })}
-                      className="h-4 w-4 accent-blue-600"
-                    />
-                    Mostrar la onda flotante al dictar
-                  </label>
-                  {settings.hud_enabled && (
-                    <>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          className={btnGhostCls}
-                          onClick={() => setVerAnimaciones(true)}
-                        >
-                          Ver animaciones
-                        </button>
-                        <button
-                          className={btnGhostCls}
-                          onClick={() => {
-                            const on = !colocandoHud;
-                            setColocandoHud(on);
-                            invoke("hud_colocar", { on }).catch((e) =>
-                              alert(String(e)),
-                            );
-                          }}
-                        >
-                          {colocandoHud
-                            ? "Listo, déjala ahí"
-                            : "Mover la onda flotante"}
-                        </button>
-                        <button
-                          className={btnGhostCls}
-                          onClick={() =>
-                            invoke("hud_pos_reset").catch((e) =>
-                              alert(String(e)),
-                            )
+                      {googleBusy === "sync"
+                        ? "Sincronizando…"
+                        : "Sincronizar ahora"}
+                    </button>
+                    <button
+                      className="text-xs text-slate-400 transition-colors hover:text-amber-600 dark:text-slate-500 dark:hover:text-amber-400"
+                      onClick={googleLogout}
+                    >
+                      Cerrar sesión
+                    </button>
+                  </div>
+                ) : google?.configured ? (
+                  <button
+                    className="flex items-center gap-2.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                    disabled={googleBusy !== null}
+                    onClick={googleLogin}
+                  >
+                    <GoogleG />
+                    {googleBusy === "login"
+                      ? "Esperando al navegador…"
+                      : "Continuar con Google"}
+                  </button>
+                ) : google ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      Para activar la sincronización hace falta un cliente OAuth
+                      gratuito de Google (una sola vez, ~5 minutos).
+                    </p>
+                    <button
+                      className={`${btnGhostCls} self-start`}
+                      onClick={() => setShowSetup(!showSetup)}
+                    >
+                      {showSetup ? "Ocultar pasos" : "Configurar"}
+                    </button>
+                    {showSetup && settings && (
+                      <div className="mt-1 flex flex-col gap-2 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+                        <ol className="list-inside list-decimal space-y-1">
+                          <li>
+                            Abre la{" "}
+                            <button
+                              className="font-semibold text-blue-600 underline dark:text-sky-400"
+                              onClick={() =>
+                                openUrl("https://console.cloud.google.com")
+                              }
+                            >
+                              Google Cloud Console
+                            </button>{" "}
+                            y crea un proyecto (p. ej. "Dicho").
+                          </li>
+                          <li>
+                            En "APIs y servicios → Biblioteca" habilita{" "}
+                            <b>Google Drive API</b>.
+                          </li>
+                          <li>
+                            En "Pantalla de consentimiento OAuth" elige
+                            "Externo" y agrégate como usuario de prueba.
+                          </li>
+                          <li>
+                            En "Credenciales → Crear credenciales → ID de
+                            cliente de OAuth" elige tipo{" "}
+                            <b>App de escritorio</b>.
+                          </li>
+                          <li>Copia aquí el ID y el secreto de cliente:</li>
+                        </ol>
+                        <input
+                          className={`${inputCls} w-full`}
+                          placeholder="Client ID (…apps.googleusercontent.com)"
+                          value={settings.google_client_id}
+                          onChange={(e) =>
+                            update({ google_client_id: e.target.value })
                           }
+                        />
+                        <input
+                          type="password"
+                          className={`${inputCls} w-full`}
+                          placeholder="Client secret (GOCSPX-…)"
+                          value={settings.google_client_secret}
+                          onChange={(e) =>
+                            update({ google_client_secret: e.target.value })
+                          }
+                        />
+                        <button
+                          className={`${btnCls} self-start`}
+                          disabled={
+                            !settings.google_client_id.trim() ||
+                            !settings.google_client_secret.trim()
+                          }
+                          onClick={refreshGoogle}
                         >
-                          Devolverla a su sitio
+                          Listo
                         </button>
                       </div>
-                      {colocandoHud && (
-                        <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs leading-relaxed text-blue-700 dark:bg-sky-950/50 dark:text-sky-300">
-                          La onda ya está en pantalla: arrástrala con el ratón a
-                          donde no te estorbe y pulsa «Listo». Cada pantalla
-                          recuerda su propio rincón, así que si trabajas en dos
-                          tendrás que colocarla en cada una.
-                        </p>
-                      )}
-                      <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
-                        <input
-                          type="checkbox"
-                          checked={settings.hud_arrastrable}
-                          onChange={(e) =>
-                            update({ hud_arrastrable: e.target.checked })
-                          }
-                          className="h-4 w-4 accent-blue-600"
-                        />
-                        Poder moverla arrastrándola mientras dictas
-                      </label>
-                      <p className="-mt-1 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-                        Con esto encendido la onda atrapa el ratón mientras está
-                        a la vista, así que los clics que caigan encima van a
-                        ella y no a lo que tengas debajo. Apagándolo vuelve a ser
-                        un cristal y sólo se mueve con el botón de aquí arriba.
-                      </p>
-                    </>
-                  )}
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">Cargando…</p>
+                )}
+                {googleError && (
+                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                    {googleError}
+                  </p>
+                )}
+              </Section>
 
-                  <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={settings.autostart}
-                      onChange={(e) => update({ autostart: e.target.checked })}
-                      className="h-4 w-4 accent-blue-600"
-                    />
-                    Iniciar con Windows
-                  </label>
-                </div>
+              <Section
+                title="Sistema"
+                hint="El atajo para dictar y la onda flotante se configuran en Inicio."
+              >
+                <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={settings.autostart}
+                    onChange={(e) => update({ autostart: e.target.checked })}
+                    className="h-4 w-4 accent-blue-600"
+                  />
+                  Iniciar con Windows
+                </label>
+              </Section>
+
+              <Section
+                title="Novedades de esta versión"
+                hint="Qué trajo la versión que tienes puesta. Va dentro de la app, así que está a mano siempre, con o sin internet."
+              >
+                {novedades ? (
+                  <>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      Dicho {novedades.version}
+                      {novedades.fecha && (
+                        <span className="ml-2 text-xs font-normal text-slate-400 dark:text-slate-500">
+                          {novedades.fecha}
+                        </span>
+                      )}
+                    </p>
+                    <ul className="mt-2.5 flex flex-col gap-2">
+                      {novedades.bullets.map((b, i) => (
+                        <li
+                          key={i}
+                          className="flex gap-2.5 text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+                        >
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500 dark:bg-sky-400" />
+                          <span>{sinMarcas(b)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {versionActual && novedades.version !== versionActual && (
+                      <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
+                        Esta copia es la {versionActual} y no trae apartado
+                        propio; arriba sale el más reciente que hay escrito.
+                      </p>
+                    )}
+                    <button
+                      className={`${btnGhostCls} mt-3`}
+                      onClick={() => setVerCambios((v) => !v)}
+                    >
+                      {verCambios
+                        ? "Ocultar versiones anteriores"
+                        : `Ver versiones anteriores (${CAMBIOS.length - 1})`}
+                    </button>
+                    {verCambios && (
+                      <div className="mt-3 flex flex-col gap-4 border-t border-slate-200 pt-3 dark:border-slate-800">
+                        {CAMBIOS.filter((c) => c.version !== novedades.version).map(
+                          (c) => (
+                            <div key={c.version}>
+                              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                {c.version}
+                                {c.fecha && ` — ${c.fecha}`}
+                              </p>
+                              <ul className="mt-1 flex flex-col gap-1">
+                                {c.bullets.map((b, i) => (
+                                  <li
+                                    key={i}
+                                    className="flex gap-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400"
+                                  >
+                                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-300 dark:bg-slate-600" />
+                                    <span>{sinMarcas(b)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-400">
+                    No hay notas escritas todavía.
+                  </p>
+                )}
               </Section>
 
               <Section

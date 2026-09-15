@@ -60,13 +60,27 @@ conocimiento. Y se commitea con el resto.
   Perfil). **Aún sin probar de punta a punta: falta que el usuario cree su cliente OAuth.**
 - `src-tauri/src/store.rs` — SQLite (`mike.db`): history (con columna `corrections`
   JSON), dictionary, meta (email de Google, last_sync).
-- `src/windows/Settings.tsx` — ventana principal con sidebar: Perfil (cuenta Google +
-  editor visual de atajo con teclado laptop/extendido), Diccionario, Historial (chips de
-  correcciones + filtro), Ajustes (motores, "no traducir", modelo local, Groq, estilo
-  del HUD + botones "Ver animaciones" / "Mover la onda flotante" / "Devolverla a su
-  sitio" + interruptor de arrastrable, autostart, actualizaciones) anclado abajo.
-  Ojo: `update()` en este archivo es el que guarda **ajustes**, no el de versiones;
-  el de versiones se destructura como `actualizacion`/`buscarActualizacion`.
+- `src/windows/Settings.tsx` — ventana principal con sidebar de tres: **Inicio**
+  (editor visual del atajo con teclado laptop/extendido + la onda flotante entera:
+  vista previa, "Ver las 26 caritas", "Mover la onda flotante", "Devolverla a su
+  sitio" e interruptor de arrastrable), Diccionario, Historial (chips de correcciones
+  + filtro), y **Ajustes** anclado abajo con lo de debajo del capó (motores, "no
+  traducir", modelo local, key de Groq, cuenta de Google, autostart, novedades y
+  actualizaciones). El reparto es deliberado: en Inicio lo que se usa a diario y se
+  ve; en Ajustes lo que se toca una vez. Ojo: `update()` en este archivo es el que
+  guarda **ajustes**, no el de versiones; el de versiones se destructura como
+  `actualizacion`/`buscarActualizacion`.
+- `CAMBIOS.md` + `src/windows/cambios.ts` — qué trajo cada versión, en guiones. **Una
+  sola fuente para dos consumidores**: la app lo importa con `?raw`, así que viaja
+  dentro del binario y se lee sin internet (Ajustes → "Novedades de esta versión"), y
+  `publicar.ps1` saca de ahí las notas del Release. El formato es mínimo a propósito
+  —`## X.Y.Z — fecha` y guiones— para que una expresión regular de PowerShell también
+  lo entienda. Si falta el apartado de la versión que se publica, `publicar.ps1`
+  **aborta antes de compilar**, que enterarse a los 40 minutos es tirar el build.
+- `src/windows/VistaPrevia.tsx` — los dos estilos de onda, animados y en el mismo
+  punto del recorrido (te escucho → escribiendo → listo → no entendí), para elegir
+  viendo en vez de leyendo una lista. Reusa `faces.ts`, o sea que enseña exactamente
+  lo que saldrá al dictar. A tamaño real y sin escalar: el pixel-art se deforma.
 - `src/windows/updater.ts` — hook `useUpdater()`: consulta la release más reciente al
   abrir Ajustes (callado si no hay nada o no hay internet, ruidoso sólo si el usuario
   pulsó el botón), descarga con progreso e instala. La verificación de firma la hace

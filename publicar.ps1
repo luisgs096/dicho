@@ -3,7 +3,11 @@
   firmando el instalador, genera latest.json y crea el Release en GitHub.
 
   Uso:
-    .\publicar.ps1 -Version 0.2.0 -Notas "Que trae de nuevo"
+    .\publicar.ps1 -Version 0.8.2
+
+  Las notas salen solas de CAMBIOS.md (el apartado "## X.Y.Z"), que es el mismo
+  archivo que la app lleva dentro y ensena en Ajustes. Escribe ahi lo que trae la
+  version ANTES de publicar. Con -Notas se puede forzar otro texto.
 
   Requisitos, una sola vez:
     - La clave privada en %USERPROFILE%\.tauri\dicho.key (creada con
@@ -28,6 +32,23 @@ $clave = "$env:USERPROFILE\.tauri\dicho.key"
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "La version debe ser X.Y.Z, llego '$Version'" }
 if (-not (Test-Path $clave)) { throw "Falta la clave privada en $clave" }
+
+# Las notas del Release salen de CAMBIOS.md, la misma fuente que lee la app: una
+# sola verdad en vez de dos que se desincronizan. Se comprueba AQUI, antes de
+# compilar: enterarse a los 40 minutos de que falta el apartado de esta version
+# es tirar el build entero a la basura.
+if (-not $Notas) {
+  $cambios = "$raiz\CAMBIOS.md"
+  if (-not (Test-Path $cambios)) { throw "Falta $cambios, de donde salen las notas" }
+  $patron = "(?ms)^##\s+" + [regex]::Escape($Version) + "\s*[^\r\n]*\r?\n(.+?)(?=^##\s|\z)"
+  $m = [regex]::Match([IO.File]::ReadAllText($cambios), $patron)
+  if (-not $m.Success) {
+    throw "CAMBIOS.md no tiene apartado '## $Version'. Escribe que trae la version antes de publicarla."
+  }
+  $Notas = $m.Groups[1].Value.Trim()
+  if (-not $Notas) { throw "El apartado '## $Version' de CAMBIOS.md esta vacio" }
+  Write-Host "Notas tomadas de CAMBIOS.md" -ForegroundColor DarkGray
+}
 
 # gh escribe en stderr aunque le vaya bien; con ErrorActionPreference=Stop eso
 # se convierte en NativeCommandError y aborta sin motivo. Se comprueba el
