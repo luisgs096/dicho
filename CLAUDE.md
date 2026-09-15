@@ -98,7 +98,17 @@ conocimiento. Y se commitea con el resto.
   con destello, de par en par, entrecerrado, cerrado, contento, caído, estrella,
   corazón, aspa— y **todos son de ancho impar**: `eyes()` centra con
   `(3 - ancho) / 2`, así que un ancho par los dejaría a medio píxel.
-  Exporta `CARITA_COMILONA`/`CARITA_ERUCTO`, los dos índices que el HUD encadena.
+  Exporta `CARITA_COMILONA`/`CARITA_ERUCTO`, los dos índices que el HUD encadena,
+  y **`MAREO`**: las tres caritas que sólo salen al zarandear la onda mientras la
+  colocas (mareada → aguantándose → vomita). Van **fuera de `V`** a propósito, que
+  si no saldrían al azar en mitad de un dictado. Dos aprendizajes de dibujarlas:
+  los cachetes sueltos a los lados se leen como **orejas** —hay que hinchar toda
+  la parte baja de la cara de un trazo, y dejar la raya de la boca dentro para que
+  no parezca una bocaza— y el chorro tiene que salir **en arco hacia la derecha**,
+  porque cayendo a plomo se sale del lienzo (la boca ya acaba en y=14 de 17).
+  El detector del zarandeo vive en Rust (`overlay::Meneo`, con 4 tests): durante
+  el arrastre la ventana persigue al cursor, así que **visto desde el webview el
+  ratón no se mueve ni un píxel**.
   Se previsualiza con `npx esbuild src/windows/faces.ts --bundle --format=iife
   --global-name=FACES` + una página que pinte `FACES.V`.
 - `src/windows/Hud.tsx` — HUD con dos estilos conmutables desde Ajustes

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ESTADOS, FACE_CSS, MIC_SVG, V, cssVars, type Variant } from "./faces";
+import { ESTADOS, FACE_CSS, MAREO, MIC_SVG, V, cssVars, type Variant } from "./faces";
 
 /** Se cuenta sola: añadir una carita a faces.ts actualiza este número. */
 const TOTAL = Object.values(V).reduce((n, l) => n + l.length, 0);
@@ -134,6 +134,39 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
               </div>
             </section>
           ))}
+
+          <section className="mb-1 border-t border-dashed border-slate-300 pt-6 dark:border-slate-700">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+              El mareo
+            </h3>
+            <p className="mb-3 max-w-xl text-xs text-slate-500 dark:text-slate-400">
+              No salen dictando. Ve a Inicio, pulsa «Seleccionar posición en
+              pantalla» y zarandea la onda con el ratón: cada sacudida sube un
+              escalón y se va poniendo peor.
+            </p>
+            <div className="flex flex-col gap-2.5">
+              {MAREO.map((v, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3"
+                  style={doble ? { height: 132 } : undefined}
+                >
+                  <span className="w-4 shrink-0 font-mono text-[11px] text-slate-400 dark:text-slate-500">
+                    {i + 1}
+                  </span>
+                  <div
+                    style={
+                      doble
+                        ? { transform: "scale(2)", transformOrigin: "left center" }
+                        : undefined
+                    }
+                  >
+                    {pill(v)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       </div>
     </div>

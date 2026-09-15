@@ -6,6 +6,7 @@ import {
   CARITA_COMILONA,
   CARITA_ERUCTO,
   FACE_CSS,
+  MAREO,
   MIC_SVG,
   V,
   type FaceState,
@@ -212,6 +213,8 @@ export default function Hud() {
   const [hudStyle, setHudStyle] = useState<HudStyle>("tamagotchi");
   // Modo "colócalo donde quieras", encendido desde Ajustes.
   const [colocando, setColocando] = useState(false);
+  /** 0 = entera; 1…3 = los tres escalones del mareo al zarandearla. */
+  const [mareo, setMareo] = useState(0);
   const [agarrando, setAgarrando] = useState(false);
   const [dark, setDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
@@ -313,6 +316,33 @@ export default function Hud() {
       un.then((f) => f());
     };
   }, []);
+
+  // Zarandéala mientras la colocas y se marea. Cada meneo sube un escalón:
+  // mareada → aguantándose → ya no aguantó. El backend sólo avisa de que hubo
+  // meneo; la escalada es cosa de aquí, que es presentación pura.
+  useEffect(() => {
+    if (!colocando) {
+      setMareo(0);
+      return;
+    }
+    const un = listen("hud-meneo", () =>
+      setMareo((m) => Math.min(MAREO.length, m + 1)),
+    );
+    return () => {
+      un.then((f) => f());
+    };
+  }, [colocando]);
+
+  // Se le pasa solo: los dos primeros escalones aguantan un rato por si sigues,
+  // y el vómito dura lo justo para verse entero y volver a la normalidad.
+  useEffect(() => {
+    if (mareo === 0) return;
+    const t = setTimeout(
+      () => setMareo(0),
+      mareo === MAREO.length ? 2600 : 4200,
+    );
+    return () => clearTimeout(t);
+  }, [mareo]);
 
   // Estilo del HUD desde Ajustes; se refresca al vuelo al guardar cambios.
   useEffect(() => {
@@ -423,11 +453,17 @@ export default function Hud() {
 
   const face = stateFor(rec);
   const isError = rec.state === "error";
+  // Zarandeada gana a todo: es el único momento en que la carita no cuenta en
+  // qué va el dictado, y para entonces no hay dictado ninguno.
+  const mareada = mareo > 0 ? MAREO[mareo - 1] : null;
   // En error se reutiliza la carita de "señal perdida" con el mensaje real.
-  const v = isError ? V["no-entendi"][3] : (V[face][variant] ?? V[face][0]);
-  const sad = isError || v.sad;
+  const v =
+    mareada ?? (isError ? V["no-entendi"][3] : (V[face][variant] ?? V[face][0]));
+  const sad = (isError && !mareada) || v.sad;
   const porLimite = rec.state === "processing" && rec.motivo === "limite";
-  const status = colocando
+  const status = mareada
+    ? mareada.status
+    : colocando
     ? // Sin texto: ese rincón lo ocupan ahora la palomita y la flecha, y el
       // aro punteado ya dice que la estás colocando.
       ""
@@ -586,6 +622,9 @@ export default function Hud() {
             </span>
             <span
               className={`status ${rec.state === "done" || isError ? "texto" : ""}`}
+              // Mientras la colocas, ese rincón lo ocupan la palomita y la
+              // flecha: el texto se aparta para que quepan los dos.
+              style={colocando ? { marginRight: 66 } : undefined}
             >
               {status}
             </span>

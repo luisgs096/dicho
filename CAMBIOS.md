@@ -10,6 +10,16 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.8.5 — 15 de septiembre de 2026
+
+- **Zarandea la onda mientras la colocas y se marea.** Ve a Inicio →
+  «Seleccionar posición en pantalla», agárrala y muévela de lado a lado deprisa.
+  A la primera se marea, a la segunda infla los carrillos aguantándose, y a la
+  tercera… ya no aguanta.
+- Tres caritas nuevas, hechas con la misma rejilla de siempre. No salen nunca
+  dictando: son un premio por jugar.
+- También se pueden ver con calma en Ajustes → «Ver las 26 caritas», al final.
+
 ## 0.8.4 — 15 de septiembre de 2026
 
 - **Colocar la onda se decide sobre la onda misma.** Mientras la mueves lleva

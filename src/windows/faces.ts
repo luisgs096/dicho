@@ -190,6 +190,21 @@ const PAC_CERRADA = [".......", ".......", "XXXXXXX", "XXXXXXX", ".......", "...
 /** Burbuja del eructo: cuatro filas para que salga redonda. Con tres se
  *  leía como una cruz verde, que no es lo que queremos decir. */
 const PUFF = [".XX.", "XXXX", "XXXX", ".XX."];
+/**
+ * La cara llena de aire, aguantando la náusea. Se probaron primero dos
+ * cachetes sueltos a los lados —como el rubor, pero más grandes— y a 3 px se
+ * leían como **orejas**: dos bloques flotando lejos de la boca. Lo que sí
+ * funciona es hinchar toda la parte baja de la cara de un solo trazo, hueca
+ * como la cuenca o el bostezo, en dos tamaños para que se vea inflarse.
+ * Centradas en x=22: la mediana (11 de ancho) en x=17, la llena (15) en x=15.
+ */
+const CARRILLOS_MEDIO = [".XXXXXXXXX.", "X.........X", ".XXXXXXXXX."];
+const CARRILLOS_LLENO = [
+  ".XXXXXXXXXXXXX.",
+  "X.............X",
+  "X.............X",
+  ".XXXXXXXXXXXXX.",
+];
 
 // ─── motorcito de fotogramas ────────────────────────────────────────────────
 //
@@ -517,6 +532,93 @@ export const V: Record<FaceState, Variant[]> = {
 export const CARITA_COMILONA = 4;
 export const CARITA_ERUCTO = 5;
 
+/**
+ * El mareo: tres caritas que **no salen dictando**, sólo mientras colocas la
+ * onda y la zarandeas con el ratón. Cada sacudida sube un escalón y no se
+ * vuelve atrás hasta que paras: la broma es que se va poniendo peor.
+ *
+ * Fuera del repertorio normal (`V`) a propósito: son un premio por jugar, no
+ * un estado del dictado, y mezclarlas allí las sacaría al azar en mitad de tu
+ * trabajo. El catálogo de Ajustes sí las enseña, en su propia sección.
+ *
+ * Las tres respetan la rejilla de siempre: coordenadas enteras, ojos de 3 px
+ * en x=15 y x=27, cara centrada en 22, bucles ≤1,4 s y todo a `steps(1, end)`
+ * para que el pixel-art no tiemble. Y cada una estrena su gesto de ojos, que
+ * es la regla que las separa: **balancín** (uno sube mientras el otro baja),
+ * **pulso** (se abren de golpe y vuelven) y **apretón** (un cuadro de susto y
+ * el resto cerrados).
+ */
+export const MAREO: Variant[] = [
+  {
+    // 1 · Mareada. Los ojos hacen balancín en contrafase —el izquierdo arriba
+    // mientras el derecho abajo— que es lo que de verdad lee como "todo me da
+    // vueltas"; el espiral clásico a 3 px se convierte en una mancha. La cara
+    // entera se bambolea un píxel a cada lado y dos chispas le giran encima.
+    status: "Me mareas",
+    scene: `<g class="a-mareo">${flip(
+      [
+        spr(OJO, LX, 5) + spr(OJO_MEDIO, RX, 7),
+        spr(OJO_MEDIO, LX, 6) + spr(OJO_MEDIO, RX, 6),
+        spr(OJO_MEDIO, LX, 7) + spr(OJO, RX, 5),
+        spr(OJO_MEDIO, LX, 6) + spr(OJO_MEDIO, RX, 6),
+      ],
+      "1.28s",
+    )}${spr(ZIGZAG, 18, 12)}</g>
+      <g class="a-orb1">${spr(tint(CHISPITA, "w"), 37, 3)}</g>
+      <g class="a-orb2">${spr(tint(CHISPITA, "w"), 37, 3)}</g>`,
+  },
+  {
+    // 2 · Aguantándose. Cuatro tiempos que cuentan la historia entera: boca
+    // sellada, se llena, se llena del todo, y el trago —los carrillos
+    // desaparecen de golpe, la boca se hace chiquita y la cara baja un píxel—.
+    // Los ojos pulsan de 3 a 5 px de ancho al doble de ritmo: es el esfuerzo
+    // de no soltarlo. La gota de sudor, en la sien, remata la idea.
+    status: "¡Aguanta!",
+    scene: `<g class="a-glup">${flip(
+      [eyes(OJO, 5), eyes(OJO_ANCHO, 5), eyes(OJO, 5), eyes(OJO_ANCHO, 5)],
+      ".64s",
+    )}${flip(
+      [
+        spr(RAYA, 20, 12),
+        // La raya de la boca sigue dentro del bulto: sin ella el hueco se leía
+        // como una bocaza abierta, que es justo lo contrario de aguantarse.
+        spr(CARRILLOS_MEDIO, 17, 11) + spr(RAYA, 20, 12),
+        spr(CARRILLOS_LLENO, 15, 10) + spr(RAYA, 20, 12),
+        spr(BOCA_CHICA, 21, 12),
+      ],
+      "1.28s",
+    )}</g>
+      <g class="a-sudor">${spr(tint(GOTA, "s"), 33, 4)}</g>`,
+  },
+  {
+    // 3 · Ya no aguantó. Un solo cuadro de ojos de par en par —el "ay, no"—
+    // y los otros tres bien cerrados en arco mientras la boca se abre del
+    // todo. La cara da la arcada (adelante y atrás) y el chorro sale por la
+    // boca hacia abajo, en dos golpes desfasados como las burbujas del
+    // eructo, y se va del cuadro por el borde de abajo.
+    status: "¡Blegh!",
+    scene: `<g class="a-arcada">${flip(
+      [
+        eyes(OJO_ANCHO, 5),
+        eyes(OJO_ARCO, 6),
+        eyes(OJO_ARCO, 6),
+        eyes(OJO_ARCO, 6),
+      ],
+      "1.2s",
+    )}${flip(
+      [
+        spr(BOCA_O, 20, 11),
+        spr(BOSTEZO, 19, 10),
+        spr(BOSTEZO, 19, 10),
+        spr(BOSTEZO, 19, 10),
+      ],
+      "1.2s",
+    )}</g>
+      <g class="a-vom1">${spr(tint(PUFF, "m"), 24, 12)}</g>
+      <g class="a-vom2">${spr(tint(PUNTO, "m"), 23, 13)}</g>`,
+  },
+];
+
 export const MIC_SVG = `<svg viewBox="0 0 7 13">${spr(
   [".aaa.", "aaaaa", "a.a.a", "aaaaa", "a.a.a", "aaaaa", ".aaa.", "..a..", "..a..", ".aaa."],
   1,
@@ -697,6 +799,39 @@ ${FLIP_CSS}
                     85.7% { transform: translateX(-18px); opacity: 1; }
                     100% { transform: translateX(-18px); opacity: 0; } }
   /* El eructo aparece al 75 % del bucle, que es cuando la boca se abre. */
+  /* ── el mareo, sólo al zarandear la onda mientras la colocas ───────────── */
+  /* Bamboleo: un píxel a cada lado. Con dos ya no parecía mareo sino temblor. */
+  @keyframes mareo { 0% { transform: translateX(-1px); } 25% { transform: translateX(0); }
+                     50% { transform: translateX(1px); } 75% { transform: translateX(0); } }
+  /* Las chispas dan la vuelta por las cuatro esquinas de un cuadrado de 4 px:
+     en pixel-art un círculo de verdad se sale de la rejilla entera. */
+  @keyframes orbita { 0% { transform: translate(0, 0); } 25% { transform: translate(4px, 2px); }
+                      50% { transform: translate(0, 4px); } 75% { transform: translate(-4px, 2px); } }
+  /* El trago: la cara aguanta arriba y en el último cuarto baja de golpe. */
+  @keyframes glup { 0%, 74% { transform: translateY(0); }
+                    75%, 88% { transform: translateY(1px); }
+                    89%, 100% { transform: translateY(0); } }
+  /* La gota de sudor resbala y desaparece antes de llegar a la boca. */
+  @keyframes sudor { 0% { transform: translateY(0); opacity: 0; }
+                     20% { opacity: 1; } 50% { transform: translateY(2px); }
+                     80% { transform: translateY(4px); opacity: 1; }
+                     100% { transform: translateY(5px); opacity: 0; } }
+  /* La arcada: se echa atrás para tomar impulso y luego va hacia adelante. */
+  @keyframes arcada { 0%, 20% { transform: translate(0, 0); }
+                      25% { transform: translate(0, -1px); }
+                      30%, 100% { transform: translate(0, 1px); } }
+  /* El chorro sale en el mismo cuadro en que la boca se abre (25 %) y describe
+     un arco hacia la derecha y abajo. En arco y no en caída recta porque la
+     pantalla sólo tiene 16 px de alto (y=2 a 17) y la boca ya acaba en y=14:
+     cayendo a plomo se salía del lienzo antes de leerse. */
+  @keyframes vomito { 0%, 22% { transform: translate(0, 0); opacity: 0; }
+                      25% { transform: translate(0, 0); opacity: 1; }
+                      40% { transform: translate(2px, 1px); }
+                      55% { transform: translate(4px, 2px); }
+                      70% { transform: translate(6px, 3px); }
+                      85% { transform: translate(8px, 4px); opacity: 1; }
+                      100% { transform: translate(10px, 5px); opacity: 0; } }
+
   @keyframes eructo { 0% { transform: translate(0, 0); opacity: 0; }
                       75% { transform: translate(0, 0); opacity: 1; }
                       81% { transform: translate(2px, -1px); opacity: 1; }
@@ -737,6 +872,17 @@ ${FLIP_CSS}
   .a-rubor { animation: rubor 1.2s steps(1, end) infinite; }
   .a-lupa { animation: lupa 1.6s steps(1, end) infinite; }
   .a-dj { animation: dj .8s steps(1, end) infinite; }
+  .a-mareo { animation: mareo .32s steps(1, end) infinite; }
+  .a-orb1 { animation: orbita 1.28s steps(1, end) infinite; }
+  /* Media vuelta por detrás: se leen como una sola chispa dando vueltas. */
+  .a-orb2 { opacity: .55; animation: orbita 1.28s steps(1, end) .64s infinite; }
+  .a-glup { animation: glup 1.28s steps(1, end) infinite; }
+  .a-sudor { opacity: 0; animation: sudor 1.28s steps(1, end) infinite; }
+  .a-arcada { animation: arcada 1.2s steps(1, end) infinite; }
+  .a-vom1, .a-vom2 { opacity: 0; animation: vomito 1.2s steps(1, end) infinite; }
+  /* Un paso exacto (3 % de 1,2 s) detrás del chorro grande. */
+  .a-vom2 { animation-delay: .036s; }
+
   .a-onda > g { opacity: 0; animation: onda 1.4s steps(1, end) infinite; }
   .a-eructo, .a-eructo2 { opacity: 0; animation: eructo 1.2s steps(1, end) infinite; }
   /* Dos pasos exactos (2 × 6 % de 1,2 s) por detrás de la burbuja grande:

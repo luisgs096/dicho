@@ -172,7 +172,13 @@ pub fn hud_arrastrar(app: AppHandle, state: State<'_, SettingsState>) {
     let settings = state.inner().clone();
     std::thread::spawn(move || {
         pipeline::ARRASTRANDO.store(true, Ordering::SeqCst);
-        let fin = crate::overlay::arrastrar_con_cursor(hwnd);
+        // Cada meneo del ratón avisa al HUD; él lleva la cuenta de por cuál de
+        // las tres caritas del mareo va. La escalada vive en el webview porque
+        // es presentación pura, y así aquí no hay estado que reiniciar.
+        let app_meneo = app.clone();
+        let fin = crate::overlay::arrastrar_con_cursor(hwnd, move || {
+            let _ = app_meneo.emit("hud-meneo", ());
+        });
         pipeline::ARRASTRANDO.store(false, Ordering::SeqCst);
 
         // Dónde quedó, medido contra la pantalla en la que quedó: se puede

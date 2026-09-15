@@ -10,6 +10,76 @@
 /// Área de trabajo (sin barra de tareas) en píxeles físicos: (x, y, ancho, alto).
 pub type WorkArea = (i32, i32, i32, i32);
 
+/// Cuánto tiene que viajar el cursor en una dirección para que el cambio de
+/// sentido cuente como vaivén. Por debajo, el pulso de la mano al arrastrar ya
+/// disparaba el mareo sin querer.
+const MENEO_AMPLITUD: i32 = 26;
+/// Vaivenes seguidos que hacen un meneo. Cuatro son dos idas y dos vueltas:
+/// bastante para que sea a propósito, poco para que no canse.
+const MENEO_VAIVENES: u8 = 4;
+/// Si entre dos vaivenes pasa más que esto, la cuenta vuelve a empezar: llevar
+/// la onda de un lado a otro con calma no es zarandearla.
+const MENEO_PAUSA_MS: u128 = 500;
+
+/// Cuenta los zarandeos del ratón mientras arrastras la onda, para la carita
+/// mareada. Cada vez que el cursor invierte el sentido horizontal habiendo
+/// recorrido al menos `MENEO_AMPLITUD` desde el último giro, cuenta un vaivén;
+/// con `MENEO_VAIVENES` seguidos y sin pausas largas, hay meneo.
+///
+/// Pieza aparte del bucle de arrastre —y sin Win32 dentro— para poder probarla
+/// sin ratón ni ventana.
+pub struct Meneo {
+    sentido: i32,
+    pivote: i32,
+    vaivenes: u8,
+    ultimo_giro_ms: u128,
+}
+
+impl Meneo {
+    pub fn nuevo(x0: i32) -> Self {
+        Self {
+            sentido: 0,
+            pivote: x0,
+            vaivenes: 0,
+            ultimo_giro_ms: 0,
+        }
+    }
+
+    /// Le pasa la posición del cursor. Devuelve `true` en el instante exacto en
+    /// que se completa un meneo (y deja la cuenta a cero para el siguiente).
+    pub fn empuja(&mut self, x: i32, ahora_ms: u128) -> bool {
+        let dx = x - self.pivote;
+        if self.sentido == 0 {
+            if dx.abs() >= MENEO_AMPLITUD {
+                self.sentido = dx.signum();
+                self.pivote = x;
+            }
+            return false;
+        }
+        if dx * self.sentido > 0 {
+            // Sigue en la misma dirección: el pivote acompaña, así la amplitud
+            // se mide siempre desde el punto más lejano del recorrido.
+            self.pivote = x;
+            return false;
+        }
+        if (dx * self.sentido).abs() < MENEO_AMPLITUD {
+            return false;
+        }
+        if ahora_ms.saturating_sub(self.ultimo_giro_ms) > MENEO_PAUSA_MS {
+            self.vaivenes = 0;
+        }
+        self.vaivenes += 1;
+        self.ultimo_giro_ms = ahora_ms;
+        self.sentido = -self.sentido;
+        self.pivote = x;
+        if self.vaivenes >= MENEO_VAIVENES {
+            self.vaivenes = 0;
+            return true;
+        }
+        false
+    }
+}
+
 /// Área de trabajo de un monitor concreto.
 #[cfg(windows)]
 unsafe fn area_de(mon: windows_sys::Win32::Graphics::Gdi::HMONITOR) -> Option<WorkArea> {
@@ -150,7 +220,7 @@ pub fn assert_topmost(_hwnd: isize) {}
 ///
 /// Corre en su propio hilo: bloquea mientras dure el gesto.
 #[cfg(windows)]
-pub fn arrastrar_con_cursor(hwnd: isize) -> Option<WorkArea> {
+pub fn arrastrar_con_cursor(hwnd: isize, mut al_menear: impl FnMut()) -> Option<WorkArea> {
     use windows_sys::Win32::Foundation::POINT;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
         GetAsyncKeyState, VK_LBUTTON, VK_RBUTTON,
@@ -179,6 +249,11 @@ pub fn arrastrar_con_cursor(hwnd: isize) -> Option<WorkArea> {
 
         let c0 = cursor()?;
         let (wx, wy, _, _) = window_rect(hwnd)?;
+        // Detección del meneo, para la carita mareada. Va aquí y no en el
+        // webview porque durante el arrastre la ventana persigue al cursor:
+        // visto desde dentro, el ratón no se mueve ni un píxel.
+        let mut meneo = Meneo::nuevo(c0.x);
+        let arranque = std::time::Instant::now();
         // Tope de 60 s: si algo se traga el "botón soltado" (una sesión remota,
         // un cambio de escritorio), el hilo se va solo en vez de quedarse vivo.
         for _ in 0..7_500 {
@@ -186,6 +261,9 @@ pub fn arrastrar_con_cursor(hwnd: isize) -> Option<WorkArea> {
                 break;
             }
             if let Some(c) = cursor() {
+                if meneo.empuja(c.x, arranque.elapsed().as_millis()) {
+                    al_menear();
+                }
                 SetWindowPos(
                     hwnd as *mut core::ffi::c_void,
                     HWND_TOPMOST,
@@ -203,6 +281,60 @@ pub fn arrastrar_con_cursor(hwnd: isize) -> Option<WorkArea> {
 }
 
 #[cfg(not(windows))]
-pub fn arrastrar_con_cursor(_hwnd: isize) -> Option<WorkArea> {
+pub fn arrastrar_con_cursor(_hwnd: isize, _al_menear: impl FnMut()) -> Option<WorkArea> {
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Zarandea: va y viene con amplitud de sobra, deprisa.
+    fn zarandear(m: &mut Meneo, veces: usize, amplitud: i32, paso_ms: u128) -> usize {
+        let mut meneos = 0;
+        let mut t = 0u128;
+        for i in 0..veces {
+            let x = if i % 2 == 0 { amplitud } else { -amplitud };
+            t += paso_ms;
+            if m.empuja(x, t) {
+                meneos += 1;
+            }
+        }
+        meneos
+    }
+
+    #[test]
+    fn zarandearla_la_marea() {
+        let mut m = Meneo::nuevo(0);
+        // 4 vaivenes = 1 meneo; 8 = 2. El primer tramo sólo fija el sentido.
+        assert_eq!(zarandear(&mut m, 9, 40, 50), 2);
+    }
+
+    #[test]
+    fn arrastrarla_de_un_tiron_no_la_marea() {
+        let mut m = Meneo::nuevo(0);
+        // Un viaje largo en línea recta, como colocarla de una pantalla a otra.
+        let mut meneos = 0;
+        for x in (0..1200).step_by(7) {
+            if m.empuja(x, x as u128) {
+                meneos += 1;
+            }
+        }
+        assert_eq!(meneos, 0, "un arrastre recto no debería marearla");
+    }
+
+    #[test]
+    fn el_temblor_de_la_mano_no_cuenta() {
+        let mut m = Meneo::nuevo(0);
+        // Vaivenes por debajo del umbral de amplitud: pulso, no zarandeo.
+        assert_eq!(zarandear(&mut m, 40, MENEO_AMPLITUD / 2 - 1, 30), 0);
+    }
+
+    #[test]
+    fn ir_y_venir_con_calma_tampoco() {
+        let mut m = Meneo::nuevo(0);
+        // Amplitud de sobra pero un giro cada 900 ms: pasa de MENEO_PAUSA_MS,
+        // así que la cuenta se reinicia y nunca llega a cuatro seguidos.
+        assert_eq!(zarandear(&mut m, 30, 60, 900), 0);
+    }
 }
