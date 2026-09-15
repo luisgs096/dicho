@@ -60,6 +60,27 @@ Ante la duda, preguntar.
 Una autorización sirve **una vez**. Que Luis haya aprobado el merge ayer no autoriza
 el de hoy.
 
+## Cómo mergear cuando toca
+
+Con **merge commit**, no con *squash*, siempre que la rama tenga **etiquetas**
+apuntando a sus commits (las de una versión publicada, típicamente). Aplastarlos crea
+commits nuevos: las etiquetas se quedan señalando a los viejos, que dejan de ser
+antepasados de `main`, y la historia pierde el hilo entre «esta versión salió» y «este
+código la produjo».
+
+```sh
+gh pr merge <n> --merge --delete-branch
+```
+
+Y después, comprobarlo en vez de suponerlo:
+
+```sh
+git checkout main && git pull --ff-only
+git merge-base --is-ancestor <tag>^{commit} main && echo "la etiqueta quedó dentro"
+```
+
+Sin etiquetas de por medio, *squash* está bien y deja la historia más limpia.
+
 ## Relación con /cierre
 
 `/cierre` documenta y deja el PR listo, pero **el merge de ese ritual también espera
