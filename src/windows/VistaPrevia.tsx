@@ -46,8 +46,7 @@ const CLASSIC_TEXTO: Record<FaceState, string> = {
  * de React cada 140 ms y ningún gesto pasaba de los 80 ms — las caritas se veían
  * congeladas. Por eso `--lvl` se escribe **a mano sobre el nodo** (igual que hace
  * el HUD de verdad con `tamaRef`) y este componente sólo se redibuja cuando
- * cambia de estado, cada 2,6 s. Comprobado: tocar `--lvl` en un ancestro no
- * reinicia nada; redibujar, sí.
+ * cambia de estado, cada 2,6 s.
  */
 export default function VistaPrevia(props: {
   value: Estilo;
@@ -76,18 +75,21 @@ export default function VistaPrevia(props: {
 
   const estado = TOUR[paso % TOUR.length];
 
-  // Volumen para las caritas reactivas (el DJ y el Pac-Man leen --lvl). Se pone
-  // UNA vez por estado, nunca en bucle: cambiar una variable CSS obliga a
-  // Chromium a recalcular el subárbol, y como la duración de los gestos sale de
-  // `var(--d)`, **recrea las animaciones** y todas vuelven a 0. Refrescándolo
-  // cada 140 ms ningún gesto pasaba de ahí y las caritas se veían congeladas.
-  // El precio es que aquí esas dos caritas no laten con el volumen; al dictar sí,
-  // porque el HUD de verdad no tiene alrededor nada más que animar.
+  // Volumen de mentira para las caritas reactivas (el DJ y el Pac-Man leen
+  // --lvl). Se escribe sobre el nodo, nunca por estado de React: un render aquí
+  // reescribiría el interior del `<svg>` y con él los `<g>` que llevan las
+  // animaciones, que volverían a empezar de cero.
   useEffect(() => {
-    tamaRef.current?.style.setProperty(
-      "--lvl",
-      estado === "escuchando" ? "0.55" : "0.12",
-    );
+    const el = tamaRef.current;
+    if (!el) return;
+    if (estado !== "escuchando") {
+      el.style.setProperty("--lvl", "0.12");
+      return;
+    }
+    const t = setInterval(() => {
+      el.style.setProperty("--lvl", (0.15 + Math.random() * 0.75).toFixed(2));
+    }, 140);
+    return () => clearInterval(t);
   }, [estado]);
 
   const meta = ESTADOS.find((e) => e.key === estado)!;

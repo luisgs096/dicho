@@ -192,19 +192,30 @@ const PAC_CERRADA = [".......", ".......", "XXXXXXX", "XXXXXXX", ".......", "...
 const PUFF = [".XX.", "XXXX", "XXXX", ".XX."];
 
 // ─── motorcito de fotogramas ────────────────────────────────────────────────
+//
+// OJO con cómo viaja la duración. Antes iba en una variable (`style="--d:.6s"`
+// en el padre, y `animation: … var(--d) …` en el CSS) y eso congelaba las
+// caritas: **cualquier** escritura de otra variable CSS —`--lvl`, el volumen de
+// la voz, que el HUD refresca en cada fotograma— obliga a Chromium a recalcular
+// el subárbol, volver a resolver ese `var()` y **recrear la animación desde
+// cero**. Ningún gesto pasaba de unos milisegundos. Ahora la duración va inline
+// y literal en cada fotograma: no hay `var()` que re-resolver, así que el
+// volumen puede cambiar 60 veces por segundo sin tocar los gestos.
 /** Alterna N dibujos a partes iguales (el clásico flipbook). */
 const flip = (list: string[], dur: string) =>
-  `<g class="flip flip${list.length}" style="--d:${dur}">` +
-  list.map((h) => `<g>${h}</g>`).join("") +
+  `<g class="flip flip${list.length}">` +
+  list.map((h) => `<g style="animation-duration:${dur}">${h}</g>`).join("") +
   `</g>`;
 
 /** Parpadeo: abierto casi todo el ciclo, cerrado un instante. */
 const blink = (open: string, shut: string, dur = "3.2s") =>
-  `<g class="blink" style="--d:${dur}"><g>${open}</g><g>${shut}</g></g>`;
+  `<g class="blink"><g style="animation-duration:${dur}">${open}</g>` +
+  `<g style="animation-duration:${dur}">${shut}</g></g>`;
 
 /** Guiño: como el parpadeo pero el ojo se queda cerrado un rato largo. */
 const wink = (open: string, shut: string, dur = "1.6s") =>
-  `<g class="wink" style="--d:${dur}"><g>${open}</g><g>${shut}</g></g>`;
+  `<g class="wink"><g style="animation-duration:${dur}">${open}</g>` +
+  `<g style="animation-duration:${dur}">${shut}</g></g>`;
 
 /** Ocho fotogramas con un punto dando la vuelta: "cargando" de toda la vida. */
 const SPINNER = ([
@@ -524,7 +535,10 @@ const FLIP_CSS = [2, 3, 4, 5, 6, 7, 8]
     for (let i = 0; i < n; i++) {
       const ini = ((i / n) * 100).toFixed(2);
       const fin = (((i + 1) / n) * 100).toFixed(2);
-      css += `  .flip${n} > g:nth-child(${i + 1}) { animation: fl${n}_${i} var(--d, .8s) steps(1, end) infinite; }
+      // Longhands y no el atajo `animation`: el atajo reinicia
+      // `animation-duration` a 0s y la duración viaja inline en cada fotograma.
+      // El .8s de aquí es sólo el respaldo por si algún sprite no la trae.
+      css += `  .flip${n} > g:nth-child(${i + 1}) { animation-name: fl${n}_${i}; animation-duration: .8s; animation-timing-function: steps(1, end); animation-iteration-count: infinite; }
 `;
       css +=
         i === 0
@@ -582,12 +596,14 @@ export const FACE_CSS = `
 
   .flip > g { opacity: 0; }
 ${FLIP_CSS}
-  .blink > g:nth-child(1) { animation: blinkA var(--d) steps(1, end) infinite; }
-  .blink > g:nth-child(2) { animation: blinkB var(--d) steps(1, end) infinite; }
+  .blink > g { animation-duration: 3.2s; animation-timing-function: steps(1, end); animation-iteration-count: infinite; }
+  .blink > g:nth-child(1) { animation-name: blinkA; }
+  .blink > g:nth-child(2) { animation-name: blinkB; }
   @keyframes blinkA { 0% { opacity: 1; } 92% { opacity: 0; } 97% { opacity: 1; } }
   @keyframes blinkB { 0% { opacity: 0; } 92% { opacity: 1; } 97% { opacity: 0; } }
-  .wink > g:nth-child(1) { animation: winkA var(--d) steps(1, end) infinite; }
-  .wink > g:nth-child(2) { animation: winkB var(--d) steps(1, end) infinite; }
+  .wink > g { animation-duration: 1.6s; animation-timing-function: steps(1, end); animation-iteration-count: infinite; }
+  .wink > g:nth-child(1) { animation-name: winkA; }
+  .wink > g:nth-child(2) { animation-name: winkB; }
   @keyframes winkA { 0% { opacity: 1; } 35% { opacity: 0; } 72% { opacity: 1; } }
   @keyframes winkB { 0% { opacity: 0; } 35% { opacity: 1; } 72% { opacity: 0; } }
 

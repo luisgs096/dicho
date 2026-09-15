@@ -197,21 +197,24 @@ conocimiento. Y se commitea con el resto.
   Ojo si vuelve a pasar algo parecido: el instalador y el `.sig` ya están hechos
   y son válidos, así que basta con crear el release a mano en vez de repetir
   todo el `publicar.ps1`.
-- **Tocar una variable CSS congela las caritas** (el fallo de la vista previa,
-  14/09). Los gestos se declaran `animation: fl3_0 var(--d) steps(1, end) infinite`,
-  o sea que la **duración sale de una variable**. Cuando algo escribe otra variable
-  en la carita o en un ancestro —`--lvl`, el volumen de la voz— Chromium recalcula
-  el subárbol, vuelve a resolver ese `var(--d)` y **recrea la animación desde cero**.
-  Refrescando `--lvl` cada 140 ms ningún gesto pasaba de los 80 ms: se veían
-  congeladas. Se diagnostica en 10 s sin mirar nada a ojo:
+- **Nunca pongas la duración de una animación en una variable CSS** (el fallo de
+  las caritas, 14/09). Los gestos se declaraban
+  `animation: fl3_0 var(--d) steps(1, end) infinite`. Cuando algo escribe **otra**
+  variable en la carita o en un ancestro —`--lvl`, el volumen de la voz— Chromium
+  recalcula el subárbol, vuelve a resolver ese `var()` y **recrea la animación
+  desde cero**. Como el HUD refresca `--lvl` en cada fotograma mientras grabas,
+  **los gestos llevaban congelados desde siempre durante el dictado**: sólo se
+  movían las dos caritas reactivas, que no usan `animation` sino un `transform`
+  que lee la variable. Nadie lo vio porque el HUD sale pocos segundos; en la
+  pantalla de Inicio, con la carita fija a la vista, saltó enseguida.
+  Arreglado de raíz: la duración va **inline y literal** en cada fotograma
+  (`style="animation-duration:.6s"`) y el CSS usa longhands (`animation-name`,
+  `-duration`, `-timing-function`, `-iteration-count`) en vez del atajo, que
+  reinicia la duración a 0. Medido después: **103 de 103 animaciones siguen
+  avanzando** con `--lvl` escribiéndose a 60 fps.
+  Se diagnostica en 10 s sin mirar nada a ojo:
   `el.getAnimations({subtree:true})[0].currentTime` dos veces seguidas — si no
-  avanza, es esto. En la vista previa `--lvl` se pone **una vez por estado**.
-  ⚠️ **`Hud.tsx` sigue escribiendo `--lvl` en cada frame mientras grabas**, así que
-  durante el dictado los gestos de la carita están igual de congelados; se mueven
-  sólo las dos reactivas, que no dependen de `animation` sino del `transform` que
-  lee la variable. Sin verificar en vivo y sin arreglar: la cura de raíz es sacar
-  `var(--d)` del atajo `animation` en `faces.ts`, y eso toca el motor de las
-  caritas.
+  avanza o va hacia atrás, es esto.
 - **Redibujar React también los reinicia**: la escena entra por
   `dangerouslySetInnerHTML`, así que cada render reescribe el interior del `<svg>`
   y se lleva por delante los `<g>` que llevan las animaciones. Un componente que

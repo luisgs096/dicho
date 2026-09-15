@@ -10,6 +10,18 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.8.3 — 15 de septiembre de 2026
+
+- **Las caritas por fin se mueven de verdad, también al dictar.** Sus gestos
+  llevaban congelados desde siempre: cada vez que la onda refrescaba el volumen de
+  tu voz —sesenta veces por segundo— las animaciones volvían a empezar de cero y
+  nunca llegaban a verse. Sólo se salvaban las dos que laten con el micrófono.
+- En Inicio, el botón «Mover la onda flotante» no se entendía: ahora es
+  **«Seleccionar posición en pantalla»**, con un icono de arrastrar. Y
+  «Devolverla a su sitio» lleva su flecha de deshacer.
+- **«Ver las 26 caritas» pasa a estar dentro de la tarjeta del tamagotchi**, que
+  es a quien pertenece, en vez de suelto entre los botones.
+
 ## 0.8.2 — 14 de septiembre de 2026
 
 - Pantalla de **Inicio** nueva: el atajo para dictar y la onda flotante juntos, que
