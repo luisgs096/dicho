@@ -151,7 +151,11 @@ $cuerpo = if ($Notas) { $Notas } else { "Version $Version" }
 # 0.7.0 murio con "no matches found for `la`" despues de compilar y firmar.
 $notas = "$nsis\notas.md"
 Escribir $notas $cuerpo
-gh release create "v$Version" $exe $fijo $latest --repo $repo --title "Dicho $Version" --notes-file $notas
+# --target clava el tag al commit que se esta publicando. Sin el, gh lo crea
+# sobre la rama por defecto: publicando desde una rama, el tag apuntaria a un
+# main que NO tiene este codigo y el Release mentiria sobre lo que contiene.
+$commit = (git -C $raiz rev-parse HEAD).Trim()
+gh release create "v$Version" $exe $fijo $latest --repo $repo --title "Dicho $Version" --notes-file $notas --target $commit
 if ($LASTEXITCODE -ne 0) { throw "gh release create fallo" }
 
 Write-Host "5/5  Listo." -ForegroundColor Green
