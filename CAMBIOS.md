@@ -10,6 +10,15 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.8.4 — 15 de septiembre de 2026
+
+- **Colocar la onda se decide sobre la onda misma.** Mientras la mueves lleva
+  encima dos botones: una **palomita verde** para decir «ya, déjala aquí», y una
+  **flecha** que la devuelve a su rincón de siempre. Ya no hay que volver a
+  Ajustes para cerrar el modo.
+- Tu posición no dependía nunca de confirmar nada: se guarda en cuanto sueltas la
+  onda. La palomita sólo sale del modo colocación.
+
 ## 0.8.3 — 15 de septiembre de 2026
 
 - **Las caritas por fin se mueven de verdad, también al dictar.** Sus gestos

@@ -88,6 +88,66 @@ const DRAG_CSS = `
   @keyframes destello { 50% { outline-color: transparent; } }
 `;
 
+/**
+ * Los dos botones que salen sobre la onda mientras la estás colocando.
+ *
+ * Viven **aquí y no en Ajustes** porque es donde los busca la mano: acabas de
+ * soltar la onda en su sitio y quieres decir "ya". La posición se guarda sola
+ * al soltarla, así que la palomita no confirma nada — sólo sale del modo
+ * colocación. La flecha la devuelve a su rincón de siempre en todas las
+ * pantallas.
+ *
+ * `stopPropagation` en el `pointerdown` es obligatorio: sin él, pulsar un botón
+ * dispararía también el arrastre de la ventana y la onda saldría persiguiendo al
+ * cursor en vez de hacerte caso.
+ */
+function BotonesColocar() {
+  const parar = (e: React.PointerEvent) => e.stopPropagation();
+  return (
+    <div className="absolute right-2 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1.5">
+      <button
+        title="Devolverla a su sitio de siempre"
+        aria-label="Devolverla a su sitio de siempre"
+        onPointerDown={parar}
+        onClick={() => invoke("hud_pos_reset").catch(() => {})}
+        className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-white/95 text-slate-600 shadow-md transition-colors hover:bg-slate-100"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.4}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-4 w-4"
+        >
+          <path d="M3 12a9 9 0 1 0 2.64-6.36" />
+          <path d="M3 4v5h5" />
+        </svg>
+      </button>
+      <button
+        title="Listo, déjala aquí"
+        aria-label="Listo, déjala aquí"
+        onPointerDown={parar}
+        onClick={() => invoke("hud_colocar", { on: false }).catch(() => {})}
+        className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md transition-colors hover:bg-emerald-600"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-4 w-4"
+        >
+          <path d="m5 13 4 4L19 7" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 function MicIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className}>
@@ -368,7 +428,9 @@ export default function Hud() {
   const sad = isError || v.sad;
   const porLimite = rec.state === "processing" && rec.motivo === "limite";
   const status = colocando
-    ? "Arrástrame"
+    ? // Sin texto: ese rincón lo ocupan ahora la palomita y la flecha, y el
+      // aro punteado ya dice que la estás colocando.
+      ""
     : isError
       ? rec.message
       : rec.state === "done"
@@ -402,13 +464,14 @@ export default function Hud() {
       >
         <style>{CLASSIC_CSS + DRAG_CSS}</style>
         <div
-          className={colocando ? "colocando" : ""}
+          className={`relative ${colocando ? "colocando" : ""}`}
           style={{ transform: "scale(var(--k, 1))" }}
         >
+          {colocando && <BotonesColocar />}
           <div
             className={`relative flex h-[64px] w-[336px] items-center gap-3 overflow-hidden rounded-full border px-5 shadow-2xl shadow-blue-900/20 backdrop-blur transition-colors ${
               emptyC ? "classic-shake" : ""
-            } ${pill}`}
+            } ${colocando ? "!pr-[76px]" : ""} ${pill}`}
           >
             {(rec.state === "recording" || rec.state === "processing") && (
               <>
@@ -500,9 +563,10 @@ export default function Hud() {
     >
       <style>{FACE_CSS + DRAG_CSS}</style>
       <div
-        className={colocando ? "colocando" : ""}
+        className={`relative ${colocando ? "colocando" : ""}`}
         style={{ transform: "scale(var(--k, 1))" }}
       >
+        {colocando && <BotonesColocar />}
         <div
           ref={tamaRef}
           className={`tama ${sad ? "sad" : ""} ${v.shake && !isError ? "shake" : ""}`}
