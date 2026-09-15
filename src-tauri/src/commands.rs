@@ -224,6 +224,34 @@ pub fn hud_colocar(app: AppHandle, on: bool) {
     pipeline::modo_colocar(&app, on);
 }
 
+/// El ratón entró o salió de la onda. Lo avisa el propio HUD.
+///
+/// Mientras está encima no se esconde aunque el dictado haya terminado: si se
+/// fuera bajo el cursor, llegar a su menú sería una carrera contra el
+/// cronómetro. Al salir se va sola, salvo que esté clavada o en plena faena.
+#[tauri::command]
+pub fn hud_encima(app: AppHandle, on: bool) {
+    pipeline::RATON_ENCIMA.store(on, Ordering::SeqCst);
+    if on {
+        return;
+    }
+    // Un respiro antes de irse: rozarla de pasada no debe hacerla desaparecer
+    // de golpe, y da margen a volver si el cursor se salió sin querer.
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(700));
+        if pipeline::RATON_ENCIMA.load(Ordering::SeqCst)
+            || pipeline::grabando()
+            || pipeline::hud_clavado(&app)
+            || pipeline::COLOCANDO.load(Ordering::SeqCst)
+        {
+            return;
+        }
+        if let Some(hud) = app.get_webview_window("hud") {
+            let _ = hud.hide();
+        }
+    });
+}
+
 /// Clava o desclava la onda en pantalla, desde su propio menú.
 ///
 /// Clavada no se esconde al acabar el dictado: vuelve a reposo y se queda ahí

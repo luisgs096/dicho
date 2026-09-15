@@ -123,6 +123,10 @@ pub(crate) static COLOCANDO: AtomicBool = AtomicBool::new(false);
 /// Hay un dictado en curso. La consulta el menú de la onda: desclavarla a media
 /// frase no puede esconderla y dejarte dictando a ciegas.
 pub(crate) static GRABANDO: AtomicBool = AtomicBool::new(false);
+/// El ratón está encima de la onda. Mientras lo esté **no se esconde**, aunque
+/// el dictado haya terminado: si se fuera bajo el cursor, llegar a su menú sería
+/// una carrera contra un cronómetro de dos segundos.
+pub(crate) static RATON_ENCIMA: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn grabando() -> bool {
     GRABANDO.load(Ordering::SeqCst)
@@ -271,8 +275,9 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
         if gen.load(Ordering::SeqCst) == expected && !COLOCANDO.load(Ordering::SeqCst) {
             if let Some(hud) = app.get_webview_window("hud") {
                 // Clavada se queda: sólo vuelve a reposo, que es su cara de
-                // "aquí estoy, sin molestar".
-                if hud_clavado(&app) {
+                // "aquí estoy, sin molestar". Y con el ratón encima tampoco se
+                // va: esconderse bajo el cursor es lo contrario de dejarse usar.
+                if hud_clavado(&app) || RATON_ENCIMA.load(Ordering::SeqCst) {
                     emit_state(&app, "idle", None);
                 } else {
                     let _ = hud.hide();

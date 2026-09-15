@@ -700,13 +700,16 @@ export default function Settings() {
                             }
                             className="h-4 w-4 accent-blue-600"
                           />
-                          Poder moverla arrastrándola mientras dictas
+                          Que la onda responda al ratón
                         </label>
                         <p className="-mt-1 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-                          Con esto encendido la onda atrapa el ratón mientras está
-                          a la vista, así que los clics que caigan encima van a
-                          ella y no a lo que tengas debajo. Apagándolo vuelve a ser
-                          un cristal y sólo se mueve con el botón de aquí arriba.
+                          Encendido, la onda atrapa el ratón mientras está a la
+                          vista: es lo que permite pasarle el cursor por encima y
+                          usar su menú. A cambio, los clics que caigan sobre ella
+                          van a ella y no a lo que tengas debajo. Apagándolo
+                          vuelve a ser un cristal que se atraviesa — y entonces su
+                          menú deja de existir, así que sólo podrás moverla o
+                          clavarla volviendo a encender esto.
                         </p>
                       </>
                     )}

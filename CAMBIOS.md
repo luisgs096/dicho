@@ -10,6 +10,17 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.9.2 — 15 de septiembre de 2026
+
+- **La onda ya no se te escapa.** Si le pasas el ratón por encima se queda a la
+  vista aunque el dictado haya terminado, para que dé tiempo a abrir su menú. Se
+  va sola al retirar el cursor.
+- **Ahora sólo se mueve cuando tú lo dices.** Antes se arrastraba siempre, y era
+  fácil desplazarla sin querer al ir a pulsar su menú. A partir de ahora hay que
+  entrar en «cambiarla de sitio»: fuera de ahí, no se mueve.
+- **El aro de colocación está vivo**: el punteado da la vuelta como hormiguitas y
+  respira, en vez de parpadear.
+
 ## 0.9.1 — 15 de septiembre de 2026
 
 - **El menú de la onda se abre en abanico.** Ahora es un **+** asomando por la
