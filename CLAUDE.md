@@ -197,6 +197,20 @@ conocimiento. Y se commitea con el resto.
   Ojo si vuelve a pasar algo parecido: el instalador y el `.sig` ya están hechos
   y son válidos, así que basta con crear el release a mano en vez de repetir
   todo el `publicar.ps1`.
+- **El Release se crea sobre un commit que GitHub ya tiene que conocer** (el fallo de
+  la 0.8.2, 14/09). `gh release create` sin `--target` pone el tag en la rama por
+  defecto: publicando desde una rama, el tag apuntaría a un `main` sin ese código y el
+  Release mentiría sobre lo que contiene. Con `--target` hay dos trampas encadenadas,
+  y las dos dan el mismo mensaje —`Release.target_commitish is invalid`— **después** de
+  compilar y firmar:
+  - El SHA tiene que ir **completo**. Abreviado (`c9f3a06`) también lo rechaza.
+  - Y el commit tiene que estar **empujado**. Un `git push` que faltaba tira los 40
+    minutos de build. Ya hay guarda al principio de `publicar.ps1`
+    (`git branch -r --contains HEAD`), probada en las dos direcciones.
+
+  Si vuelve a pasar: el instalador y el `.sig` ya están hechos y son válidos, así que
+  se crea el release a mano con los artefactos de `target/release/bundle/nsis` en vez
+  de repetir la compilación.
 - **No canalizar la salida de `publicar.ps1`.** Un `*>&1 | Tee-Object` convierte cada línea
   que Tauri escribe en stderr (hasta un `Info` inocuo) en `NativeCommandError` y aborta el
   script. Es la misma trampa que `2>&1` sobre ejecutables nativos en PowerShell 5.1.
