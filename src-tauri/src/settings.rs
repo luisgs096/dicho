@@ -13,8 +13,13 @@ pub enum EngineKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PolishKind {
+    /// Tal cual: tus palabras exactas, sólo puntuación y diccionario. Sin IA.
     Rules,
+    /// Ordenado: mismas palabras, mejor forma. Es el de siempre.
     GroqLlm,
+    /// Estructurado: le da forma a la idea — junta lo disperso, quita las
+    /// vueltas, saca listas si las hay. **Puede cambiar tus palabras.**
+    GroqEstructurado,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -91,6 +96,16 @@ pub struct AppSettings {
     /// el motor (fijarlo es lo que hace que Whisper traduzca el otro) y le pasa
     /// una muestra de spanglish como contexto de estilo.
     pub no_traducir: bool,
+    /// Deja el dictado en el portapapeles al terminar, en vez de devolver lo
+    /// que hubiera antes. El texto ya pasa por ahí para pegarse (ver
+    /// `inject::inject_text`), así que esto sólo se salta la restauración.
+    /// Apagado por defecto: encenderlo significa que cada dictado pisa lo que
+    /// tuvieras copiado.
+    pub copiar_al_portapapeles: bool,
+    /// Qué secciones de la ventana están plegadas, por su id. Se guardan las
+    /// **cerradas** y no las abiertas a propósito: así una sección nueva nace
+    /// desplegada sin tener que tocar los ajustes de quien ya tenía la app.
+    pub secciones_plegadas: Vec<String>,
     pub hud_enabled: bool,
     pub hud_style: HudStyle,
     /// El rincón donde el usuario dejó el HUD **en cada pantalla**, por
@@ -102,6 +117,11 @@ pub struct AppSettings {
     /// Si el HUD atrapa el ratón para poder arrastrarlo. Apagado vuelve a ser
     /// un cristal: los clics lo atraviesan y llegan a lo que haya debajo.
     pub hud_arrastrable: bool,
+    /// La cinta de niveles debajo de la onda: enseña cuál está puesto y deja
+    /// cambiarlo de un clic, que es el momento en que de verdad lo decides —
+    /// justo antes de hablar, no en un ajuste que pusiste hace una semana.
+    #[serde(default = "verdadero")]
+    pub hud_niveles: bool,
     /// Clavada: la onda se queda a la vista siempre, no sólo mientras dictas.
     /// Es el "modo mascota": la cápsula vive en tu escritorio.
     #[serde(default)]
@@ -110,6 +130,12 @@ pub struct AppSettings {
     /// Sólo aplica clavada: mientras dictas siempre se ve entera.
     #[serde(default = "opacidad_reposo_default")]
     pub hud_opacidad_reposo: f32,
+    /// Con qué versión arrancó la app la última vez. Si al arrancar no coincide
+    /// con la de ahora, es que acabas de actualizar y toca la animación —una
+    /// sola vez—. Vacío la primera vez de todas: una instalación nueva no ha
+    /// actualizado nada y no debe celebrarlo.
+    #[serde(default)]
+    pub ultima_version_vista: String,
     pub autostart: bool,
     /// Cliente OAuth "Desktop" de Google para la sincronización vía Drive.
     /// En apps instaladas el client_secret no es confidencial por diseño.
@@ -122,6 +148,11 @@ fn opacidad_reposo_default() -> f32 {
     0.45
 }
 
+/// Para los ajustes que nacen encendidos y sólo se apagan a mano.
+fn verdadero() -> bool {
+    true
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -130,12 +161,16 @@ impl Default for AppSettings {
             polish: PolishKind::Rules,
             language: "auto".into(),
             no_traducir: true,
+            copiar_al_portapapeles: false,
+            secciones_plegadas: Vec::new(),
             hud_enabled: true,
             hud_style: HudStyle::Tamagotchi,
             hud_posiciones: HashMap::new(),
             hud_arrastrable: true,
+            hud_niveles: true,
             hud_pin: false,
             hud_opacidad_reposo: opacidad_reposo_default(),
+            ultima_version_vista: String::new(),
             autostart: false,
             google_client_id: String::new(),
             google_client_secret: String::new(),

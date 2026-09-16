@@ -112,7 +112,19 @@ pub(crate) fn diag(app: &AppHandle, msg: &str) {
 /// El HUD mide esto en puntos lógicos; en píxeles depende de la escala del
 /// monitor donde caiga.
 const HUD_W: f64 = 360.0;
-const HUD_H: f64 = 96.0;
+/// Alto de la ventana: la cápsula (74) más el aire que necesita el botón del
+/// menú, que asoma 8 px por arriba y al pasarle el ratón crece y saca halo.
+///
+/// Fue 96, luego 112 —cuando la cinta de niveles colgaba por debajo— y ahora
+/// 104: desde `befdf50` la cinta vive **dentro** del LCD, así que los 19 px de
+/// abajo se quedaron vacíos y sólo servían para atrapar clics donde no hay nada
+/// dibujado. Con 104 quedan 15 arriba y 15 abajo: de sobra para el halo, que
+/// medido necesita unos 8,7.
+///
+/// **Si cambia este número hay que cambiar el divisor de `--k` en Hud.tsx**, que
+/// es quien traduce el lienzo a escala: si no, todo el contenido crece o encoge
+/// en la misma proporción.
+const HUD_H: f64 = 104.0;
 
 /// Mientras arrastras el HUD nadie más lo mueve: el vigilante lo devolvería a
 /// su sitio a media maniobra.
@@ -123,6 +135,10 @@ pub(crate) static COLOCANDO: AtomicBool = AtomicBool::new(false);
 /// Hay un dictado en curso. La consulta el menú de la onda: desclavarla a media
 /// frase no puede esconderla y dejarte dictando a ciegas.
 pub(crate) static GRABANDO: AtomicBool = AtomicBool::new(false);
+/// El ratón está encima de la onda. Mientras lo esté **no se esconde**, aunque
+/// el dictado haya terminado: si se fuera bajo el cursor, llegar a su menú sería
+/// una carrera contra un cronómetro de dos segundos.
+pub(crate) static RATON_ENCIMA: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn grabando() -> bool {
     GRABANDO.load(Ordering::SeqCst)
@@ -271,13 +287,59 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
         if gen.load(Ordering::SeqCst) == expected && !COLOCANDO.load(Ordering::SeqCst) {
             if let Some(hud) = app.get_webview_window("hud") {
                 // Clavada se queda: sólo vuelve a reposo, que es su cara de
-                // "aquí estoy, sin molestar".
-                if hud_clavado(&app) {
+                // "aquí estoy, sin molestar". Y con el ratón encima tampoco se
+                // va: esconderse bajo el cursor es lo contrario de dejarse usar.
+                if hud_clavado(&app) || RATON_ENCIMA.load(Ordering::SeqCst) {
                     emit_state(&app, "idle", None);
                 } else {
                     let _ = hud.hide();
                 }
             }
+        }
+    });
+}
+
+/// Saca la onda a celebrar que acabas de actualizar. Una sola vez, al primer
+/// arranque con la versión nueva.
+///
+/// No se enseña si tienes la onda apagada: quien la apagó no quiere verla, y
+/// menos por sorpresa nada más encender el ordenador. El estilo ya no importa:
+/// la barra de carga y el destello con la versión son los mismos en los dos, y
+/// sólo cambia qué se revela al final —la cara o las cinco barritas—.
+pub(crate) fn celebrar_actualizacion(app: &AppHandle, version: &str) {
+    let visible = app
+        .try_state::<SettingsState>()
+        .and_then(|s| s.read().ok().map(|s| s.hud_enabled))
+        .unwrap_or(true);
+    if !visible {
+        return;
+    }
+    let Some(hud) = app.get_webview_window("hud") else {
+        return;
+    };
+    place_hud(app, &hud, area_hud(app));
+    // Sale primero en reposo y arranca un respiro después. El primer tiempo del
+    // guion es la cápsula normal, y emitir a la vez que el show() se lo come el
+    // primer pintado: la barra aparecería ya a medio llenar.
+    let _ = hud.show();
+    std::thread::sleep(Duration::from_millis(120));
+    emit_state(
+        app,
+        "actualizado",
+        Some(serde_json::json!({ "version": version })),
+    );
+    diag(app, &format!("Estrenando la versión {version}"));
+    // 1,8 s de animación y medio segundo de propina para ver el resultado.
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(2300));
+        if GRABANDO.load(Ordering::SeqCst) || COLOCANDO.load(Ordering::SeqCst) {
+            return;
+        }
+        if hud_clavado(&app) {
+            emit_state(&app, "idle", None);
+        } else if let Some(hud) = app.get_webview_window("hud") {
+            let _ = hud.hide();
         }
     });
 }
@@ -590,7 +652,18 @@ fn transcribir_completo(
 }
 
 enum StopResult {
-    Done(String, String, &'static str, i64, Vec<polish::Correction>),
+    /// raw, pulido, motor de voz, ms de STT, correcciones, modo que redactó,
+    /// ms de redacción. El modo es **el que de verdad redactó**, no el que se
+    /// pidió: si el Editor se cayó y entró el Estándar, se guarda el Estándar.
+    Done(
+        String,
+        String,
+        &'static str,
+        i64,
+        Vec<polish::Correction>,
+        &'static str,
+        i64,
+    ),
     /// Hubo grabación pero no se entendió nada: carita en el HUD.
     Empty,
     /// Toque accidental: sin feedback.
@@ -675,29 +748,101 @@ fn procesar(
             language,
             dictionary: store.dict_pairs(),
         };
-        let corrections = polish::corrections(&raw, &ctx);
+        // El pulido deja rastro en dicho.log, y no es un lujo: sin esto no hay
+        // forma de contestar "¿por qué este dictado salió igual que el crudo?".
+        // Pasó de verdad —290 palabras, salida idéntica al crudo— y no se pudo
+        // diagnosticar porque no quedaba escrito ni qué modo corrió ni si una
+        // guarda había descartado la respuesta del modelo.
+        let modo = match polish_kind {
+            PolishKind::Rules => "reglas",
+            PolishKind::GroqLlm => "estandar",
+            PolishKind::GroqEstructurado => "editor",
+        };
+        let t_polish = std::time::Instant::now();
+        // `modo_real` puede no ser el pedido: si el Editor falla y entra el
+        // Estándar, lo que se guarda es lo que salió, no lo que se quiso.
+        let mut modo_real = modo;
         let polished = match polish_kind {
             PolishKind::Rules => polish::rules::polish(&raw, &ctx),
-            PolishKind::GroqLlm => match polish::groq::polish(&raw, &ctx) {
+            PolishKind::GroqEstructurado => {
+                match polish::groq::polish(&raw, &ctx, polish::groq::Nivel::Estructurado) {
+                    Ok(t) => t,
+                    // Antes de rendirse, el escalón de al lado. El editor usa un
+                    // modelo grande con menos cuota en el plan gratis, así que
+                    // un 429 es verosímil; caer de golpe al pulido por reglas
+                    // sería pasar de un texto redactado a uno sin tocar, y en
+                    // silencio. El estándar es peor que el editor y mucho mejor
+                    // que nada.
+                    Err(e) => {
+                        diag(app, &format!("Pulido [{modo}]: falló ({e}) → probando estándar"));
+                        match polish::groq::polish(&raw, &ctx, polish::groq::Nivel::Ordenado) {
+                            Ok(t) => {
+                                modo_real = "estandar";
+                                t
+                            }
+                            Err(e2) => {
+                                diag(app, &format!("Pulido [estandar]: falló ({e2}) → reglas locales"));
+                                modo_real = "reglas";
+                                polish::rules::polish(&raw, &ctx)
+                            }
+                        }
+                    }
+                }
+            }
+            PolishKind::GroqLlm => match polish::groq::polish(&raw, &ctx, polish::groq::Nivel::Ordenado)
+            {
                 Ok(t) => t,
                 Err(e) => {
-                    log::warn!("Pulido LLM falló ({e}), usando reglas locales");
+                    diag(app, &format!("Pulido [{modo}]: DESCARTADO ({e}) → reglas locales"));
+                    modo_real = "reglas";
                     polish::rules::polish(&raw, &ctx)
                 }
             },
         };
+        let polish_ms = t_polish.elapsed().as_millis() as i64;
+        let corrections = polish::corrections(&raw, &polished, &ctx);
+        {
+            let n_in = raw.split_whitespace().count();
+            let n_out = polished.split_whitespace().count();
+            // "identico" es la señal que buscábamos: el pulido corrió y no tocó
+            // nada. Con reglas es normal; con un modo de IA es un síntoma.
+            let cambio = if raw.trim() == polished.trim() {
+                "IDENTICO".to_string()
+            } else {
+                format!("{:.2}x", n_out as f32 / n_in.max(1) as f32)
+            };
+            let susp = polished.matches("...").count() + polished.matches('…').count();
+            diag(
+                app,
+                &format!("Pulido [{modo}]: {n_in}→{n_out} palabras, {cambio}, {susp} suspensivos"),
+            );
+        }
         Ok(StopResult::Done(
             raw,
             polished,
             engine_name,
             stt_ms,
             corrections,
+            modo_real,
+            polish_ms,
         ))
     })();
 
     match outcome {
-        Ok(StopResult::Done(raw, polished, engine_name, stt_ms, corrections)) => {
-            if let Err(e) = inject_text(&polished) {
+        Ok(StopResult::Done(
+            raw,
+            polished,
+            engine_name,
+            stt_ms,
+            corrections,
+            modo_real,
+            polish_ms,
+        )) => {
+            let conservar = settings
+                .read()
+                .map(|s| s.copiar_al_portapapeles)
+                .unwrap_or(false);
+            if let Err(e) = inject_text(&polished, conservar) {
                 emit_state(
                     app,
                     "error",
@@ -709,17 +854,22 @@ fn procesar(
             let corrections_json = (!corrections.is_empty())
                 .then(|| serde_json::to_string(&corrections).ok())
                 .flatten();
-            let _ = store.add_history(
-                &raw,
-                &polished,
-                engine_name,
-                held.as_millis() as i64,
-                corrections_json.as_deref(),
-            );
+            let _ = store.add_history(crate::store::NuevoDictado {
+                raw: &raw,
+                polished: &polished,
+                engine: engine_name,
+                duration_ms: held.as_millis() as i64,
+                corrections_json: corrections_json.as_deref(),
+                polish_mode: modo_real,
+                stt_ms,
+                polish_ms,
+            });
             log::info!(
-                "Dictado listo: {} ms grabación, {} ms STT",
+                "Dictado listo: {} ms grabación, {} ms STT, {} ms redacción [{}]",
                 held.as_millis(),
-                stt_ms
+                stt_ms,
+                polish_ms,
+                modo_real
             );
             emit_state(app, "done", Some(serde_json::json!({ "text": polished })));
             let _ = app.emit("history-changed", ());

@@ -95,6 +95,35 @@ la casa —`C:\dev\BRÍO ADMIN\03-operacion\skills\`— y anótala en su `README
 - `git status` limpio. Si algo no se pudo, no lo escondas: va al checkpoint con su
   motivo.
 
+### Y preguntar si toca mezclar
+
+`main` es **de donde arranca la siguiente sesión**. Si el trabajo de hoy se quedó en
+una rama, mañana alguien construye sin él y la próxima entrega sale con *menos* de lo
+que ya había — sin que nadie lo note hasta usarla. Eso no es un conflicto de git que
+avise: es una regresión callada.
+
+La rama existe para proteger `main` de trabajo **sin verificar**. En el momento en que
+algo sale al mundo —publicado, desplegado, entregado— y funciona, esa protección ya
+cumplió: a partir de ahí, dejarlo fuera no protege de nada y sólo acumula riesgo.
+
+Por eso, al cerrar, **si la rama lleva trabajo ya salido y probado, hay que
+preguntárselo a Luis en voz alta**: «esto está publicado y funcionando, ¿lo mezclo a
+`main`?». La decisión sigue siendo suya —ver `/rama`, que no cambia— pero deja de
+depender de que alguno se acuerde.
+
+Cuándo insistir:
+
+| Señal | Qué proponer |
+|---|---|
+| Una entrega lleva **un día** funcionando | Mezclarla. Es la señal principal |
+| Va la **tercera** entrega sin mezclar | Mezclar ya, aunque falte probar algo menor |
+| Hay **dos ramas** abiertas a la vez | Cerrar una antes de seguir con la otra |
+
+Si Luis dice que todavía no, **eso también se escribe**: el checkpoint anota cuántas
+entregas esperan su visto bueno y desde cuándo. Un pendiente con fecha se ve; uno sin
+fecha se vuelve costumbre.
+
+
 ## 6 · Antes de dar por cerrado
 
 Relee el checkpoint con una sola pregunta: **¿alguien que no estuvo aquí puede

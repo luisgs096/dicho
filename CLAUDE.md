@@ -51,12 +51,32 @@ conocimiento. Y se commitea con el resto.
   botón: el arrastre nativo (`start_dragging()` → `WM_NCLBUTTONDOWN`) no sirve
   porque abre un bucle modal que **activa** la ventana, y el HUD es no activable
   a propósito para no robarle el foco a lo que estás escribiendo.
+- `src-tauri/src/polish/groq.rs` — el pulido con IA, en **dos niveles**
+  (`Nivel::Ordenado` y `Nivel::Estructurado`). Lo único que cambia entre ellos es
+  el encargo del prompt y las guardas, pero el contrato es distinto: ordenar
+  promete **tus palabras**, estructurar promete **tu idea** y para eso puede
+  reescribir. Dos redes, y la segunda hubo que inventarla:
+  `desvia_demasiado()` mira el tamaño (techo igual en los dos; suelo a la mitad
+  en ordenado, a un sexto en estructurado, que para eso se pide) e
+  `inventa_demasiado()` mira **de quién son las palabras**. La segunda existe
+  porque con datos reales la longitud no separa: de los once dictados que el
+  modelo contestó, tres quedaron en proporciones de 0,20 · 0,29 · 0,29 — justo
+  lo que mide un buen resumen de un divague. Lo que sí los separa es que
+  reordenar usa las palabras del hablante y contestar trae otras nuevas, así que
+  se cuenta qué fracción de las palabras de 5+ letras ya estaba en el dictado.
+  Por debajo de la mitad, se descarta y cae al pulido por reglas.
 - `src-tauri/src/hotkey.rs` — hook global rdev; lee `settings.hotkey` en cada evento →
   cambios de atajo aplican en vivo sin reiniciar. **Escape mientras grabas manda
   `Cmd::Cancel`**: se tira el audio y no se transcribe nada. Ojo con la trampa —
   al cancelar el atajo *sigue apretado*, así que hay una bandera
   `esperando_soltar`; sin ella `all_down` seguiría siendo cierto y arrancaría un
   dictado nuevo en el acto.
+- **La ventana del HUD mide 112 de alto, no 96** (desde la 0.9.8): debajo de la
+  cápsula va la cinta de niveles y arriba asoma el botón del menú, que al pasarle
+  el ratón crece y saca halo. **Ese número está en dos sitios y tienen que ir a la
+  par**: `HUD_H` en `pipeline.rs` y el divisor de `--k` en `Hud.tsx`, que traduce
+  el lienzo real a escala. Cambiar uno solo hace que todo el contenido crezca o
+  encoja en esa proporción.
 - **El menú vive en la onda, no en Ajustes** (`MenuOnda` en `Hud.tsx`). Un botón
   de lápiz que aparece al pasar el ratón y despliega [clavar | mover]; si eliges
   mover, los mismos botones pasan a ser [listo | devolver a su sitio]. Clavada
@@ -109,6 +129,30 @@ conocimiento. Y se commitea con el resto.
   corazón, aspa— y **todos son de ancho impar**: `eyes()` centra con
   `(3 - ancho) / 2`, así que un ancho par los dejaría a medio píxel.
   Exporta `CARITA_COMILONA`/`CARITA_ERUCTO`, los dos índices que el HUD encadena,
+  **`ACTUALIZADO`** (el estreno de versión: un solo reloj CSS de **1,8 s**,
+  `forwards`, y todo **dentro de la cápsula normal**. Cinco tiempos: reposo →
+  la cápsula se llena de izquierda a derecha en verde menta mientras los ojos
+  giran y la boca pasa por tres gestos → destello blanco con el número de
+  versión en grande → el blanco se funde → la cara se revela **píxel a píxel**.
+  En el estilo clásico es igual pero al final se revelan las cinco barritas.
+  Tres cosas que costó aprender:
+  **(a)** la versión anterior era una película de 6 s en una ventana cuadrada de
+  260×260 y **se saboteaba sola** — al volverse cuadrada disparaba un `resize`,
+  el `resize` reescribía `--k`, y escribir una custom property en un ancestro
+  recrea la animación desde cero. Por eso desapareció el modo cine, y no sólo
+  por gusto.
+  **(b)** los "ojos en espiral" **no son un espiral**: es un arco recorriendo un
+  aro de 3×3 en un flipbook de 4 cuadros, en contrafase entre los dos ojos. El
+  espiral dibujado ya falló dos veces, y está escrito en `OJO_ASPA` ("a 5 px se
+  leía como una letra G") y en `MAREO` ("a 3 px se convierte en una mancha").
+  **(c)** el revelado va por diagonal `x+y` en coordenadas **absolutas**, no por
+  índice del sprite: por índice cada `spr()` reinicia en cero y los dos ojos y la
+  boca aparecerían a la vez, como tres manchas. Para eso `spr()` acepta un cuarto
+  parámetro opcional con el estilo por píxel.
+  Y dos detalles que rompen en silencio: `.screen` necesita `isolation: isolate`
+  o el `z-index:-1` de la barra se cuela detrás de la carcasa y **la barra no se
+  ve**; y el `.55` de opacidad de la barra no es decoración, es contraste —
+  menta maciza contra la cara da 1,45:1 en tema oscuro y la cara desaparece)
   y **`MAREO`**: las tres caritas que sólo salen al zarandear la onda mientras la
   colocas (mareada → aguantándose → vomita). Van **fuera de `V`** a propósito, que
   si no saldrían al azar en mitad de un dictado. Dos aprendizajes de dibujarlas:

@@ -71,6 +71,20 @@ pub fn get_history(
         .map_err(|e| e.to_string())
 }
 
+/// Las listas con las que el historial analiza un dictado.
+///
+/// Se mandan una vez y el contaje lo hace la interfaz: hacerlo en Rust
+/// significaría una llamada por tarjeta, y en el historial hay cien. Lo que no
+/// se duplica es la lista — vive en `polish` y de ahí sale también el prompt
+/// del Editor, con un test que vigila que no se separen.
+#[tauri::command]
+pub fn listas_analisis() -> serde_json::Value {
+    serde_json::json!({
+        "muletillas": crate::polish::MULETILLAS,
+        "anglicismos": crate::polish::ANGLICISMOS,
+    })
+}
+
 #[tauri::command]
 pub fn delete_history(store: State<'_, Arc<Store>>, id: i64) -> Result<(), String> {
     store.delete_history(id).map_err(|e| e.to_string())
@@ -222,6 +236,55 @@ pub fn hud_colocar(app: AppHandle, on: bool) {
         aplicar_raton_hud(&app, true);
     }
     pipeline::modo_colocar(&app, on);
+}
+
+/// Cambia el nivel de redacción desde la cinta de la onda.
+///
+/// Vive aquí y no en `save_settings` porque el HUD es una ventana aparte con su
+/// propia copia de los ajustes: mandar el objeto entero desde ahí pisaría
+/// cualquier cosa que el usuario estuviera tocando en Ajustes al mismo tiempo.
+#[tauri::command]
+pub fn hud_nivel(
+    app: AppHandle,
+    state: State<'_, SettingsState>,
+    nivel: settings::PolishKind,
+) -> Result<(), String> {
+    let copia = {
+        let mut s = state.write().map_err(|e| e.to_string())?;
+        s.polish = nivel;
+        s.clone()
+    };
+    settings::save(&app, &copia).map_err(|e| e.to_string())?;
+    let _ = app.emit("settings-changed", ());
+    Ok(())
+}
+
+/// El ratón entró o salió de la onda. Lo avisa el propio HUD.
+///
+/// Mientras está encima no se esconde aunque el dictado haya terminado: si se
+/// fuera bajo el cursor, llegar a su menú sería una carrera contra el
+/// cronómetro. Al salir se va sola, salvo que esté clavada o en plena faena.
+#[tauri::command]
+pub fn hud_encima(app: AppHandle, on: bool) {
+    pipeline::RATON_ENCIMA.store(on, Ordering::SeqCst);
+    if on {
+        return;
+    }
+    // Un respiro antes de irse: rozarla de pasada no debe hacerla desaparecer
+    // de golpe, y da margen a volver si el cursor se salió sin querer.
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(700));
+        if pipeline::RATON_ENCIMA.load(Ordering::SeqCst)
+            || pipeline::grabando()
+            || pipeline::hud_clavado(&app)
+            || pipeline::COLOCANDO.load(Ordering::SeqCst)
+        {
+            return;
+        }
+        if let Some(hud) = app.get_webview_window("hud") {
+            let _ = hud.hide();
+        }
+    });
 }
 
 /// Clava o desclava la onda en pantalla, desde su propio menú.

@@ -58,13 +58,21 @@ const PAL: Record<string, string> = {
 };
 
 /** Pinta un mapa de texto como rejilla de <rect> de 1×1. */
-export function spr(map: string[], ox = 0, oy = 0): string {
+export function spr(
+  map: string[],
+  ox = 0,
+  oy = 0,
+  /** Estilo por píxel, en coordenadas ya desplazadas. Lo usa el revelado del
+   *  estreno para repartir los retrasos; el resto de las caritas no lo pasan. */
+  estilo?: (x: number, y: number) => string,
+): string {
   let out = "";
   map.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
       const c = row[x];
-      if (PAL[c])
-        out += `<rect x="${x + ox}" y="${y + oy}" width="1" height="1" fill="${PAL[c]}"/>`;
+      if (!PAL[c]) continue;
+      const st = estilo ? ` style="${estilo(x + ox, y + oy)}"` : "";
+      out += `<rect x="${x + ox}" y="${y + oy}" width="1" height="1" fill="${PAL[c]}"${st}/>`;
     }
   });
   return out;
@@ -207,6 +215,10 @@ const ESCURRE = ["X", "X", "X"];
 /** Aspa flotante: en los tamagotchi el significado va en el símbolo de al lado,
  *  no en la cara. Ésta es la de "no, olvídalo". */
 const ASPA = ["X...X", ".X.X.", "..X..", ".X.X.", "X...X"];
+
+// ─── piezas de la actualización ─────────────────────────────────────────────
+/** Marco de la barra de progreso. El relleno va aparte para poder animarlo, y
+ *  en la película de la actualización **es la boca** del bicho. */
 
 const CARRILLOS_MEDIO = [".XXXXXXXXX.", "X.........X", ".XXXXXXXXX."];
 const CARRILLOS_LLENO = [
@@ -576,6 +588,69 @@ export const CARITA_CANCELADO: Variant = {
     <g class="a-aspa">${spr(tint(ASPA, "w"), 35, 5)}</g>`,
 };
 
+// ─── el estreno de versión ──────────────────────────────────────────────────
+//
+// Guion de Luis, en cinco tiempos y 1,8 s, todo DENTRO de la cápsula de
+// siempre. Antes era una película de 6 s en una ventana cuadrada de 260x260, y
+// se caía por su propio peso: al volverse cuadrada disparaba un resize, el
+// resize reescribía la variable CSS --k, y escribir una custom property en un
+// ancestro **recrea la animación desde cero** (el gotcha de CLAUDE.md). El
+// efecto se saboteaba solo.
+//
+//   1 · Reposo. La cápsula como siempre, para que lo de después se lea como
+//       una interrupción y no como el estado normal.
+//   2 · La cápsula se llena de izquierda a derecha, verde menta, a tirones.
+//       Mientras: los ojos giran y la boca pasa por tres gestos.
+//   3 · Al 100 % la barra se vuelve blanca de golpe y sale la versión en grande.
+//   4 · El blanco se funde con el fondo.
+//   5 · Vuelve el reposo: la cara se revela píxel a píxel.
+
+/** Ojos girando: un arco de celdas dando la vuelta a un aro de 3x3. Cuatro
+ *  cuadros son una vuelta.
+ *
+ *  **No es un espiral dibujado**, y no por pereza: ya se probó dos veces y las
+ *  dos salió mal. En OJO_ASPA está escrito que un remolino "a 5 px se leía como
+ *  una letra G", y en MAREO que "el espiral clásico a 3 px se convierte en una
+ *  mancha". Lo que sí lee como rotación a este tamaño es que el ojo se quede
+ *  quieto y lo que se mueva sea dónde está encendido. */
+const ARO = [
+  ["XXX", "..X", "..."],
+  ["..X", "..X", ".XX"],
+  ["...", "X..", "XXX"],
+  ["XX.", "X..", "X.."],
+];
+/** En contrafase, media vuelta de diferencia. Dos arcos girando a la vez y en
+ *  la misma posición se leen como un desplazamiento lateral, no como un giro:
+ *  es la misma lección del balancín de MAREO. */
+const OJOS_GIRO = ARO.map((_, i) => spr(ARO[i], LX, 6) + spr(ARO[(i + 2) % 4], RX, 6));
+
+/** El barrido del revelado: 12 ms por diagonal, arrancando en el 80 % de 1,8 s.
+ *  Va por `x + y` en coordenadas absolutas y no por índice del sprite: por
+ *  índice, cada spr() empezaría en cero y los dos ojos y la boca aparecerían a
+ *  la vez, como tres manchas. En diagonal hay un solo frente de onda cruzando
+ *  la tira. Literales y no variables CSS, por el gotcha de siempre. */
+const REVELA_PASO = 0.012;
+const REVELA_INI = 1.44 - 20 * REVELA_PASO;
+const revelado = (x: number, y: number) =>
+  `animation-delay:${(REVELA_INI + (x + y) * REVELA_PASO).toFixed(3)}s`;
+
+/** La cara de reposo. Se pinta con el pincel que le pasen —normal o con
+ *  retrasos— para no tener que dibujarla dos veces. */
+const CARA_REPOSO = (px: (m: string[], ox: number, oy: number) => string) =>
+  px(OJO_BRILLO, LX, 5) + px(OJO_BRILLO, RX, 5) + px(SONRISA, 18, 12);
+
+export const ACTUALIZADO: Variant = {
+  // El número va en grande dentro del destello blanco, así que aquí la
+  // pantallita dice lo de siempre y entra fundiéndose con el micro.
+  status: "Dicho",
+  scene: `<g class="u-ini">${CARA_REPOSO(spr)}</g>
+    <g class="u-carga">
+      ${flip(OJOS_GIRO, ".36s")}
+      ${flip([spr(ZIGZAG, 18, 12), spr(BOCA_O, 20, 11), spr(SONRISA_LADO, 18, 12)], ".72s")}
+    </g>
+    <g class="u-fin">${CARA_REPOSO((m, ox, oy) => spr(m, ox, oy, revelado))}</g>`,
+};
+
 export const MAREO: Variant[] = [
   {
     // 1 · Mareada. Los ojos hacen balancín en contrafase —el izquierdo arriba
@@ -695,19 +770,82 @@ const FLIP_CSS = [2, 3, 4, 5, 6, 7, 8]
 // `steps(1, end)` en casi todas: el sprite salta de píxel a píxel en vez de
 // deslizarse, que es lo que hace que el pixel-art se vea limpio.
 export const FACE_CSS = `
-  .tama { width: 336px; height: 64px; border-radius: 999px; padding: 5px;
+  .tama { width: 336px; height: 74px; border-radius: 999px; padding: 5px;
           background: linear-gradient(180deg, var(--shellA), var(--shellB));
           box-shadow: 0 18px 40px -18px rgba(10, 25, 60, .45), inset 0 1px 0 rgba(255,255,255,.35); }
   .screen { height: 100%; border-radius: 999px; background: var(--lcd);
             border: 1px solid var(--lcdBorder);
             box-shadow: inset 0 3px 10px rgba(10, 20, 40, .25);
             overflow: hidden; position: relative; color: var(--face);
-            display: flex; align-items: center; gap: 6px; padding: 0 12px 0 12px;
+            /* Sin esto, el z-index:-1 de la barra del estreno se cuela por
+               detrás de la carcasa y la barra no se ve. Es lo primero que hay
+               que mirar si el tiempo 2 sale vacío. */
+            isolation: isolate;
+            display: flex; align-items: center; gap: 6px;
+            /* Los 8 de abajo son el hueco de la cinta de niveles. */
+            padding: 0 12px 8px 12px;
             transition: background .25s; }
   .screen::before { content: ""; position: absolute; inset: 0; pointer-events: none;
     background-image: linear-gradient(var(--grid) 1px, transparent 1px),
                       linear-gradient(90deg, var(--grid) 1px, transparent 1px);
     background-size: 3px 3px; }
+  /* ── el toggle de redacción, DENTRO de la cápsula ──────────────────────
+     Dos casillas contra el borde de abajo del LCD. La curvatura sale gratis:
+     .screen ya es una pastilla con overflow oculto, así que los extremos los
+     recorta él con su propio radio.
+
+     Es un segmentado al estilo de los de Apple, pero traducido a pixel-art: en
+     vez de un pulgar que se desliza —deslizar medio píxel hace temblar el
+     dibujo— la pastilla del modo puesto aparece y desaparece de golpe, que es
+     la misma regla de steps(1, end) que siguen las caritas.
+
+     En reposo no es un menú: es UNA RAYITA encendida en la casilla del modo
+     puesto, izquierda o derecha, con el color de ese modo. Se lee de un vistazo
+     sin robarle sitio a la carita. Al pasar el ratón por cualquier parte de la
+     cápsula salen los dos nombres con su pastilla.
+
+     Mientras dictas se queda quieta: se sigue viendo, para saber en qué modo
+     estás, pero no se despliega ni acepta clics. Cambiar de modo a mitad de un
+     dictado no tendría a qué aplicarse. */
+  .niveles { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+             display: flex; height: 7px; padding: 0 14px; background: transparent;
+             transition: height .16s ease-out, background-color .16s; }
+  .tama:hover .niveles:not(.quieta), .clasico:hover .niveles:not(.quieta) {
+             height: 15px; background: color-mix(in srgb, var(--lcdBorder) 70%, transparent); }
+  .niv { flex: 1; display: flex; align-items: center; justify-content: center;
+         position: relative; background: transparent; border: 0; padding: 0;
+         cursor: pointer; }
+  .niv:disabled { cursor: default; }
+  /* La pastilla del segmentado. Sólo existe desplegado: en reposo la rayita ya
+     dice cuál está puesto y una pastilla de 7 px sería una mancha. */
+  .niv::before { content: ""; position: absolute; inset: 1px 3px; border-radius: 999px;
+                 background: transparent; }
+  .tama:hover .niveles:not(.quieta) .niv[data-on]::before,
+  .clasico:hover .niveles:not(.quieta) .niv[data-on]::before {
+                 background: color-mix(in srgb, var(--c, var(--a)) 20%, transparent); }
+  .tama:hover .niveles:not(.quieta) .niv:hover:not(:disabled):not([data-on])::before,
+  .clasico:hover .niveles:not(.quieta) .niv:hover:not(:disabled):not([data-on])::before {
+                 background: rgba(127, 145, 175, .22); }
+  /* La rayita de reposo, en el color del modo: es lo único que se ve sin ratón
+     y por eso cada modo lleva el suyo — si no, izquierda y derecha se
+     distinguirían sólo por la posición. */
+  .niv-luz { position: relative; height: 2px; width: 34%; border-radius: 2px;
+             background: transparent; transition: opacity .12s; }
+  .niv[data-on] .niv-luz { background: var(--c, var(--a)); }
+  .tama:hover .niveles:not(.quieta) .niv-luz,
+  .clasico:hover .niveles:not(.quieta) .niv-luz { opacity: 0; }
+  .niv-txt { position: absolute; inset: 0; display: flex; align-items: center;
+             justify-content: center; opacity: 0; transition: opacity .16s;
+             font: 700 7px/1 Consolas, "Cascadia Mono", monospace;
+             letter-spacing: .14em; text-transform: uppercase;
+             color: var(--faint); }
+  .tama:hover .niveles:not(.quieta) .niv-txt,
+  .clasico:hover .niveles:not(.quieta) .niv-txt { opacity: 1; }
+  .niv[data-on] .niv-txt { color: var(--c, var(--a)); }
+  .niv:disabled .niv-txt { opacity: 0; }
+  .tama:hover .niveles:not(.quieta) .niv:disabled .niv-txt,
+  .clasico:hover .niveles:not(.quieta) .niv:disabled .niv-txt { opacity: .3; }
+
   .mic-px { flex-shrink: 0; height: 30px; }
   .mic-px svg { height: 100%; width: auto; shape-rendering: crispEdges; display: block; }
   .scene { flex: 1; height: 50px; min-width: 0; }
@@ -840,6 +978,74 @@ ${FLIP_CSS}
   /* El aspa entra de golpe, late una vez y se queda: es la que da el mensaje. */
   @keyframes aspa { 0% { opacity: 0; } 12% { opacity: 1; } 24% { opacity: .35; }
                     36%, 100% { opacity: 1; } }
+
+  /* ── el estreno de versión ────────────────────────────────────────────────
+     Un solo reloj de 1,8 s y cada capa entra y sale por porcentajes de ese
+     mismo reloj. Las duraciones van literales y con longhands, nunca con el
+     atajo animation: el atajo reinicia animation-duration a 0s, y una duración
+     en var() se recrearía entera cada vez que algo escriba otra variable CSS.
+
+       0-10 %   reposo, para que lo siguiente se lea como interrupción
+       10-50 %  la barra cruza a tirones; ojos girando y tres bocas
+       50-64 %  destello blanco con la versión en grande
+       64-80 %  el blanco se funde con el fondo
+       80-100 % la cara se revela píxel a píxel                              */
+  .u-ini, .u-carga, .u-fin, .u-barra, .u-blanco, .u-entra {
+    animation-duration: 1.8s;
+    animation-iteration-count: 1;
+    animation-fill-mode: forwards;
+  }
+
+  .u-ini { animation-name: u-ini; animation-timing-function: steps(1, end); }
+  @keyframes u-ini { 0%, 10% { opacity: 1; } 11%, 100% { opacity: 0; } }
+
+  .u-carga { opacity: 0; animation-name: u-carga; animation-timing-function: steps(1, end); }
+  @keyframes u-carga { 0%, 9% { opacity: 0; } 10%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  /* Los dos flipbooks arrancan cuando arranca su tiempo, no cuando se monta la
+     escena: si no entran a media vuelta y la tercera boca se queda fuera. Un
+     ciclo de bocas y dos de ojos caben justos en los 720 ms. */
+  .u-carga .flip > g { animation-delay: .18s; }
+
+  /* La barra. Molde de .cinta —scaleX con el origen a la izquierda— pero la
+     escala la pone un keyframe y no una variable. A tirones y no lisa: un
+     relleno continuo se lee como decoración, a saltos se lee como trabajo.
+     El .55 de opacidad NO es decoración: menta maciza contra la cara da 3,8:1
+     en claro pero 1,45:1 en oscuro, donde la cara desaparecería. */
+  .u-barra { position: absolute; inset: 0; z-index: -1; background: var(--m);
+             opacity: .55; transform-origin: left center; transform: scaleX(0);
+             animation-name: u-barra; animation-timing-function: steps(1, end); }
+  @keyframes u-barra {
+    0%, 10% { transform: scaleX(0); }
+    16% { transform: scaleX(.14); }
+    22% { transform: scaleX(.22); }
+    29% { transform: scaleX(.48); }
+    36% { transform: scaleX(.55); }
+    43% { transform: scaleX(.84); }
+    50% { transform: scaleX(1); opacity: .55; }
+    52%, 100% { transform: scaleX(1); opacity: 0; }
+  }
+
+  /* El destello, con el número dentro: así se funden juntos sin un segundo
+     keyframe. El color del texto va literal y no en var(--face) porque en tema
+     oscuro --face es casi blanco y desaparecería sobre el destello. */
+  .u-blanco { position: absolute; inset: 0; z-index: 1; display: flex;
+              align-items: center; justify-content: center;
+              background: #fff; color: #16223a; opacity: 0;
+              font: 700 24px/1 Consolas, "Cascadia Mono", monospace;
+              letter-spacing: .04em;
+              animation-name: u-blanco; animation-timing-function: linear; }
+  @keyframes u-blanco { 0%, 49% { opacity: 0; } 50%, 64% { opacity: 1; } 80%, 100% { opacity: 0; } }
+
+  /* El revelado: cada píxel se enciende con su propio retraso. Un fundido corto
+     y no un salto — a pelo con steps se lee como tartamudeo. */
+  .u-fin rect, .u-px { opacity: 0; animation-name: u-px; animation-duration: .09s;
+    animation-timing-function: linear; animation-iteration-count: 1;
+    animation-fill-mode: forwards; }
+  @keyframes u-px { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Lo que vuelve fundiéndose al final: el micro, el texto y la cinta. */
+  .u-entra { opacity: 0; animation-name: u-entra; animation-timing-function: linear; }
+  @keyframes u-entra { 0%, 80% { opacity: 0; } 100% { opacity: 1; } }
 
   /* ── el mareo, sólo al zarandear la onda mientras la colocas ───────────── */
   /* Bamboleo: un píxel a cada lado. Con dos ya no parecía mareo sino temblor. */

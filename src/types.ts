@@ -1,5 +1,5 @@
 export type EngineKind = "parakeet" | "groq";
-export type PolishKind = "rules" | "groq_llm";
+export type PolishKind = "rules" | "groq_llm" | "groq_estructurado";
 export type HudStyle = "tamagotchi" | "classic";
 
 /** Dónde quedó el HUD, en fracción del hueco libre de la pantalla (0-1). */
@@ -14,15 +14,23 @@ export interface AppSettings {
   polish: PolishKind;
   language: string;
   no_traducir: boolean;
+  /** Deja el dictado en el portapapeles al terminar, para volver a pegarlo. */
+  copiar_al_portapapeles: boolean;
+  /** Ids de las secciones plegadas (se guardan las cerradas, no las abiertas). */
+  secciones_plegadas: string[];
   hud_enabled: boolean;
   hud_style: HudStyle;
   /** Un rincón por pantalla, por tamaño del área de trabajo ("3840x2040"). */
   hud_posiciones: Record<string, HudPos>;
   hud_arrastrable: boolean;
+  /** La cinta de niveles debajo de la onda. */
+  hud_niveles: boolean;
   /** Clavada: la onda se queda a la vista siempre, no sólo mientras dictas. */
   hud_pin: boolean;
   /** Lo transparente que se pone clavada y en reposo. 1 = opaca. */
   hud_opacidad_reposo: number;
+  /** Con qué versión arrancó la última vez; así se sabe si acabas de actualizar. */
+  ultima_version_vista: string;
   autostart: boolean;
   google_client_id: string;
   google_client_secret: string;
@@ -56,13 +64,18 @@ export type RecordingState =
   | { state: "empty" }
   /** Te arrepentiste a media frase: el audio se tiró sin transcribir. */
   | { state: "cancelado" }
+  /** Primer arranque tras actualizar: la carita lo celebra una vez. */
+  | { state: "actualizado"; version: string }
   | { state: "error"; message: string };
 
-/** Corrección del diccionario aplicada a un dictado. */
+/** Corrección del diccionario en un dictado. */
 export interface Correction {
   term: string;
   replacement: string;
+  /** Cuántas veces hacía falta corregir, contadas sobre el texto crudo. */
   count: number;
+  /** Cuántas llegaron de verdad al texto final. Con 0, el modelo la ignoró. */
+  aplicadas: number;
 }
 
 export interface HistoryItem {
@@ -71,8 +84,21 @@ export interface HistoryItem {
   raw: string;
   polished: string;
   engine: string;
+  /** Cuánto hablaste, no cuánto tardó en procesarse. */
   duration_ms: number;
   corrections: Correction[];
+  /** "reglas" | "estandar" | "editor". Ausente en los dictados anteriores a la
+   *  0.11: no se guardaba y no hay de dónde deducirlo. */
+  polish_mode: string | null;
+  stt_ms: number | null;
+  polish_ms: number | null;
+}
+
+/** Listas con las que se analiza un dictado, servidas por Rust (ver
+ *  `listas_analisis`) para no duplicarlas aquí. */
+export interface ListasAnalisis {
+  muletillas: string[];
+  anglicismos: string[];
 }
 
 export interface DictItem {

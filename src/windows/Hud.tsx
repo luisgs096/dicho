@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { AppSettings, HudStyle, RecordingState } from "../types";
+import type { AppSettings, HudStyle, PolishKind, RecordingState } from "../types";
 import {
   CARITA_COMILONA,
   CARITA_ERUCTO,
+  ACTUALIZADO,
   CARITA_CANCELADO,
   FACE_CSS,
   MAREO,
@@ -93,9 +94,35 @@ const DRAG_CSS = `
      refrescar. Sin él, una carita se convertía en otra de un fotograma a otro
      y parecía un fallo en vez de una transición. */
   .relevo .screen { filter: brightness(1.35) contrast(.9); }
-  .colocando { outline: 2px dashed var(--a); outline-offset: 4px;
-    border-radius: 14px; animation: destello 1.4s ease-in-out infinite; }
-  @keyframes destello { 50% { outline-color: transparent; } }
+  /* El aro de "estoy suelta": hormiguitas que dan la vuelta al marco, más un
+     respiro de luz. Antes era un outline punteado que sólo parpadeaba, y un
+     parpadeo se lee como un error; el punteado que camina se lee como algo vivo
+     y esperando. Va en un pseudoelemento porque outline no sabe animar el
+     recorrido de sus guiones: aquí cada lado es un degradado repetido al que se
+     le mueve la posición, que es el truco de las "marching ants" de toda la
+     vida. Los cuatro lados corren en el mismo sentido —derecha arriba,
+     izquierda abajo, abajo a la izquierda, arriba a la derecha— para que el
+     conjunto gire y no se note que son cuatro trozos. */
+  .colocando { position: relative; }
+  .colocando::before {
+    content: ""; position: absolute; inset: -6px; border-radius: 16px;
+    pointer-events: none;
+    background-image:
+      repeating-linear-gradient(90deg, var(--a) 0 7px, transparent 7px 14px),
+      repeating-linear-gradient(90deg, var(--a) 0 7px, transparent 7px 14px),
+      repeating-linear-gradient(0deg, var(--a) 0 7px, transparent 7px 14px),
+      repeating-linear-gradient(0deg, var(--a) 0 7px, transparent 7px 14px);
+    background-size: 100% 2px, 100% 2px, 2px 100%, 2px 100%;
+    background-position: 0 0, 0 100%, 0 0, 100% 0;
+    background-repeat: no-repeat;
+    animation: hormigas 1.1s linear infinite, respira 2.2s ease-in-out infinite;
+  }
+  @keyframes hormigas {
+    to { background-position: 14px 0, -14px 100%, 0 -14px, 100% 14px; }
+  }
+  /* El respiro: se enciende y se apaga poquito a poco, sin llegar a apagarse.
+     Bajar de .55 lo volvía otra vez un parpadeo. */
+  @keyframes respira { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 `;
 
 // ─── el menú de la propia onda ──────────────────────────────────────────────
@@ -218,10 +245,12 @@ export function MenuOnda(props: {
   onListo: () => void;
   onReset: () => void;
 }) {
-  // Asomando por la esquina, pero con cuentas: la ventana del HUD deja 16 px de
-  // aire por arriba y 12 por los lados, y al pasar el ratón el botón crece un
-  // 18 % (≈2,4 px por lado) y saca un halo de 3. Sobresalir 8 arriba y 4 a la
-  // derecha deja margen justo para eso sin que Windows lo recorte.
+  // Asomando por la esquina, pero con cuentas. La ventana de 104 deja 22 px de
+  // aire por arriba y 12 por los lados —el aire no se reparte a medias: la
+  // cápsula va pegada abajo justo para que el menú tenga sitio—, y al pasar el
+  // ratón el botón crece un 18 % (≈2,4 px por lado) y saca un halo de 3.
+  // Sobresalir 8 arriba y 4 a la derecha deja margen de sobra: medido, el borde
+  // de arriba del halo se queda a 8,7 px del techo de la ventana.
   const marco = "absolute -right-1 -top-2 z-10 h-[26px] w-[26px]";
 
   if (props.colocando) {
@@ -245,20 +274,24 @@ export function MenuOnda(props: {
   }
 
   // De dentro hacia fuera: el primero en salir es el que queda pegado al más.
-  // Leídos de izquierda a derecha quedan en el orden de siempre — devolver,
-  // clavar, mover — y el que más viaja es el que sale el último.
+  // Leídos de izquierda a derecha: clavar, devolver, mover.
+  //
+  // **Los dos de posición van juntos** —devolverla a su sitio y cambiarla de
+  // sitio— porque son la misma conversación: dónde vive la onda. Clavar es otra
+  // cosa (si se queda o no a la vista), así que se va al extremo y deja de
+  // partir la pareja en dos.
   const orbita = [
-    {
-      titulo: "Devolverla a su sitio de siempre",
-      icono: <IconoReset />,
-      onClick: props.onReset,
-      tono: "normal" as const,
-    },
     {
       titulo: props.pin ? "Desclavarla" : "Clavarla en pantalla",
       icono: <IconoPin />,
       onClick: props.onPin,
       tono: props.pin ? ("activo" as const) : ("normal" as const),
+    },
+    {
+      titulo: "Devolverla a su sitio de siempre",
+      icono: <IconoReset />,
+      onClick: props.onReset,
+      tono: "normal" as const,
     },
     {
       titulo: "Cambiarla de sitio",
@@ -306,6 +339,92 @@ export function MenuOnda(props: {
         </svg>
       </BotonOnda>
     </div>
+  );
+}
+
+/**
+ * El toggle de redacción, **dentro** de la cápsula y pegada a su borde de abajo.
+ *
+ * Existe porque el nivel de redacción se decide justo antes de hablar, no una
+ * semana antes en un ajuste. Teniéndolo aquí, el gesto es: miras la onda, ves
+ * en qué modo está, y si no es el que quieres lo cambias de un clic.
+ *
+ * En reposo no es un menú: es **una rayita encendida** en la casilla del modo
+ * puesto —izquierda o derecha, con el color de ese modo—, que se lee de un
+ * vistazo sin robarle sitio a la carita. Al pasar el ratón por cualquier parte de la cápsula se
+ * despliega con los nombres. Toda la presentación es CSS (`.niveles` en
+ * faces.ts): el hover no pasa por React, así que no repinta nada ni reinicia
+ * las animaciones de las caritas.
+ *
+ * La curvatura de los extremos no se dibuja aquí — la recorta `.screen`, que
+ * es una pastilla con `overflow: hidden`.
+ */
+const NIVELES_HUD: {
+  id: PolishKind;
+  corto: string;
+  largo: string;
+  /** Color de su rayita. En reposo es lo ÚNICO que se ve, así que cada modo
+   *  lleva el suyo: si no, izquierda y derecha se distinguirían sólo por la
+   *  posición y habría que acordarse de cuál es cuál. */
+  color: string;
+}[] = [
+  {
+    id: "groq_llm",
+    corto: "Estándar",
+    largo: "Estándar — mismas palabras, mejor forma",
+    color: "var(--a)",
+  },
+  {
+    id: "groq_estructurado",
+    corto: "Editor",
+    largo: "Editor — te redacta la idea en párrafos",
+    color: "var(--p)",
+  },
+];
+
+function CintaNiveles(props: { nivel: PolishKind; hasKey: boolean; quieta: boolean }) {
+  return (
+    <div
+      className={`niveles ${props.quieta ? "quieta" : ""}`}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      {NIVELES_HUD.map((n) => {
+        const bloqueado = !props.hasKey || props.quieta;
+        return (
+          <button
+            key={n.id}
+            type="button"
+            className="niv"
+            style={{ "--c": n.color } as React.CSSProperties}
+            data-on={props.nivel === n.id ? "" : undefined}
+            title={
+              props.quieta
+                ? "El modo se elige antes de dictar"
+                : props.hasKey
+                  ? n.largo
+                  : `${n.largo} (necesita la key de Groq)`
+            }
+            disabled={bloqueado}
+            onClick={() => invoke("hud_nivel", { nivel: n.id }).catch(() => {})}
+          >
+            <span className="niv-luz" />
+            <span className="niv-txt">{n.corto}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Las dos capas del estreno de versión: la barra que se llena y el destello
+ *  blanco con el número. Idénticas en los dos estilos, porque no dependen de qué
+ *  haya dibujado dentro de la cápsula — ahí está el 80 % del guion. */
+function CapasEstreno({ version }: { version: string }) {
+  return (
+    <>
+      <span className="u-barra" />
+      <span className="u-blanco">v{version}</span>
+    </>
   );
 }
 
@@ -378,6 +497,10 @@ export default function Hud() {
   /** Clavada en pantalla: no se esconde al acabar el dictado. */
   const [pin, setPin] = useState(false);
   const [opacidadReposo, setOpacidadReposo] = useState(0.45);
+  /** El nivel de redacción y si se puede usar: los pinta la cinta de abajo. */
+  const [nivel, setNivel] = useState<PolishKind>("rules");
+  const [verNiveles, setVerNiveles] = useState(true);
+  const [hasKey, setHasKey] = useState(false);
   /** El menú de la onda está desplegado. */
   const [menu, setMenu] = useState(false);
   /** El ratón está encima: saca los controles y le quita el velo. */
@@ -408,9 +531,11 @@ export default function Hud() {
   // lienzo más grande: se escala todo en bloque para llenarlo igual.
   useEffect(() => {
     const ajustar = () => {
+      // 104 es el alto lógico de la ventana (ver HUD_H en pipeline.rs). Los dos
+      // números tienen que ir a la par: éste traduce el lienzo real a escala.
       document.documentElement.style.setProperty(
         "--k",
-        (window.innerHeight / 96).toFixed(3),
+        (window.innerHeight / 104).toFixed(3),
       );
       // Si el lienzo se desbordara, Windows le metería barras de scroll que
       // roban 15 px y ya no se van. No debería volver a pasar (overflow
@@ -487,6 +612,10 @@ export default function Hud() {
     };
   }, []);
 
+  useEffect(() => {
+    invoke<boolean>("has_groq_key").then(setHasKey).catch(() => {});
+  }, []);
+
   // Zarandéala mientras la colocas y se marea. Cada meneo sube un escalón:
   // mareada → aguantándose → ya no aguantó. El backend sólo avisa de que hubo
   // meneo; la escalada es cosa de aquí, que es presentación pura.
@@ -541,6 +670,8 @@ export default function Hud() {
           setHudStyle(s.hud_style);
           setPin(s.hud_pin);
           setOpacidadReposo(s.hud_opacidad_reposo ?? 0.45);
+          setNivel(s.polish);
+          setVerNiveles(s.hud_niveles ?? true);
         })
         .catch(console.error);
     load();
@@ -600,8 +731,13 @@ export default function Hud() {
 
   // Agarrar el HUD: el backend se queda siguiendo el cursor hasta que sueltes,
   // así que desde aquí sólo hay que dar el pistoletazo de salida.
+  // La onda **sólo se mueve en modo colocación**. Antes se arrastraba siempre, y
+  // eso convertía en mentira al botón de «cambiarla de sitio»: si ya se podía
+  // mover sin pedir permiso, el modo no decidía nada — y era fácil desplazarla
+  // sin querer al ir a pulsar su menú. Ahora el aro punteado es la única señal
+  // de que está suelta, y cuando no está, no se mueve.
   const agarrar = (e: React.PointerEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || !colocando) return;
     e.preventDefault();
     setAgarrando(true);
     invoke("hud_arrastrar").catch(() => {});
@@ -620,7 +756,11 @@ export default function Hud() {
       clearTimeout(t);
     };
   }, [agarrando]);
-  const gesto = `agarrable ${agarrando ? "agarrando" : ""} select-none`;
+  // Manita sólo donde se puede agarrar de verdad: fuera del modo colocación la
+  // onda no se mueve, y un cursor de arrastre sería una promesa falsa.
+  const gesto = `${colocando ? "agarrable" : ""} ${
+    agarrando ? "agarrando" : ""
+  } select-none`;
 
   const pal = dark ? DARK : LIGHT;
   const vars = useMemo(
@@ -671,18 +811,28 @@ export default function Hud() {
   // qué va el dictado, y para entonces no hay dictado ninguno.
   const mareada = mareo > 0 ? MAREO[mareo - 1] : null;
   const cancelada = rec.state === "cancelado" ? CARITA_CANCELADO : null;
+  // El estreno ya no es una pantalla aparte: es una carita más que entra por
+  // el camino de siempre, con dos capas encima de la cápsula. Ver `ACTUALIZADO`
+  // en faces.ts.
+  const estrenando = rec.state === "actualizado";
+  const version = rec.state === "actualizado" ? rec.version : "";
+  const estrenada = rec.state === "actualizado" ? ACTUALIZADO : null;
   // En error se reutiliza la carita de "señal perdida" con el mensaje real.
   const v =
     mareada ??
     cancelada ??
+    estrenada ??
     (isError ? V["no-entendi"][3] : (V[face][variant] ?? V[face][0]));
-  const sad = (isError && !mareada && !cancelada) || v.sad;
+  const sad = (isError && !mareada && !cancelada && !estrenada) || v.sad;
   const porLimite = rec.state === "processing" && rec.motivo === "limite";
   const status = mareada
     ? mareada.status
     : cancelada
     ? cancelada.status
-    : colocando
+    : // Al estrenar, la pantallita lleva el número: en los sprites no cabe.
+      rec.state === "actualizado"
+      ? `v${rec.version}`
+      : colocando
     ? "Arrástrame"
     : isError
       ? rec.message
@@ -715,11 +865,18 @@ export default function Hud() {
         : "border-slate-200/80 bg-white/95 text-slate-700";
     return (
       <div
-        className={`flex h-screen w-screen items-center justify-center ${gesto}`}
+        className={`flex h-screen w-screen items-end justify-center pb-2 ${gesto}`}
         style={{ ...vars, opacity: velo, transition: "opacity .18s" }}
         onPointerDown={agarrar}
-        onPointerEnter={() => setEncima(true)}
-        onPointerLeave={() => { setEncima(false); setMenu(false); }}
+        onPointerEnter={() => {
+          setEncima(true);
+          invoke("hud_encima", { on: true }).catch(() => {});
+        }}
+        onPointerLeave={() => {
+          setEncima(false);
+          setMenu(false);
+          invoke("hud_encima", { on: false }).catch(() => {});
+        }}
       >
         <style>{CLASSIC_CSS + DRAG_CSS}</style>
         <div
@@ -739,10 +896,42 @@ export default function Hud() {
             />
           )}
           <div
-            className={`relative flex h-[64px] w-[336px] items-center gap-3 overflow-hidden rounded-full border px-5 shadow-2xl shadow-blue-900/20 backdrop-blur transition-colors ${
+            className={`clasico relative flex h-[74px] w-[336px] items-center gap-3 overflow-hidden rounded-full border px-5 pb-2 shadow-2xl shadow-blue-900/20 backdrop-blur transition-colors ${
               naranja ? "classic-shake" : ""
-            } ${pill}`}
+            } ${pill} ${estrenando ? "isolate" : ""}`}
           >
+            {/* El estreno, en el estilo clásico: las mismas dos capas, y al
+                final se revelan las cinco barritas en vez de la cara. Mismo
+                frente de onda —1,44 a 1,68 s— y mismo keyframe. */}
+            {estrenando && (
+              <>
+                <CapasEstreno version={version} />
+                <span className="u-entra flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white dark:bg-sky-500">
+                  <MicIcon className="h-4 w-4" />
+                </span>
+                <div className="flex h-8 flex-1 items-center justify-center gap-2.5">
+                  {BAR_LAG.map((_, i) => (
+                    <span
+                      key={i}
+                      className="u-px w-2 rounded-full"
+                      style={{
+                        height: BAR_MIN,
+                        backgroundColor: dark ? "#38bdf8" : "#2563eb",
+                        animationDelay: `${(1.44 + i * 0.06).toFixed(2)}s`,
+                      }}
+                    />
+                  ))}
+                </div>
+                <span
+                  className={`u-entra shrink-0 text-[11px] font-medium ${
+                    dark ? "text-slate-400" : "text-slate-500"
+                  }`}
+                >
+                  Dicho
+                </span>
+              </>
+            )}
+
             {(rec.state === "recording" || rec.state === "processing") && (
               <>
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white dark:bg-sky-500">
@@ -830,6 +1019,15 @@ export default function Hud() {
                 {colocando ? "Arrástrame donde quieras" : "Dicho"}
               </p>
             )}
+            {verNiveles && (
+              <span className={estrenando ? "u-entra" : ""}>
+                <CintaNiveles
+                  nivel={nivel}
+                  hasKey={hasKey}
+                  quieta={rec.state === "recording" || rec.state === "processing"}
+                />
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -838,11 +1036,18 @@ export default function Hud() {
 
   return (
     <div
-      className={`flex h-screen w-screen items-center justify-center ${gesto}`}
+      className={`flex h-screen w-screen items-end justify-center pb-2 ${gesto}`}
       style={{ ...vars, opacity: velo, transition: "opacity .18s" }}
       onPointerDown={agarrar}
-      onPointerEnter={() => setEncima(true)}
-      onPointerLeave={() => { setEncima(false); setMenu(false); }}
+      onPointerEnter={() => {
+        setEncima(true);
+        invoke("hud_encima", { on: true }).catch(() => {});
+      }}
+      onPointerLeave={() => {
+        setEncima(false);
+        setMenu(false);
+        invoke("hud_encima", { on: false }).catch(() => {});
+      }}
     >
       <style>{FACE_CSS + DRAG_CSS}</style>
       <div
@@ -866,8 +1071,9 @@ export default function Hud() {
           className={`tama ${sad ? "sad" : ""} ${v.shake && !isError ? "shake" : ""} ${relevo ? "relevo" : ""}`}
         >
           <div className="screen" style={{ color: sad ? pal.w : pal.face }}>
+            {estrenando && <CapasEstreno version={version} />}
             <span
-              className="mic-px"
+              className={`mic-px ${estrenando ? "u-entra" : ""}`}
               dangerouslySetInnerHTML={{ __html: MIC_SVG }}
             />
             <span className="scene">
@@ -879,11 +1085,20 @@ export default function Hud() {
               />
             </span>
             <span
-              className={`status ${rec.state === "done" || isError ? "texto" : ""}`}
+              className={`status ${rec.state === "done" || isError ? "texto" : ""} ${estrenando ? "u-entra" : ""}`}
             >
               {status}
             </span>
             {cinta}
+            {verNiveles && (
+              <span className={estrenando ? "u-entra" : ""}>
+                <CintaNiveles
+                  nivel={nivel}
+                  hasKey={hasKey}
+                  quieta={rec.state === "recording" || rec.state === "processing"}
+                />
+              </span>
+            )}
           </div>
         </div>
       </div>

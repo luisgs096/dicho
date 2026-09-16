@@ -6,7 +6,13 @@ use std::time::Duration;
 /// Inserta texto en la app activa: respalda el portapapeles, coloca el texto,
 /// simula Ctrl+V y restaura el contenido original. Maneja Unicode completo
 /// (acentos, ñ, emoji) sin depender del layout de teclado.
-pub fn inject_text(text: &str) -> anyhow::Result<()> {
+///
+/// Con `conservar` en true **no restaura** lo que había: el dictado se queda en
+/// el portapapeles para poder pegarlo otra vez con Ctrl+V donde quieras. Sale
+/// casi gratis porque el texto ya pasaba por ahí para pegarse — lo único que se
+/// salta es el último paso. Va apagado por defecto: pisarle a alguien lo que
+/// tenía copiado sin avisar es de las cosas que se notan tarde y molestan.
+pub fn inject_text(text: &str, conservar: bool) -> anyhow::Result<()> {
     let mut clipboard =
         arboard::Clipboard::new().context("No se pudo acceder al portapapeles")?;
     let previous = clipboard.get_text().ok();
@@ -26,8 +32,10 @@ pub fn inject_text(text: &str) -> anyhow::Result<()> {
     // La app destino lee el portapapeles de forma asíncrona: restaurar
     // demasiado pronto rompería el pegado.
     thread::sleep(Duration::from_millis(350));
-    if let Some(old) = previous {
-        let _ = clipboard.set_text(old);
+    if !conservar {
+        if let Some(old) = previous {
+            let _ = clipboard.set_text(old);
+        }
     }
     Ok(())
 }

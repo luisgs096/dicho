@@ -79,8 +79,27 @@ export function useUpdater() {
 
   useEffect(() => {
     getVersion().then(setVersionActual).catch(console.error);
-    // Una sola comprobación silenciosa al abrir la ventana de ajustes.
+    // Una comprobación silenciosa al abrir la ventana…
     buscar(false);
+    // …y otra cada vez que la ventana vuelve al frente. Antes se miraba **sólo**
+    // al abrirla: con la ventana abierta de fondo durante horas, la campanita de
+    // "hay versión nueva" no se encendía nunca aunque la hubiera. Volver a mirar
+    // al recuperar el foco es el momento exacto en que el usuario va a verla.
+    // No se vuelve a mirar si ya hay una esperando o se está instalando: sería
+    // pisar el estado en mitad de la descarga.
+    const alVolver = () => {
+      if (document.visibilityState !== "visible") return;
+      setEstado((e) => {
+        if (e.fase === "inactivo" || e.fase === "alDia") buscar(false);
+        return e;
+      });
+    };
+    window.addEventListener("focus", alVolver);
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      window.removeEventListener("focus", alVolver);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
   }, [buscar]);
 
   return { estado, versionActual, buscar, instalar };

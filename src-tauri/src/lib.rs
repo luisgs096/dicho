@@ -101,6 +101,35 @@ pub fn run() {
                 });
             }
 
+            // ¿Acabamos de actualizar? Se compara la versión de ahora con la
+            // que quedó apuntada la última vez. Si cambió, la onda lo celebra
+            // **una sola vez**; si el apunte está vacío es una instalación
+            // nueva, que no ha actualizado nada y no tiene qué celebrar.
+            {
+                let ahora = app.package_info().version.to_string();
+                let antes = settings_state
+                    .read()
+                    .map(|s| s.ultima_version_vista.clone())
+                    .unwrap_or_default();
+                if antes != ahora {
+                    if let Ok(mut s) = settings_state.write() {
+                        s.ultima_version_vista = ahora.clone();
+                        let copia = s.clone();
+                        drop(s);
+                        let _ = settings::save(&handle, &copia);
+                    }
+                    if !antes.is_empty() {
+                        let h = handle.clone();
+                        std::thread::spawn(move || {
+                            // El mismo respiro que el HUD clavado: antes de esto
+                            // el webview aún no sabe de qué tamaño es.
+                            std::thread::sleep(std::time::Duration::from_millis(1400));
+                            pipeline::celebrar_actualizacion(&h, &ahora);
+                        });
+                    }
+                }
+            }
+
             build_tray(app)?;
 
             let (tx, rx) = mpsc::channel();
@@ -154,6 +183,7 @@ pub fn run() {
             commands::model_status,
             commands::download_model,
             commands::get_history,
+            commands::listas_analisis,
             commands::delete_history,
             commands::dict_list,
             commands::dict_add,
@@ -170,6 +200,8 @@ pub fn run() {
             commands::hud_colocar,
             commands::hud_pos_reset,
             commands::hud_pin,
+            commands::hud_encima,
+            commands::hud_nivel,
             commands::programar_relanzamiento,
         ])
         .run(tauri::generate_context!())

@@ -10,6 +10,148 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.11.0 — 16 de septiembre de 2026
+
+- **El historial ahora cuenta qué pasó con cada dictado.** Cada tarjeta enseña en
+  un renglón la fecha, el modo que redactó y cuántas correcciones hubo; el botón
+  de la **i** despliega el detalle. Al pasar el ratón por un indicador se resalta
+  en el texto lo que cuenta, cada uno con su color, y el interruptor
+  **CRUDO/FINAL** de arriba a la derecha te deja ver lo que salió de la voz antes
+  de redactar.
+- **Los chips de correcciones dejan de mentir.** Estaban calculados sobre el texto
+  crudo, así que eran una predicción y no un registro: medido, 10 de 21 decían
+  haberse aplicado y no estaban en el texto. Ahora se miden después de redactar y
+  las que el modelo ignoró salen marcadas — así te enteras de que tu diccionario
+  no se está respetando, en vez de creer que sí.
+- **La animación de actualizar es otra, y dura 1,8 s.** Dentro de la onda de
+  siempre: la cápsula se llena de verde menta mientras los ojos giran, sale tu
+  número de versión en grande sobre un destello blanco, y la carita vuelve
+  revelándose píxel a píxel. El estilo clásico también la tiene.
+- **Las secciones de la ventana se pliegan** y la app recuerda cómo las dejaste.
+  Ya no hace falta bajar media pantalla para llegar a lo de abajo.
+- **LABS se va al final de Inicio y se pone verde entero**, para que se note de un
+  vistazo qué parte es el experimento.
+- **El dictado se puede quedar en el portapapeles** (Ajustes), para volver a
+  pegarlo con Ctrl+V donde quieras. Y el botón de copiar del historial por fin
+  dice que copió.
+- La onda adelgaza 8 px: tenía una franja invisible abajo que sólo servía para
+  atrapar clics donde no había nada dibujado.
+
+## 0.10.1 — 15 de septiembre de 2026
+
+- **"Estructurado" ahora se llama "Editor".** El nombre viejo no decía nada:
+  "Ordenado" y "Estructurado" eran dos adjetivos del mismo eje y sonaban igual,
+  así que no se entendía en qué se diferenciaban. "Editor" nombra un oficio —lo
+  que hace es lo que haría un editor con tu texto— y por eso no se confunde con
+  "Estándar".
+- Tu modo elegido se respeta: por dentro sigue siendo el mismo ajuste, sólo
+  cambia el nombre que ves.
+
+## 0.10.0 — 15 de septiembre de 2026
+
+- **El modo Estructurado ahora sí redacta.** No estaba haciendo casi nada: medido
+  contra tus propios dictados, devolvía el texto **idéntico** al crudo, con las
+  muletillas y los puntos suspensivos intactos. Ahora lee la idea entera y la
+  vuelve a escribir en párrafos. En tres dictados reales pasó de 1,00x a 0,49x–0,68x,
+  sin una sola muletilla y sin un solo "...".
+- **Usa un modelo más grande** (120b en vez de 20b). El chico no reordenaba: si te
+  corregías a media frase —"de tres opciones… no, de dos"— dejaba las dos y se
+  contradecía. Cuesta unos 2 segundos más, y sólo en este modo: el Estándar sigue
+  igual de rápido.
+- **El selector de la onda es ahora un toggle de dos**, Estándar y Estructurado,
+  cada uno con su color. Colapsado se ve sólo la rayita del que está puesto; al
+  pasar el ratón salen los nombres.
+- **Ya no se puede cambiar de modo a media frase.** Mientras dictas la barra se ve,
+  pero se queda quieta: elegirlo a mitad de un dictado no tenía a qué aplicarse.
+- Si el modelo grande no contesta, cae al Estándar antes que al pulido por reglas.
+  Antes pasaba de un texto redactado a uno sin tocar, y sin avisar.
+- Cada dictado deja en el log qué modo corrió y cuánto cambió el texto. Sin eso no
+  había forma de contestar "¿por qué salió igual que el crudo?".
+
+## 0.9.9 — 15 de septiembre de 2026
+
+- **La cinta de niveles ahora vive dentro de la onda, no pegada debajo.** En la
+  0.9.8 se veían como dos piezas distintas; ahora es una sola: la cápsula creció
+  un poco y la cinta se apoya en su borde de abajo, recortada por la misma curva.
+- **En reposo no es un menú, es una rayita encendida** bajo el nivel que está
+  puesto —izquierda, centro o derecha—. De un vistazo sabes en qué modo estás sin
+  que le robe sitio a la carita.
+- **Se despliega con los nombres al pasar el ratón por cualquier parte de la
+  onda**, no sólo por encima de la cinta. Y se cierra sola al salir.
+
+## 0.9.8 — 15 de septiembre de 2026
+
+- **La onda ahora lleva su cinta de niveles debajo.** Una tira fina con los tres
+  —Tal cual · Ordenado · Estructurado— y el que está puesto en azul. Sirve para
+  cambiarlo **de un clic justo antes de hablar**, que es el momento en que de
+  verdad lo decides. Va en los dos estilos, el de caritas y el clásico.
+- Se prende y se apaga desde **LABS**, en Inicio. Y se aprovecha mejor con la
+  onda clavada, porque así está siempre a la vista.
+- Los dos niveles con IA salen apagados si todavía no pusiste tu key de Groq.
+
+## 0.9.7 — 15 de septiembre de 2026
+
+- **LABS: ahora decides cuánto puede cambiar Dicho lo que dijiste.** En Inicio
+  hay una sección verde nueva con tres escalones: **Tal cual** (tus palabras
+  exactas, sin IA, al instante), **Ordenado** (el de siempre: quita muletillas y
+  puntúa) y **Estructurado**, que es el nuevo — junta lo que dijiste disperso,
+  tira los rodeos y saca listas si las hay.
+- Estructurado es para cuando piensas en voz alta y la idea sale dando vueltas.
+  Es el único que puede cambiarte las palabras, y **nunca puede añadir las que
+  no dijiste**: si el resultado trae vocabulario que tú no usaste, Dicho lo
+  descarta solo y escribe la versión limpia de siempre.
+- Funciona con la key gratuita de Groq, la misma que ya usabas.
+
+## 0.9.6 — 15 de septiembre de 2026
+
+- **Al actualizar, Dicho te cuenta una película.** Para ese momento —y sólo para
+  ése— la onda se vuelve una pantalla cuadrada y pasa esto: la carita sonríe, la
+  cámara bascula y le mira la cabeza **desde arriba**, se abren dos compuertas,
+  sale la pieza vieja carcomida, entra una nueva y dorada, **y el anillo se
+  enciende**. Se cierran las compuertas, la cámara vuelve al frente, y arranca
+  con los ojos en aspa y la lengua fuera mientras **la boca se le llena como una
+  barra de carga**. Al terminar: sonrisa y **el número de la versión** que acaba
+  de entrar.
+- Sólo con las caritas puestas. En el estilo clásico no hay bicho que abrir.
+
+## 0.9.5 — 15 de septiembre de 2026
+
+- **Dicho celebra cuando lo actualizas.** Al primer arranque con una versión
+  nueva, la onda sale una vez a festejarlo, con el número puesto en su
+  pantallita. Cinco variantes al azar: le llega un **disquete** que desempolva y
+  se mete por la ranura, le cambian el **cerebro** por uno rosa nuevecito, le
+  llega una **playera** por paquetería, le ponen **pilas nuevas** y se le
+  encienden los ojos, o directamente **evoluciona** como los tamagotchi de
+  siempre, con fogonazo y chispas.
+- Sólo sale al actualizar, nunca en una instalación nueva, y nunca si tienes la
+  onda apagada.
+
+## 0.9.4 — 15 de septiembre de 2026
+
+- **Te avisa cuando hay versión nueva.** Sale una campanita verde en el botón de
+  **Ajustes** del panel lateral, latiendo despacio. Verde y no roja a propósito:
+  una versión nueva es una buena noticia, no una alarma.
+- Y ahora Dicho **vuelve a mirar si hay novedades cada vez que traes la ventana
+  al frente**. Antes sólo miraba al abrirla, así que con la ventana abierta de
+  fondo podía no enterarse nunca.
+
+## 0.9.3 — 15 de septiembre de 2026
+
+- **Los dos botones de posición quedan juntos** en el menú de la onda: ahora el
+  orden es clavar · devolverla a su sitio · cambiarla de sitio. Antes el de
+  clavar se metía en medio y partía la pareja.
+
+## 0.9.2 — 15 de septiembre de 2026
+
+- **La onda ya no se te escapa.** Si le pasas el ratón por encima se queda a la
+  vista aunque el dictado haya terminado, para que dé tiempo a abrir su menú. Se
+  va sola al retirar el cursor.
+- **Ahora sólo se mueve cuando tú lo dices.** Antes se arrastraba siempre, y era
+  fácil desplazarla sin querer al ir a pulsar su menú. A partir de ahora hay que
+  entrar en «cambiarla de sitio»: fuera de ahí, no se mueve.
+- **El aro de colocación está vivo**: el punteado da la vuelta como hormiguitas y
+  respira, en vez de parpadear.
+
 ## 0.9.1 — 15 de septiembre de 2026
 
 - **El menú de la onda se abre en abanico.** Ahora es un **+** asomando por la
