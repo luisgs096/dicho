@@ -10,6 +10,17 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.9.9 — 15 de septiembre de 2026
+
+- **La cinta de niveles ahora vive dentro de la onda, no pegada debajo.** En la
+  0.9.8 se veían como dos piezas distintas; ahora es una sola: la cápsula creció
+  un poco y la cinta se apoya en su borde de abajo, recortada por la misma curva.
+- **En reposo no es un menú, es una rayita encendida** bajo el nivel que está
+  puesto —izquierda, centro o derecha—. De un vistazo sabes en qué modo estás sin
+  que le robe sitio a la carita.
+- **Se despliega con los nombres al pasar el ratón por cualquier parte de la
+  onda**, no sólo por encima de la cinta. Y se cierra sola al salir.
+
 ## 0.9.8 — 15 de septiembre de 2026
 
 - **La onda ahora lleva su cinta de niveles debajo.** Una tira fina con los tres

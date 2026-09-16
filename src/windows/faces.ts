@@ -792,14 +792,16 @@ const FLIP_CSS = [2, 3, 4, 5, 6, 7, 8]
 // `steps(1, end)` en casi todas: el sprite salta de píxel a píxel en vez de
 // deslizarse, que es lo que hace que el pixel-art se vea limpio.
 export const FACE_CSS = `
-  .tama { width: 336px; height: 64px; border-radius: 999px; padding: 5px;
+  .tama { width: 336px; height: 74px; border-radius: 999px; padding: 5px;
           background: linear-gradient(180deg, var(--shellA), var(--shellB));
           box-shadow: 0 18px 40px -18px rgba(10, 25, 60, .45), inset 0 1px 0 rgba(255,255,255,.35); }
   .screen { height: 100%; border-radius: 999px; background: var(--lcd);
             border: 1px solid var(--lcdBorder);
             box-shadow: inset 0 3px 10px rgba(10, 20, 40, .25);
             overflow: hidden; position: relative; color: var(--face);
-            display: flex; align-items: center; gap: 6px; padding: 0 12px 0 12px;
+            display: flex; align-items: center; gap: 6px;
+            /* Los 8 de abajo son el hueco de la cinta de niveles. */
+            padding: 0 12px 8px 12px;
             transition: background .25s; }
   /* La carcasa cuadrada del estreno de version: la misma concha y el mismo LCD,
      pero 240x240 en vez de 336x64. Sin microfono ni pantallita lateral — aqui
@@ -818,6 +820,41 @@ export const FACE_CSS = `
     background-image: linear-gradient(var(--grid) 1px, transparent 1px),
                       linear-gradient(90deg, var(--grid) 1px, transparent 1px);
     background-size: 3px 3px; }
+  /* ── la cinta de niveles, DENTRO de la cápsula ──────────────────────────
+     Va absoluta contra el borde de abajo del LCD. La curvatura sale gratis:
+     .screen ya es una pastilla con overflow oculto, así que los extremos de la
+     cinta los recorta él con su propio radio. Pegarla por fuera —como estaba—
+     se veía como dos piezas distintas.
+
+     En reposo es casi nada: una rayita encendida bajo el nivel que está puesto,
+     a la izquierda, al centro o a la derecha según cuál sea. Al pasar el ratón
+     por cualquier parte de la cápsula se despliega con sus nombres. */
+  .niveles { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+           display: flex; height: 7px; padding: 0 14px; background: transparent;
+           transition: height .16s ease-out, background-color .16s; }
+  .tama:hover .niveles, .clasico:hover .niveles { height: 14px; }
+  .tama:hover .niveles, .clasico:hover .niveles { background: color-mix(in srgb, var(--lcdBorder) 70%, transparent); }
+  .niv { flex: 1; display: flex; align-items: center; justify-content: center;
+        position: relative; background: transparent; border: 0; padding: 0;
+        cursor: pointer; transition: background-color .16s; }
+  .niv:disabled { cursor: default; }
+  .tama:hover .niv:hover:not(:disabled):not([data-on]),
+  .clasico:hover .niv:hover:not(:disabled):not([data-on]) { background: rgba(127, 145, 175, .22); }
+  /* La rayita de reposo: se va en cuanto aparecen los nombres. */
+  .niv-luz { height: 2px; width: 34%; border-radius: 2px; background: transparent;
+            transition: opacity .12s; }
+  .niv[data-on] .niv-luz { background: var(--a); }
+  .tama:hover .niv-luz, .clasico:hover .niv-luz { opacity: 0; }
+  .niv-txt { position: absolute; inset: 0; display: flex; align-items: center;
+            justify-content: center; opacity: 0; transition: opacity .16s;
+            font: 700 7px/1 Consolas, "Cascadia Mono", monospace;
+            letter-spacing: .14em; text-transform: uppercase;
+            color: var(--faint); }
+  .tama:hover .niv-txt, .clasico:hover .niv-txt { opacity: 1; }
+  .niv[data-on] .niv-txt { color: var(--a); }
+  .niv:disabled .niv-txt { opacity: 0; }
+  .tama:hover .niv:disabled .niv-txt, .clasico:hover .niv:disabled .niv-txt { opacity: .3; }
+
   .mic-px { flex-shrink: 0; height: 30px; }
   .mic-px svg { height: 100%; width: auto; shape-rendering: crispEdges; display: block; }
   .scene { flex: 1; height: 50px; min-width: 0; }

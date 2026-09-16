@@ -341,15 +341,21 @@ export function MenuOnda(props: {
 }
 
 /**
- * La cinta de niveles, debajo de la cápsula y en los dos estilos.
+ * La cinta de niveles, **dentro** de la cápsula y pegada a su borde de abajo.
  *
- * Existe porque el nivel de redacción se decide **justo antes de hablar**, no
- * una semana antes en un ajuste. Teniéndolo aquí, el gesto es: miras la onda,
- * ves en qué modo está, y si no es el que quieres lo cambias de un clic sin
- * abrir nada.
+ * Existe porque el nivel de redacción se decide justo antes de hablar, no una
+ * semana antes en un ajuste. Teniéndolo aquí, el gesto es: miras la onda, ves
+ * en qué modo está, y si no es el que quieres lo cambias de un clic.
  *
- * Los dos niveles con IA se apagan solos si no hay key de Groq: enseñar un
- * botón que no puede funcionar es peor que no enseñarlo.
+ * En reposo no es un menú: es **una rayita encendida** bajo el nivel que está
+ * puesto —izquierda, centro o derecha—, que se lee de un vistazo sin robarle
+ * sitio a la carita. Al pasar el ratón por cualquier parte de la cápsula se
+ * despliega con los nombres. Toda la presentación es CSS (`.niveles` en
+ * faces.ts): el hover no pasa por React, así que no repinta nada ni reinicia
+ * las animaciones de las caritas.
+ *
+ * La curvatura de los extremos no se dibuja aquí — la recorta `.screen`, que
+ * es una pastilla con `overflow: hidden`.
  */
 const NIVELES_HUD: { id: PolishKind; corto: string; largo: string }[] = [
   { id: "rules", corto: "Tal cual", largo: "Tal cual — tus palabras exactas" },
@@ -361,23 +367,9 @@ const NIVELES_HUD: { id: PolishKind; corto: string; largo: string }[] = [
   },
 ];
 
-const CINTA_CSS = `
-  .cinta-n { transition: background-color .15s, color .15s; }
-  .cinta-n:hover:not(.on):not(:disabled) { background: var(--lcdBorder); }
-`;
-
-function CintaNiveles(props: {
-  nivel: PolishKind;
-  hasKey: boolean;
-  dark: boolean;
-}) {
+function CintaNiveles(props: { nivel: PolishKind; hasKey: boolean }) {
   return (
-    <div
-      className="mt-[3px] flex h-[13px] w-[336px] overflow-hidden rounded-md shadow-sm"
-      style={{ background: props.dark ? "#16223a" : "#cdd7e6" }}
-      onPointerDown={(e) => e.stopPropagation()}
-    >
-      <style>{CINTA_CSS}</style>
+    <div className="niveles" onPointerDown={(e) => e.stopPropagation()}>
       {NIVELES_HUD.map((n) => {
         const on = props.nivel === n.id;
         const bloqueado = n.id !== "rules" && !props.hasKey;
@@ -385,18 +377,14 @@ function CintaNiveles(props: {
           <button
             key={n.id}
             type="button"
+            className="niv"
+            data-on={on ? "" : undefined}
             title={bloqueado ? `${n.largo} (necesita la key de Groq)` : n.largo}
             disabled={bloqueado}
             onClick={() => invoke("hud_nivel", { nivel: n.id }).catch(() => {})}
-            className={`cinta-n flex-1 text-center font-mono text-[7px] font-bold uppercase leading-[13px] tracking-[.14em] disabled:opacity-35 ${
-              on ? "on" : ""
-            }`}
-            style={{
-              background: on ? (props.dark ? "#38bdf8" : "#2563eb") : "transparent",
-              color: on ? "#fff" : props.dark ? "#5c6f8f" : "#8296b2",
-            }}
           >
-            {n.corto}
+            <span className="niv-luz" />
+            <span className="niv-txt">{n.corto}</span>
           </button>
         );
       })}
@@ -857,9 +845,7 @@ export default function Hud() {
       >
         <style>{CLASSIC_CSS + DRAG_CSS}</style>
         <div
-          className={`relative flex flex-col items-center ${
-            colocando ? "colocando" : ""
-          }`}
+          className={`relative ${colocando ? "colocando" : ""}`}
           style={{ transform: "scale(var(--k, 1))" }}
         >
           {(colocando || menu || encima) && (
@@ -875,7 +861,7 @@ export default function Hud() {
             />
           )}
           <div
-            className={`relative flex h-[64px] w-[336px] items-center gap-3 overflow-hidden rounded-full border px-5 shadow-2xl shadow-blue-900/20 backdrop-blur transition-colors ${
+            className={`clasico relative flex h-[74px] w-[336px] items-center gap-3 overflow-hidden rounded-full border px-5 pb-2 shadow-2xl shadow-blue-900/20 backdrop-blur transition-colors ${
               naranja ? "classic-shake" : ""
             } ${pill}`}
           >
@@ -966,10 +952,8 @@ export default function Hud() {
                 {colocando ? "Arrástrame donde quieras" : "Dicho"}
               </p>
             )}
+            {verNiveles && <CintaNiveles nivel={nivel} hasKey={hasKey} />}
           </div>
-          {verNiveles && (
-            <CintaNiveles nivel={nivel} hasKey={hasKey} dark={dark} />
-          )}
         </div>
       </div>
     );
@@ -1024,9 +1008,7 @@ export default function Hud() {
     >
       <style>{FACE_CSS + DRAG_CSS}</style>
       <div
-        className={`relative flex flex-col items-center ${
-          colocando ? "colocando" : ""
-        }`}
+        className={`relative ${colocando ? "colocando" : ""}`}
         style={{ transform: "scale(var(--k, 1))" }}
       >
         {(colocando || menu || encima) && (
@@ -1064,11 +1046,9 @@ export default function Hud() {
               {status}
             </span>
             {cinta}
+            {verNiveles && <CintaNiveles nivel={nivel} hasKey={hasKey} />}
           </div>
         </div>
-        {verNiveles && (
-          <CintaNiveles nivel={nivel} hasKey={hasKey} dark={dark} />
-        )}
       </div>
     </div>
   );
