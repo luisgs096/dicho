@@ -10,6 +10,8 @@ export interface HudPos {
 
 export interface AppSettings {
   hotkey: string[];
+  /** Tecla para cancelar a media grabación. `null` la desactiva. */
+  cancelar: string | null;
   engine: EngineKind;
   polish: PolishKind;
   language: string;

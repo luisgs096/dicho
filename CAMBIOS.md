@@ -10,6 +10,27 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.11.1 — 16 de septiembre de 2026
+
+- **La tecla para cancelar ya se elige.** Antes era Escape y punto, y eso tenía un
+  problema gordo: como se pulsa con el atajo apretado, si dictas con Ctrl la
+  combinación acaba siendo **Ctrl+Esc, que es como Windows abre el menú Inicio**.
+  Se escoge en el mismo teclado del atajo, con un interruptor arriba.
+- **Dicho te avisa si tu combinación choca con Windows** y te dice cuál es y por
+  qué. Ni Dicho ni ninguna app puede ganarle al sistema esas teclas; lo único que
+  se puede hacer es elegir otra, y ahora se ve cuándo hace falta.
+- **El teclado gráfico habla tu idioma.** Español de Latinoamérica, de España o
+  inglés US: la Ñ sale donde te la esperas y aparece la tecla de más que llevan
+  los teclados de acá entre el Mayús y la Z. Es sólo lo que dice cada tecla — por
+  dentro se identifican por su posición.
+- **Y ya se ven las flechas.** Iban en línea con el resto de la última fila, que
+  sumaba más ancho del que había, y la de arriba y la de abajo se aplastaban hasta
+  desaparecer. Ahora van aparte en su T, como en el teclado de verdad.
+- **LABS se queda en un solo interruptor: habilitar el Editor.** Los otros dos
+  modos sobraban ahí — "Tal cual" es lo que hace Dicho solo cuando no hay key, y
+  elegir entre Estándar y Editor se hace en la onda, que es donde de verdad lo
+  decides: justo antes de hablar.
+
 ## 0.11.0 — 16 de septiembre de 2026
 
 - **El historial ahora cuenta qué pasó con cada dictado.** Cada tarjeta enseña en

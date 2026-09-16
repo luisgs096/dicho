@@ -18,12 +18,13 @@ pub fn spawn(tx: Sender<Cmd>, settings: SettingsState) {
         let result = rdev::listen(move |event| {
             match event.event_type {
                 EventType::KeyPress(k) => {
-                    // Escape a media grabación = me arrepentí. Se cancela y se
-                    // baja la bandera, así que soltar luego el atajo ya no
-                    // manda Stop: el audio se tira y no se transcribe nada.
-                    // Fuera de la grabación, Escape no se toca — es una tecla
-                    // de todo el mundo.
-                    if active && k == Key::Escape {
+                    // La tecla de cancelar a media grabación = me arrepentí.
+                    // Se cancela y se baja la bandera, así que soltar luego el
+                    // atajo ya no manda Stop: el audio se tira y no se
+                    // transcribe nada. Fuera de la grabación no se toca — sea
+                    // cual sea, es una tecla de todo el mundo.
+                    let cancelar = settings.read().ok().and_then(|s| s.cancelar);
+                    if active && Some(k) == cancelar {
                         active = false;
                         esperando_soltar = true;
                         let _ = tx.send(Cmd::Cancel);

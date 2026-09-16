@@ -88,6 +88,13 @@ impl HudPos {
 pub struct AppSettings {
     /// Combinación push-to-talk: todas las teclas deben estar presionadas a la vez.
     pub hotkey: Vec<Key>,
+    /// Tecla para arrepentirse a media grabación: se tira el audio y no se
+    /// transcribe nada. Se pulsa **mientras** tienes el atajo apretado, así que
+    /// en la práctica forma combinación con él — y ahí está la trampa: con el
+    /// atajo en Control derecho, cancelar con Escape es `Ctrl+Esc`, que Windows
+    /// se queda para abrir el menú Inicio. Por eso es configurable y no fija.
+    /// `None` la desactiva.
+    pub cancelar: Option<Key>,
     pub engine: EngineKind,
     pub polish: PolishKind,
     /// "auto" o código ISO-639-1 ("es", "en", ...). Se ignora si `no_traducir`.
@@ -157,6 +164,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             hotkey: vec![Key::ControlLeft, Key::MetaLeft],
+            cancelar: Some(Key::Escape),
             engine: EngineKind::Parakeet,
             polish: PolishKind::Rules,
             language: "auto".into(),

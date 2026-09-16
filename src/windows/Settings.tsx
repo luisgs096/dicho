@@ -258,50 +258,6 @@ const btnGhostCls =
   "rounded-xl border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800";
 const labelCls = "text-xs font-medium text-slate-500 dark:text-slate-400";
 
-/** Los tres escalones de redacción. El orden importa: de menos a más permiso
- *  sobre tus palabras, que es lo único que de verdad los distingue. */
-const NIVELES: {
-  id: AppSettings["polish"];
-  titulo: string;
-  coste: string;
-  desc: string;
-  /** Lo que este escalón NO hace nunca. El techo importa más que el suelo: es
-   *  lo que te deja dictar sin releer con lupa. */
-  limite: string;
-  ejemplo: string;
-}[] = [
-  {
-    id: "rules",
-    titulo: "Tal cual",
-    coste: "al instante",
-    desc: "Tus palabras exactas. Sólo puntuación, acentos y tu diccionario. No pasa por ninguna IA ni sale de tu equipo.",
-    limite:
-      "No quita nada ni cambia el orden. Lo que dijiste llega entero, muletillas incluidas.",
-    ejemplo:
-      "«o sea creo que deberíamos mover la reunión al jueves» → O sea, creo que deberíamos mover la reunión al jueves.",
-  },
-  {
-    id: "groq_llm",
-    titulo: "Estándar",
-    coste: "~1 s",
-    desc: "Mismas palabras, mejor forma: quita muletillas, aplica tus correcciones al vuelo y puntúa bien. Es el de siempre, y el más rápido.",
-    limite:
-      "No resume, no reordena y no contesta. Si le dictas una pregunta, escribe la pregunta.",
-    ejemplo:
-      "«o sea creo que deberíamos, bueno, mover la reunión al jueves» → Creo que deberíamos mover la reunión al jueves.",
-  },
-  {
-    id: "groq_estructurado",
-    titulo: "Editor",
-    coste: "~2-3 s",
-    desc: "Te lo REDACTA. No limpia tu dictado: lee la idea entera y la vuelve a escribir en párrafos, encadenando las frases y cambiando las muletillas por conectores de verdad. Suele salir un tercio más corto. Usa un modelo más grande, por eso tarda un par de segundos más.",
-    limite:
-      "No añade información, ejemplos, cifras ni conclusiones que no dijiste. Si se pasa, Dicho lo descarta solo y te deja el texto sin tocar.",
-    ejemplo:
-      "«lo que quiero decir es que, este, quizás mover la reunión, o sea moverla al jueves, porque el miércoles no puedo» → Movamos la reunión al jueves: el miércoles no puedo.",
-  },
-];
-
 /** El sello de laboratorio: verde ácido y un matraz. Es la única parte de la
  *  app que se anuncia como experimental, y tiene que verse distinta al resto
  *  para que se note que ahí las cosas pueden cambiar. */
@@ -345,54 +301,112 @@ const K = (code: string, label: string, w?: number): KbKey => ({
   w,
 });
 
-const MAIN_ROWS: KbKey[][] = [
-  [
-    K("Escape", "Esc", 1.4),
-    ...Array.from({ length: 12 }, (_, i) => K(`F${i + 1}`, `F${i + 1}`)),
-  ],
-  [
-    K("BackQuote", "`"),
-    ...[..."1234567890"].map((d) => K(`Num${d}`, d)),
-    K("Minus", "-"),
-    K("Equal", "="),
-    K("Backspace", "⌫", 1.8),
-  ],
-  [
-    K("Tab", "Tab", 1.5),
-    ...[..."QWERTYUIOP"].map((c) => K(`Key${c}`, c)),
-    K("LeftBracket", "["),
-    K("RightBracket", "]"),
-    K("BackSlash", "\\", 1.3),
-  ],
-  [
-    K("CapsLock", "Bloq Mayús", 1.9),
-    ...[..."ASDFGHJKL"].map((c) => K(`Key${c}`, c)),
-    K("SemiColon", ";"),
-    K("Quote", "'"),
-    K("Return", "Entrar", 1.9),
-  ],
-  [
-    K("ShiftLeft", "Mayús", 2.4),
-    ...[..."ZXCVBNM"].map((c) => K(`Key${c}`, c)),
-    K("Comma", ","),
-    K("Dot", "."),
-    K("Slash", "/"),
-    K("ShiftRight", "Mayús", 2.4),
-  ],
+/** Los idiomas de teclado que se pueden dibujar.
+ *
+ *  Es **sólo cosa de etiquetas**: rdev identifica las teclas por su posición
+ *  física, no por lo que tengan impreso. La tecla a la derecha de la L es
+ *  `SemiColon` en los tres idiomas; lo que cambia es que en español dice Ñ. El
+ *  selector existe para que encuentres la tecla mirando tu teclado de verdad,
+ *  no para cambiar nada por dentro. */
+type Idioma = "es-latam" | "es-es" | "us";
+
+const IDIOMAS: { id: Idioma; nombre: string }[] = [
+  { id: "es-latam", nombre: "Español (Latinoamérica)" },
+  { id: "es-es", nombre: "Español (España)" },
+  { id: "us", nombre: "Inglés (US)" },
 ];
 
+/** Qué lleva impreso cada tecla en cada idioma. Lo que no esté aquí se queda
+ *  con la etiqueta del esqueleto, que es la del teclado US. */
+const IMPRESO: Record<Idioma, Record<string, string>> = {
+  us: {},
+  "es-latam": {
+    BackQuote: "|°",
+    Minus: "'",
+    Equal: "¿¡",
+    LeftBracket: "´¨",
+    RightBracket: "+*",
+    SemiColon: "Ñ",
+    Quote: "{[",
+    BackSlash: "}]",
+    Slash: "-_",
+    IntlBackslash: "<>",
+  },
+  "es-es": {
+    BackQuote: "ºª",
+    Minus: "'?",
+    Equal: "¡¿",
+    LeftBracket: "`^",
+    RightBracket: "+*",
+    SemiColon: "Ñ",
+    Quote: "´¨",
+    BackSlash: "ç",
+    Comma: ",;",
+    Dot: ".:",
+    Slash: "-_",
+    IntlBackslash: "<>",
+  },
+};
+
+/** Los teclados de España y Latinoamérica son ISO: llevan una tecla de más
+ *  entre el Shift izquierdo y la Z, y por eso su Shift es más corto. El de US
+ *  es ANSI y no la tiene. */
+const esIso = (i: Idioma) => i !== "us";
+
+const MAIN_ROWS = (idioma: Idioma): KbKey[][] => {
+  const imp = IMPRESO[idioma];
+  const e = (k: KbKey): KbKey =>
+    k.code && imp[k.code] ? { ...k, label: imp[k.code] } : k;
+  return [
+    [
+      K("Escape", "Esc", 1.4),
+      ...Array.from({ length: 12 }, (_, i) => K(`F${i + 1}`, `F${i + 1}`)),
+    ],
+    [
+      K("BackQuote", "`"),
+      ...[..."1234567890"].map((d) => K(`Num${d}`, d)),
+      K("Minus", "-"),
+      K("Equal", "="),
+      K("Backspace", "⌫", 1.8),
+    ].map(e),
+    [
+      K("Tab", "Tab", 1.5),
+      ...[..."QWERTYUIOP"].map((c) => K(`Key${c}`, c)),
+      K("LeftBracket", "["),
+      K("RightBracket", "]"),
+      K("BackSlash", "\\", 1.3),
+    ].map(e),
+    [
+      K("CapsLock", "Bloq Mayús", 1.9),
+      ...[..."ASDFGHJKL"].map((c) => K(`Key${c}`, c)),
+      K("SemiColon", ";"),
+      K("Quote", "'"),
+      K("Return", "Entrar", 1.9),
+    ].map(e),
+    [
+      K("ShiftLeft", "Mayús", esIso(idioma) ? 1.4 : 2.4),
+      ...(esIso(idioma) ? [K("IntlBackslash", "<>")] : []),
+      ...[..."ZXCVBNM"].map((c) => K(`Key${c}`, c)),
+      K("Comma", ","),
+      K("Dot", "."),
+      K("Slash", "/"),
+      K("ShiftRight", "Mayús", 2.4),
+    ].map(e),
+  ];
+};
+
+/** Fila de abajo, **sin flechas**: van aparte en su bloque en forma de T, que
+ *  es como están en un teclado de verdad. Antes iban en línea con el resto y
+ *  las cuatro se aplastaban hasta no leerse — con la fila sumando 16 anchos
+ *  contra los 13 de las de arriba, la ↑ y la ↓ desaparecían. */
 const BOTTOM_ROW_LAPTOP: KbKey[] = [
-  K("ControlLeft", "Ctrl", 1.4),
+  K("ControlLeft", "Ctrl", 1.3),
   { code: null, label: "Fn" },
-  K("MetaLeft", "Win", 1.2),
-  K("Alt", "Alt", 1.2),
-  K("Space", "Espacio", 5.6),
-  K("AltGr", "AltGr", 1.2),
-  K("ControlRight", "Ctrl", 1.4),
-  K("LeftArrow", "←"),
-  K("UpArrow", "↑"),
-  K("DownArrow", "↓"),
-  K("RightArrow", "→"),
+  K("MetaLeft", "Win", 1.1),
+  K("Alt", "Alt", 1.1),
+  K("Space", "Espacio", 5.2),
+  K("AltGr", "AltGr", 1.1),
+  K("ControlRight", "Ctrl", 1.3),
 ];
 
 const BOTTOM_ROW_EXTENDED: KbKey[] = [
@@ -419,6 +433,9 @@ const MODIFIERS = new Set([
 function Cap(props: {
   k: KbKey;
   selected: boolean;
+  /** Elegida para la OTRA cosa (el atajo si estás eligiendo el cancelar, o al
+   *  revés). Se pinta apagada para que se vea que esa tecla ya está ocupada. */
+  otra?: boolean;
   onToggle: (code: string) => void;
   className?: string;
 }) {
@@ -430,6 +447,10 @@ function Cap(props: {
       ? "border-blue-700 bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/40"
       : "cursor-pointer border-slate-300 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-sky-400 dark:hover:text-sky-300"
     : "border-slate-200 bg-slate-100 text-slate-300 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-600";
+  const ocupada =
+    props.otra && !selected
+      ? " border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500/60 dark:bg-amber-500/10 dark:text-amber-300"
+      : "";
   return (
     <button
       type="button"
@@ -437,66 +458,115 @@ function Cap(props: {
       title={k.code ? keyLabel(k.code) : "No capturable"}
       onClick={() => k.code && props.onToggle(k.code)}
       style={{ flex: `${k.w ?? 1} ${k.w ?? 1} 0%` }}
-      className={`${base} ${style} ${props.className ?? ""}`}
+      className={`${base} ${style}${ocupada} ${props.className ?? ""}`}
     >
       <span className="truncate px-0.5">{k.label}</span>
     </button>
   );
 }
 
-function KeyboardPicker(props: {
+/** El teclado gráfico. Sirve para dos cosas a la vez: elegir el atajo de dictado
+ *  y elegir la tecla para cancelar. `destino` dice a cuál de las dos va lo que
+ *  pulses, porque tener dos teclados en pantalla sería el doble de sitio para
+ *  la misma cosa. */
+export function KeyboardPicker(props: {
   selected: string[];
+  cancelar: string | null;
+  destino: "atajo" | "cancelar";
   onToggle: (code: string) => void;
 }) {
   const [layout, setLayout] = useState<"laptop" | "extendido">("laptop");
+  const [idioma, setIdioma] = useState<Idioma>("es-latam");
   const isSel = (code: string | null) =>
-    code !== null && props.selected.includes(code);
-  const cap = (k: KbKey, i: number) => (
-    <Cap key={i} k={k} selected={isSel(k.code)} onToggle={props.onToggle} />
-  );
-  const gridCap = (k: KbKey, i: number, extra?: string) => (
+    code !== null &&
+    (props.destino === "atajo"
+      ? props.selected.includes(code)
+      : props.cancelar === code);
+  /** La otra selección, en gris: así ves de un vistazo que no chocan. */
+  const isOtra = (code: string | null) =>
+    code !== null &&
+    (props.destino === "atajo"
+      ? props.cancelar === code
+      : props.selected.includes(code));
+  const cap = (k: KbKey, i: number, extra?: string) => (
     <Cap
       key={i}
       k={k}
       selected={isSel(k.code)}
+      otra={isOtra(k.code)}
       onToggle={props.onToggle}
       className={extra}
     />
   );
 
+  const flechas = (
+    // En T invertida, como en el teclado de verdad: la ↑ va encima, entre la ←
+    // y la →. En línea con el resto se aplastaban hasta desaparecer.
+    <div className="flex w-[15%] shrink-0 flex-col justify-end gap-1">
+      {/* Rejilla en las dos filas y no flex: con flex, el ancho de la ↑ no
+          descuenta los huecos y queda medio botón corrida respecto a la ↓. */}
+      <div className="grid grid-cols-3 gap-1">
+        <span />
+        {cap(K("UpArrow", "↑"), 100)}
+        <span />
+      </div>
+      <div className="grid grid-cols-3 gap-1">
+        {cap(K("LeftArrow", "←"), 101)}
+        {cap(K("DownArrow", "↓"), 102)}
+        {cap(K("RightArrow", "→"), 103)}
+      </div>
+    </div>
+  );
+
   return (
     <div>
-      <div className="mb-2 inline-flex rounded-lg border border-slate-200 p-0.5 dark:border-slate-700">
-        {(["laptop", "extendido"] as const).map((l) => (
-          <button
-            key={l}
-            onClick={() => setLayout(l)}
-            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-              layout === l
-                ? "bg-blue-600 text-white"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            }`}
-          >
-            {l === "laptop" ? "Laptop" : "Teclado extendido"}
-          </button>
-        ))}
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-lg border border-slate-200 p-0.5 dark:border-slate-700">
+          {(["laptop", "extendido"] as const).map((l) => (
+            <button
+              key={l}
+              onClick={() => setLayout(l)}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                layout === l
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              {l === "laptop" ? "Laptop" : "Teclado extendido"}
+            </button>
+          ))}
+        </div>
+        <select
+          value={idioma}
+          onChange={(e) => setIdioma(e.target.value as Idioma)}
+          title="Sólo cambia lo que dice cada tecla, para que la encuentres mirando tu teclado"
+          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+        >
+          {IDIOMAS.map((i) => (
+            <option key={i.id} value={i.id}>
+              {i.nombre}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="flex gap-2 rounded-xl bg-slate-100 p-2 dark:bg-slate-950/60">
         {/* Bloque principal */}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          {MAIN_ROWS.map((row, r) => (
+          {MAIN_ROWS(idioma).map((row, r) => (
             <div key={r} className="flex gap-1">
-              {row.map(cap)}
+              {row.map((k, i) => cap(k, i))}
             </div>
           ))}
           <div className="flex gap-1">
             {(layout === "laptop"
               ? BOTTOM_ROW_LAPTOP
               : BOTTOM_ROW_EXTENDED
-            ).map(cap)}
+            ).map((k, i) => cap(k, i))}
           </div>
         </div>
+
+        {layout === "laptop" && flechas}
 
         {layout === "extendido" && (
           <>
@@ -510,37 +580,16 @@ function KeyboardPicker(props: {
                   K("Delete", "Supr"),
                   K("End", "Fin"),
                   K("PageDown", "AvPág"),
-                ].map((k, i) => gridCap(k, i))}
+                ].map((k, i) => cap(k, i))}
               </div>
               <div className="mt-auto grid grid-cols-3 gap-1">
                 <span />
-                {gridCap(K("UpArrow", "↑"), 100)}
+                {cap(K("UpArrow", "↑"), 100)}
                 <span />
-                {gridCap(K("LeftArrow", "←"), 101)}
-                {gridCap(K("DownArrow", "↓"), 102)}
-                {gridCap(K("RightArrow", "→"), 103)}
+                {cap(K("LeftArrow", "←"), 101)}
+                {cap(K("DownArrow", "↓"), 102)}
+                {cap(K("RightArrow", "→"), 103)}
               </div>
-            </div>
-
-            {/* Numpad */}
-            <div className="grid w-[22%] shrink-0 grid-cols-4 gap-1">
-              {gridCap(K("NumLock", "Bloq"), 0)}
-              {gridCap(K("KpDivide", "÷"), 1)}
-              {gridCap(K("KpMultiply", "×"), 2)}
-              {gridCap(K("KpMinus", "−"), 3)}
-              {gridCap(K("Kp7", "7"), 4)}
-              {gridCap(K("Kp8", "8"), 5)}
-              {gridCap(K("Kp9", "9"), 6)}
-              {gridCap(K("KpPlus", "+"), 7, "row-span-2 !h-auto")}
-              {gridCap(K("Kp4", "4"), 8)}
-              {gridCap(K("Kp5", "5"), 9)}
-              {gridCap(K("Kp6", "6"), 10)}
-              {gridCap(K("Kp1", "1"), 11)}
-              {gridCap(K("Kp2", "2"), 12)}
-              {gridCap(K("Kp3", "3"), 13)}
-              {gridCap(K("KpReturn", "⏎"), 14, "row-span-2 !h-auto")}
-              {gridCap(K("Kp0", "0"), 15, "col-span-2")}
-              {gridCap(K("KpDelete", "."), 16)}
             </div>
           </>
         )}
@@ -663,6 +712,12 @@ export default function Settings() {
     (draft.length !== currentHotkey.length ||
       draft.some((k) => !currentHotkey.includes(k)));
   const toggleKey = (code: string) => {
+    if (destinoTecla === "cancelar") {
+      // Volver a pulsar la misma la quita: así se puede dejar sin tecla de
+      // cancelar, que es una opción legítima.
+      update({ cancelar: settings?.cancelar === code ? null : code });
+      return;
+    }
     const base = hotkeyDraft ?? currentHotkey;
     setHotkeyDraft(
       base.includes(code)
@@ -672,6 +727,24 @@ export default function Settings() {
           : [...base, code],
     );
   };
+
+  /** Combinaciones que Windows se queda para él: por mucho que Dicho las
+   *  escuche, el sistema actúa primero. La de verdad problemática es Ctrl+Esc,
+   *  que abre el menú Inicio — y sale sola si dictas con Ctrl y cancelas con
+   *  Escape, que era justo el caso por defecto. */
+  const choqueConWindows = (() => {
+    const c = settings?.cancelar;
+    if (!c) return null;
+    const ctrl = currentHotkey.some((k) => k.startsWith("Control"));
+    const win = currentHotkey.some((k) => k.startsWith("Meta"));
+    if (ctrl && c === "Escape")
+      return "Ctrl + Esc abre el menú Inicio de Windows";
+    if (ctrl && c === "ShiftLeft")
+      return "Ctrl + Mayús cambia el idioma del teclado";
+    if (win && c === "KeyL") return "Win + L bloquea la sesión";
+    if (win && c === "KeyD") return "Win + D minimiza todo";
+    return null;
+  })();
 
   // El plegado se guarda en los ajustes, así que la ventana abre como la
   // dejaste. Si todavía no han cargado, todo se ve desplegado: es mejor
@@ -688,6 +761,10 @@ export default function Settings() {
       });
     },
   };
+
+  const [destinoTecla, setDestinoTecla] = useState<"atajo" | "cancelar">(
+    "atajo",
+  );
 
   const googleLogin = () => {
     setGoogleBusy("login");
@@ -796,7 +873,51 @@ export default function Settings() {
                     )}
                   </div>
 
-                  <KeyboardPicker selected={draft} onToggle={toggleKey} />
+                  {/* Un solo teclado para las dos teclas: el atajo y la de
+                      cancelar. Dos teclados en pantalla serían el doble de
+                      sitio para lo mismo. */}
+                  <div className="mb-2 inline-flex rounded-lg border border-slate-200 p-0.5 dark:border-slate-700">
+                    {(
+                      [
+                        ["atajo", "Atajo para dictar"],
+                        ["cancelar", "Tecla para cancelar"],
+                      ] as const
+                    ).map(([id, txt]) => (
+                      <button
+                        key={id}
+                        onClick={() => setDestinoTecla(id)}
+                        className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                          destinoTecla === id
+                            ? "bg-blue-600 text-white"
+                            : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                        }`}
+                      >
+                        {txt}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                    {destinoTecla === "atajo"
+                      ? "Haz clic en las teclas que quieres mantener apretadas para dictar."
+                      : "Esta tecla tira el dictado a medias, mientras tienes el atajo apretado. Haz clic en la misma otra vez para quedarte sin ninguna."}
+                  </p>
+                  <KeyboardPicker
+                    selected={draft}
+                    cancelar={settings?.cancelar ?? null}
+                    destino={destinoTecla}
+                    onToggle={toggleKey}
+                  />
+                  {choqueConWindows && (
+                    <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                      <span className="font-semibold">Ojo:</span>
+                      <span>
+                        {choqueConWindows}. Como la tecla de cancelar se pulsa
+                        con el atajo apretado, las dos forman esa combinación y
+                        Windows actúa antes que Dicho. Elige otra tecla — F8 o
+                        Supr no chocan con nada.
+                      </span>
+                    </p>
+                  )}
 
                   <div className="mt-3 flex items-center gap-2">
                     <button
@@ -915,15 +1036,15 @@ export default function Settings() {
                 <Section
                   id="labs"
                   tono="labs"
-                  title="LABS · Cómo te redacta"
-                  hint="Cuánto permiso le das a Dicho sobre lo que dijiste. Sube un escalón sólo cuando quieras que te ayude a ordenar la idea, no a copiarla."
+                  title="LABS · El modo Editor"
+                  hint="Un solo interruptor: si lo enciendes, la onda te deja alternar entre Estándar y Editor justo antes de hablar."
                 >
                   {settings ? (
                     <div className="flex flex-col gap-2.5">
                       <style>{LABS_CSS}</style>
-                      {/* El sello. Verde ácido y matraz, a propósito distinto del
-                        azul del resto: es la única parte de la app que se
-                        anuncia como experimental, y tiene que verse. */}
+                      {/* El sello. Verde ácido y matraz, a propósito distinto
+                          del azul del resto: es la única parte de la app que se
+                          anuncia como experimental, y tiene que verse. */}
                       <div className="flex items-center gap-2.5 rounded-xl border border-dashed border-emerald-400/70 bg-emerald-50/60 px-3 py-2 dark:border-emerald-500/40 dark:bg-emerald-950/30">
                         <span className="labs-sello text-emerald-600 dark:text-emerald-400">
                           <svg
@@ -940,114 +1061,102 @@ export default function Settings() {
                             <path d="M7.3 14h9.4" />
                           </svg>
                         </span>
-                        <div className="min-w-0 flex-1">
-                          <span className="rounded bg-emerald-600 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-widest text-white dark:bg-emerald-500">
-                            LABS
-                          </span>
-                          <span className="ml-2 text-[11px] text-emerald-800 dark:text-emerald-300">
-                            Experimento en curso: esto puede cambiar de una
-                            versión a otra.
-                          </span>
-                        </div>
+                        <span className="rounded bg-emerald-600 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-widest text-white dark:bg-emerald-500">
+                          LABS
+                        </span>
+                        <span className="text-[11px] text-emerald-800 dark:text-emerald-300">
+                          Experimento en curso: esto puede cambiar de una
+                          versión a otra.
+                        </span>
                       </div>
 
-                      {NIVELES.map((n) => {
-                        const activo = settings.polish === n.id;
-                        const bloqueado = n.id !== "rules" && !hasKey;
-                        return (
-                          <button
-                            key={n.id}
-                            type="button"
-                            disabled={bloqueado}
-                            onClick={() => update({ polish: n.id })}
-                            className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
-                              /* Sobre el verde de la sección hay que invertir
-                                 lo de siempre: el activo va en blanco macizo y
-                                 el inactivo translúcido. Con las clases de
-                                 antes —verde claro el activo, blanco el
-                                 inactivo— el activo se fundía con el fondo y el
-                                 inactivo destacaba más que él, al revés. */
-                              activo
-                                ? "border-emerald-500 bg-white ring-2 ring-emerald-500/30 dark:border-emerald-400 dark:bg-slate-900 dark:ring-emerald-400/30"
-                                : "border-emerald-200/80 bg-white/50 hover:border-emerald-400 hover:bg-white/80 dark:border-emerald-900/60 dark:bg-slate-900/40 dark:hover:border-emerald-700"
-                            }`}
-                          >
-                            <span
-                              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
-                                activo
-                                  ? "border-emerald-600 dark:border-emerald-400"
-                                  : "border-slate-300 dark:border-slate-600"
-                              }`}
-                            >
-                              {activo && (
-                                <span className="h-2 w-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
-                              )}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm font-semibold">
-                                  {n.titulo}
-                                </span>
-                                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                                  {n.coste}
-                                </span>
-                                {bloqueado && (
-                                  <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
-                                    necesita la key de Groq (Ajustes)
-                                  </span>
-                                )}
-                              </span>
-                              <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                                {n.desc}
-                              </span>
-                              <span className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth={2.2}
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  className="mt-[3px] h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400"
-                                >
-                                  <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" />
-                                </svg>
-                                <span>{n.limite}</span>
-                              </span>
-                              <span className="mt-1.5 block rounded-lg bg-slate-50 px-2 py-1 font-mono text-[10px] leading-relaxed text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
-                                {n.ejemplo}
-                              </span>
-                            </span>
-                          </button>
-                        );
-                      })}
-                      <label className="mt-1 flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300">
+                      {/* Un interruptor y nada más. Antes había tres tarjetas
+                          de nivel y dos sobraban: "Tal cual" es lo que hace Dicho
+                          solo cuando no hay key —no es una decisión— y elegir
+                          entre Estándar y Editor se hace en la onda, que es
+                          donde de verdad se decide: justo antes de hablar. */}
+                      <label
+                        className={`flex items-start gap-3 rounded-xl border p-3 transition-colors ${
+                          settings.hud_niveles
+                            ? "border-emerald-500 bg-white ring-2 ring-emerald-500/30 dark:border-emerald-400 dark:bg-slate-900 dark:ring-emerald-400/30"
+                            : "border-emerald-200/80 bg-white/50 dark:border-emerald-900/60 dark:bg-slate-900/40"
+                        } ${hasKey ? "" : "cursor-not-allowed opacity-50"}`}
+                      >
                         <input
                           type="checkbox"
+                          disabled={!hasKey}
                           checked={settings.hud_niveles}
                           onChange={(e) =>
-                            update({ hud_niveles: e.target.checked })
+                            update(
+                              e.target.checked
+                                ? { hud_niveles: true }
+                                : // Al apagarlo se vuelve al Estándar: si no, te
+                                  // quedarías en Editor sin manera de salir,
+                                  // porque el selector de la onda desaparece.
+                                  { hud_niveles: false, polish: "groq_llm" },
+                            )
                           }
                           className="mt-0.5 h-4 w-4 accent-emerald-600"
                         />
-                        <span>
-                          Enseñar la cinta de niveles debajo de la onda
-                          <span className="mt-1 block text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-                            Una tira fina con los tres, y el puesto en azul.
-                            Sirve para cambiarlo de un clic justo antes de
-                            hablar, que es cuando de verdad lo decides. Se ve
-                            mejor con la onda clavada.
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold">
+                              Habilitar el modo Editor
+                            </span>
+                            <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                              ~2-3 s
+                            </span>
+                            {!hasKey && (
+                              <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                necesita la key de Groq (Ajustes)
+                              </span>
+                            )}
+                          </span>
+                          <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            El <strong>Estándar</strong> quita muletillas y
+                            puntúa, con tus mismas palabras. El{" "}
+                            <strong>Editor</strong> te lo redacta: lee la idea
+                            entera y la vuelve a escribir en párrafos,
+                            encadenando las frases y cambiando las muletillas
+                            por conectores. Suele salir un tercio más corto y
+                            usa un modelo más grande, por eso tarda un par de
+                            segundos más.
+                          </span>
+                          <span className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2.2}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="mt-[3px] h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+                            >
+                              <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" />
+                            </svg>
+                            <span>
+                              Ninguno de los dos añade información que no
+                              dijiste: ni datos, ni cifras, ni conclusiones. Si
+                              el modelo se pasa, Dicho lo descarta solo.
+                            </span>
+                          </span>
+                          <span className="mt-1.5 block rounded-lg bg-slate-50 px-2 py-1 font-mono text-[10px] leading-relaxed text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+                            «lo que quiero decir es que, este, quizás mover la
+                            reunión, o sea moverla al jueves, porque el
+                            miércoles no puedo» → Movamos la reunión al jueves:
+                            el miércoles no puedo.
                           </span>
                         </span>
                       </label>
 
-                      <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-                        Editor es el único que puede cambiarte las palabras. Si
-                        el resultado se aleja demasiado de lo que dijiste —o
-                        trae palabras que tú no usaste— Dicho lo descarta solo y
-                        escribe la versión limpia de siempre, sin avisar y sin
-                        perder nada.
-                      </p>
+                      {settings.hud_niveles && (
+                        <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                          Ya puedes cambiar de modo desde la onda: pásale el
+                          ratón por encima y elige. En reposo se ve sólo una
+                          rayita del color del modo que tengas puesto, y
+                          mientras dictas se queda quieta.
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <p className="text-xs text-slate-400">Cargando…</p>
