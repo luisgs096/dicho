@@ -26,3 +26,24 @@ textarea {
   0%, 100% { transform: scaleY(0.35); }
   50% { transform: scaleY(1); }
 }
+
+/* Secciones plegables (ver Section en Settings.tsx).
+   1fr → 0fr en vez del clásico max-height a ojo: éste anima sin saber cuánto
+   mide el contenido, así que ni corta los bloques largos ni deja la animación
+   coja en los cortos. El hijo necesita overflow oculto o se desborda mientras
+   se cierra. */
+.plegable {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.22s ease;
+}
+.plegable > * {
+  overflow: hidden;
+  min-height: 0;
+}
+.plegable.cerrada {
+  grid-template-rows: 0fr;
+}
+@media (prefers-reduced-motion: reduce) {
+  .plegable { transition: none; }
+}

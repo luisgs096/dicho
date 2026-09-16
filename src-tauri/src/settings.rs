@@ -102,6 +102,10 @@ pub struct AppSettings {
     /// Apagado por defecto: encenderlo significa que cada dictado pisa lo que
     /// tuvieras copiado.
     pub copiar_al_portapapeles: bool,
+    /// Qué secciones de la ventana están plegadas, por su id. Se guardan las
+    /// **cerradas** y no las abiertas a propósito: así una sección nueva nace
+    /// desplegada sin tener que tocar los ajustes de quien ya tenía la app.
+    pub secciones_plegadas: Vec<String>,
     pub hud_enabled: bool,
     pub hud_style: HudStyle,
     /// El rincón donde el usuario dejó el HUD **en cada pantalla**, por
@@ -158,6 +162,7 @@ impl Default for AppSettings {
             language: "auto".into(),
             no_traducir: true,
             copiar_al_portapapeles: false,
+            secciones_plegadas: Vec::new(),
             hud_enabled: true,
             hud_style: HudStyle::Tamagotchi,
             hud_posiciones: HashMap::new(),

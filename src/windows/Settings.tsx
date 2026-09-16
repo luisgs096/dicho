@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -51,7 +58,6 @@ function HomeIcon() {
     </svg>
   );
 }
-
 
 function BookIcon() {
   return (
@@ -139,22 +145,90 @@ function BotonCopiar(props: { texto: string }) {
   );
 }
 
-function Section(props: {
+/** Qué secciones están plegadas.
+ *
+ *  Va por contexto y no por props para no tener que enhebrar dos parámetros por
+ *  cada uno de los doce usos de `Section`. Lo que se guarda son las CERRADAS,
+ *  no las abiertas: así una sección nueva nace desplegada sin tener que tocar
+ *  los ajustes de nadie. */
+export const Plegado = createContext<{
+  cerradas: string[];
+  alternar: (id: string) => void;
+}>({ cerradas: [], alternar: () => {} });
+
+/** Bloque con título, plegable desde la cabecera.
+ *
+ *  El plegado usa `grid-template-rows: 1fr → 0fr`, que anima sin saber cuánto
+ *  mide el contenido. La alternativa clásica es un `max-height` a ojo, y ésa se
+ *  nota: o corta el contenido largo o deja la animación coja cuando el bloque es
+ *  corto.
+ *
+ *  `tono="labs"` tiñe la sección entera de verde. Es para LABS, donde el verde
+ *  no es decoración: marca la única parte de la app que se anuncia como
+ *  experimental. */
+export function Section(props: {
+  id: string;
   title: string;
   children: React.ReactNode;
   hint?: string;
+  tono?: "labs";
 }) {
+  const { cerradas, alternar } = useContext(Plegado);
+  const cerrado = cerradas.includes(props.id);
+  const labs = props.tono === "labs";
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <h2 className="mb-1 text-sm font-semibold tracking-wide text-slate-800 dark:text-slate-100">
-        {props.title}
-      </h2>
-      {props.hint && (
-        <p className="mb-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-          {props.hint}
-        </p>
-      )}
-      <div className={props.hint ? "" : "mt-3"}>{props.children}</div>
+    <section
+      className={`rounded-2xl border p-5 shadow-sm ${
+        labs
+          ? "border-emerald-300 bg-emerald-50/70 dark:border-emerald-800/60 dark:bg-emerald-950/30"
+          : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+      }`}
+    >
+      <button
+        type="button"
+        aria-expanded={!cerrado}
+        onClick={() => alternar(props.id)}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        <h2
+          className={`flex-1 text-sm font-semibold tracking-wide ${
+            labs
+              ? "text-emerald-900 dark:text-emerald-200"
+              : "text-slate-800 dark:text-slate-100"
+          }`}
+        >
+          {props.title}
+        </h2>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
+            cerrado ? "-rotate-90" : ""
+          } ${labs ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      <div className={`plegable ${cerrado ? "cerrada" : ""}`}>
+        <div>
+          {props.hint && (
+            <p
+              className={`mt-1 mb-3 text-xs leading-relaxed ${
+                labs
+                  ? "text-emerald-800/80 dark:text-emerald-300/80"
+                  : "text-slate-500 dark:text-slate-400"
+              }`}
+            >
+              {props.hint}
+            </p>
+          )}
+          <div className={props.hint ? "" : "mt-3"}>{props.children}</div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -237,24 +311,30 @@ const NIVELES: {
     titulo: "Tal cual",
     coste: "al instante",
     desc: "Tus palabras exactas. Sólo puntuación, acentos y tu diccionario. No pasa por ninguna IA ni sale de tu equipo.",
-    limite: "No quita nada ni cambia el orden. Lo que dijiste llega entero, muletillas incluidas.",
-    ejemplo: "«o sea creo que deberíamos mover la reunión al jueves» → O sea, creo que deberíamos mover la reunión al jueves.",
+    limite:
+      "No quita nada ni cambia el orden. Lo que dijiste llega entero, muletillas incluidas.",
+    ejemplo:
+      "«o sea creo que deberíamos mover la reunión al jueves» → O sea, creo que deberíamos mover la reunión al jueves.",
   },
   {
     id: "groq_llm",
     titulo: "Estándar",
     coste: "~1 s",
     desc: "Mismas palabras, mejor forma: quita muletillas, aplica tus correcciones al vuelo y puntúa bien. Es el de siempre, y el más rápido.",
-    limite: "No resume, no reordena y no contesta. Si le dictas una pregunta, escribe la pregunta.",
-    ejemplo: "«o sea creo que deberíamos, bueno, mover la reunión al jueves» → Creo que deberíamos mover la reunión al jueves.",
+    limite:
+      "No resume, no reordena y no contesta. Si le dictas una pregunta, escribe la pregunta.",
+    ejemplo:
+      "«o sea creo que deberíamos, bueno, mover la reunión al jueves» → Creo que deberíamos mover la reunión al jueves.",
   },
   {
     id: "groq_estructurado",
     titulo: "Editor",
     coste: "~2-3 s",
     desc: "Te lo REDACTA. No limpia tu dictado: lee la idea entera y la vuelve a escribir en párrafos, encadenando las frases y cambiando las muletillas por conectores de verdad. Suele salir un tercio más corto. Usa un modelo más grande, por eso tarda un par de segundos más.",
-    limite: "No añade información, ejemplos, cifras ni conclusiones que no dijiste. Si se pasa, Dicho lo descarta solo y te deja el texto sin tocar.",
-    ejemplo: "«lo que quiero decir es que, este, quizás mover la reunión, o sea moverla al jueves, porque el miércoles no puedo» → Movamos la reunión al jueves: el miércoles no puedo.",
+    limite:
+      "No añade información, ejemplos, cifras ni conclusiones que no dijiste. Si se pasa, Dicho lo descarta solo y te deja el texto sin tocar.",
+    ejemplo:
+      "«lo que quiero decir es que, este, quizás mover la reunión, o sea moverla al jueves, porque el miércoles no puedo» → Movamos la reunión al jueves: el miércoles no puedo.",
   },
 ];
 
@@ -447,9 +527,10 @@ function KeyboardPicker(props: {
             </div>
           ))}
           <div className="flex gap-1">
-            {(layout === "laptop" ? BOTTOM_ROW_LAPTOP : BOTTOM_ROW_EXTENDED).map(
-              cap,
-            )}
+            {(layout === "laptop"
+              ? BOTTOM_ROW_LAPTOP
+              : BOTTOM_ROW_EXTENDED
+            ).map(cap)}
           </div>
         </div>
 
@@ -621,6 +702,22 @@ export default function Settings() {
     );
   };
 
+  // El plegado se guarda en los ajustes, así que la ventana abre como la
+  // dejaste. Si todavía no han cargado, todo se ve desplegado: es mejor
+  // enseñar de más un instante que hacer parpadear las secciones al revés.
+  const plegado = {
+    cerradas: settings?.secciones_plegadas ?? [],
+    alternar: (id: string) => {
+      if (!settings) return;
+      const ya = settings.secciones_plegadas.includes(id);
+      update({
+        secciones_plegadas: ya
+          ? settings.secciones_plegadas.filter((x) => x !== id)
+          : [...settings.secciones_plegadas, id],
+      });
+    },
+  };
+
   const googleLogin = () => {
     setGoogleBusy("login");
     setGoogleError(null);
@@ -646,945 +743,990 @@ export default function Settings() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <style>{AVISO_CSS}</style>
-      <aside className="flex w-52 shrink-0 flex-col border-r border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <h1 className="px-3 text-2xl font-black tracking-tight text-blue-600 dark:text-sky-400">
-          Dicho
-        </h1>
-        <p className="mb-5 px-3 text-[11px] font-medium text-slate-400 dark:text-slate-500">
-          Dicho y hecho.
-        </p>
-        <nav className="flex flex-1 flex-col gap-1">
-          <NavItem
-            active={tab === "inicio"}
-            onClick={() => setTab("inicio")}
-            icon={<HomeIcon />}
-            label="Inicio"
-          />
-          <NavItem
-            active={tab === "diccionario"}
-            onClick={() => setTab("diccionario")}
-            icon={<BookIcon />}
-            label="Diccionario"
-          />
-          <NavItem
-            active={tab === "historial"}
-            onClick={() => setTab("historial")}
-            icon={<ClockIcon />}
-            label="Historial"
-          />
-          <div className="mt-auto border-t border-slate-200 pt-2 dark:border-slate-800">
+    <Plegado.Provider value={plegado}>
+      <div className="flex h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+        <style>{AVISO_CSS}</style>
+        <aside className="flex w-52 shrink-0 flex-col border-r border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <h1 className="px-3 text-2xl font-black tracking-tight text-blue-600 dark:text-sky-400">
+            Dicho
+          </h1>
+          <p className="mb-5 px-3 text-[11px] font-medium text-slate-400 dark:text-slate-500">
+            Dicho y hecho.
+          </p>
+          <nav className="flex flex-1 flex-col gap-1">
             <NavItem
-              active={tab === "ajustes"}
-              onClick={() => setTab("ajustes")}
-              icon={<GearIcon />}
-              label="Ajustes"
-              aviso={actualizacion.fase === "disponible"}
+              active={tab === "inicio"}
+              onClick={() => setTab("inicio")}
+              icon={<HomeIcon />}
+              label="Inicio"
             />
-          </div>
-        </nav>
-        <p className="mt-3 px-3 text-[10px] text-slate-400 dark:text-slate-600">
-          {/* La versión sale del binario, igual que en Ajustes: escrita a mano se
+            <NavItem
+              active={tab === "diccionario"}
+              onClick={() => setTab("diccionario")}
+              icon={<BookIcon />}
+              label="Diccionario"
+            />
+            <NavItem
+              active={tab === "historial"}
+              onClick={() => setTab("historial")}
+              icon={<ClockIcon />}
+              label="Historial"
+            />
+            <div className="mt-auto border-t border-slate-200 pt-2 dark:border-slate-800">
+              <NavItem
+                active={tab === "ajustes"}
+                onClick={() => setTab("ajustes")}
+                icon={<GearIcon />}
+                label="Ajustes"
+                aviso={actualizacion.fase === "disponible"}
+              />
+            </div>
+          </nav>
+          <p className="mt-3 px-3 text-[10px] text-slate-400 dark:text-slate-600">
+            {/* La versión sale del binario, igual que en Ajustes: escrita a mano se
               quedaba clavada en la del día que se tecleó. */}
-          {versionActual ? `v${versionActual}` : "v…"} — corre en tu equipo
-        </p>
-      </aside>
+            {versionActual ? `v${versionActual}` : "v…"} — corre en tu equipo
+          </p>
+        </aside>
 
-      <main className="flex-1 overflow-y-auto px-8 py-6">
-        <div className="mx-auto flex max-w-2xl flex-col gap-4">
-          <header className="mb-1">
-            <h1 className="text-xl font-bold tracking-tight">
-              {TAB_META[tab].title}
-            </h1>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              {TAB_META[tab].desc}
-            </p>
-          </header>
+        <main className="flex-1 overflow-y-auto px-8 py-6">
+          <div className="mx-auto flex max-w-2xl flex-col gap-4">
+            <header className="mb-1">
+              <h1 className="text-xl font-bold tracking-tight">
+                {TAB_META[tab].title}
+              </h1>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                {TAB_META[tab].desc}
+              </p>
+            </header>
 
-          {tab === "inicio" && (
-            <>
-              <Section
-                title="Atajo para dictar"
-                hint="Mantén estas teclas y habla; suéltalas y el texto aparece donde estés escribiendo. Haz clic en el teclado para armar tu combinación (máximo 4 teclas, al menos un modificador como Ctrl, Win, Alt o Mayús)."
-              >
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <span className={labelCls}>Combinación:</span>
-                  {draft.length === 0 ? (
-                    <span className="text-xs text-amber-600 dark:text-amber-400">
-                      elige al menos una tecla
-                    </span>
-                  ) : (
-                    draft.map((k) => (
-                      <kbd
-                        key={k}
-                        className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300"
-                      >
-                        {keyLabel(k)}
-                      </kbd>
-                    ))
-                  )}
-                </div>
-
-                <KeyboardPicker selected={draft} onToggle={toggleKey} />
-
-                <div className="mt-3 flex items-center gap-2">
-                  <button
-                    className={btnCls}
-                    disabled={
-                      !draftChanged || draft.length === 0 || !draftHasModifier
-                    }
-                    onClick={() => {
-                      update({ hotkey: draft });
-                      setHotkeyDraft(null);
-                    }}
-                  >
-                    Guardar atajo
-                  </button>
-                  <button
-                    className={btnGhostCls}
-                    onClick={() => setHotkeyDraft(["ControlLeft", "MetaLeft"])}
-                  >
-                    Restaurar Ctrl + Win
-                  </button>
-                  {draftChanged && (
-                    <button
-                      className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                      onClick={() => setHotkeyDraft(null)}
-                    >
-                      Descartar cambios
-                    </button>
-                  )}
-                </div>
-                {!draftHasModifier && draft.length > 0 && (
-                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                    Incluye al menos un modificador (Ctrl, Win, Alt o Mayús);
-                    si no, el dictado se activaría al escribir normal.
-                  </p>
-                )}
-              </Section>
-
-              <Section
-                title="LABS · Cómo te redacta"
-                hint="Cuánto permiso le das a Dicho sobre lo que dijiste. Sube un escalón sólo cuando quieras que te ayude a ordenar la idea, no a copiarla."
-              >
-                {settings ? (
-                  <div className="flex flex-col gap-2.5">
-                    <style>{LABS_CSS}</style>
-                    {/* El sello. Verde ácido y matraz, a propósito distinto del
-                        azul del resto: es la única parte de la app que se
-                        anuncia como experimental, y tiene que verse. */}
-                    <div className="flex items-center gap-2.5 rounded-xl border border-dashed border-emerald-400/70 bg-emerald-50/60 px-3 py-2 dark:border-emerald-500/40 dark:bg-emerald-950/30">
-                      <span className="labs-sello text-emerald-600 dark:text-emerald-400">
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="h-5 w-5"
-                        >
-                          <path d="M9 3h6" />
-                          <path d="M10 3v6.5L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9.5V3" />
-                          <path d="M7.3 14h9.4" />
-                        </svg>
+            {tab === "inicio" && (
+              <>
+                <Section
+                  id="atajo"
+                  title="Atajo para dictar"
+                  hint="Mantén estas teclas y habla; suéltalas y el texto aparece donde estés escribiendo. Haz clic en el teclado para armar tu combinación (máximo 4 teclas, al menos un modificador como Ctrl, Win, Alt o Mayús)."
+                >
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <span className={labelCls}>Combinación:</span>
+                    {draft.length === 0 ? (
+                      <span className="text-xs text-amber-600 dark:text-amber-400">
+                        elige al menos una tecla
                       </span>
-                      <div className="min-w-0 flex-1">
-                        <span className="rounded bg-emerald-600 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-widest text-white dark:bg-emerald-500">
-                          LABS
-                        </span>
-                        <span className="ml-2 text-[11px] text-emerald-800 dark:text-emerald-300">
-                          Experimento en curso: esto puede cambiar de una versión
-                          a otra.
-                        </span>
-                      </div>
-                    </div>
-
-                    {NIVELES.map((n) => {
-                      const activo = settings.polish === n.id;
-                      const bloqueado = n.id !== "rules" && !hasKey;
-                      return (
-                        <button
-                          key={n.id}
-                          type="button"
-                          disabled={bloqueado}
-                          onClick={() => update({ polish: n.id })}
-                          className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
-                            activo
-                              ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-500/20 dark:border-emerald-400 dark:bg-emerald-950/40 dark:ring-emerald-400/20"
-                              : "border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/40 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-700"
-                          }`}
+                    ) : (
+                      draft.map((k) => (
+                        <kbd
+                          key={k}
+                          className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300"
                         >
-                          <span
-                            className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
-                              activo
-                                ? "border-emerald-600 dark:border-emerald-400"
-                                : "border-slate-300 dark:border-slate-600"
-                            }`}
-                          >
-                            {activo && (
-                              <span className="h-2 w-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
-                            )}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-semibold">
-                                {n.titulo}
-                              </span>
-                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                                {n.coste}
-                              </span>
-                              {bloqueado && (
-                                <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
-                                  necesita la key de Groq (Ajustes)
-                                </span>
-                              )}
-                            </span>
-                            <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                              {n.desc}
-                            </span>
-                            <span className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                              <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2.2}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="mt-[3px] h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400"
-                              >
-                                <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" />
-                              </svg>
-                              <span>{n.limite}</span>
-                            </span>
-                            <span className="mt-1.5 block rounded-lg bg-slate-50 px-2 py-1 font-mono text-[10px] leading-relaxed text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
-                              {n.ejemplo}
-                            </span>
-                          </span>
-                        </button>
-                      );
-                    })}
-                    <label className="mt-1 flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={settings.hud_niveles}
-                        onChange={(e) => update({ hud_niveles: e.target.checked })}
-                        className="mt-0.5 h-4 w-4 accent-emerald-600"
-                      />
-                      <span>
-                        Enseñar la cinta de niveles debajo de la onda
-                        <span className="mt-1 block text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-                          Una tira fina con los tres, y el puesto en azul. Sirve
-                          para cambiarlo de un clic justo antes de hablar, que es
-                          cuando de verdad lo decides. Se ve mejor con la onda
-                          clavada.
-                        </span>
-                      </span>
-                    </label>
-
-                    <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-                      Editor es el único que puede cambiarte las palabras.
-                      Si el resultado se aleja demasiado de lo que dijiste —o trae
-                      palabras que tú no usaste— Dicho lo descarta solo y escribe
-                      la versión limpia de siempre, sin avisar y sin perder nada.
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-400">Cargando…</p>
-                )}
-              </Section>
-
-              <Section
-                title="La onda flotante"
-                hint="La cápsula que aparece mientras hablas. Las dos hacen exactamente lo mismo: sólo cambia la cara. Pulsa la que te guste y se queda puesta."
-              >
-                {settings ? (
-                  <div className="flex flex-col gap-3">
-                    <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={settings.hud_enabled}
-                        onChange={(e) => update({ hud_enabled: e.target.checked })}
-                        className="h-4 w-4 accent-blue-600"
-                      />
-                      Mostrarla mientras dicto
-                    </label>
-
-                    {settings.hud_enabled && (
-                      <>
-                        <VistaPrevia
-                          value={settings.hud_style}
-                          onChange={(v) => update({ hud_style: v })}
-                          onVerCaritas={() => setVerAnimaciones(true)}
-                        />
-
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
-                          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                            Todo lo demás se hace sobre la onda misma
-                          </p>
-                          <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                            Pásale el ratón por encima y aparece un botón de lápiz
-                            a la derecha. Ahí puedes <strong>clavarla</strong> para
-                            que se quede siempre a la vista, o{" "}
-                            <strong>cambiarla de sitio</strong> —y entonces los
-                            botones se convierten en «listo» y «devolverla a su
-                            sitio»—. Clavada y sin dictar se pone translúcida para
-                            no estorbar.
-                          </p>
-                          <p className="mt-2 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-                            Si la onda no está a la vista, enciéndela abajo o
-                            dicta una vez: sale sola.
-                          </p>
-                        </div>
-
-                        <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
-                          <input
-                            type="checkbox"
-                            checked={settings.hud_arrastrable}
-                            onChange={(e) =>
-                              update({ hud_arrastrable: e.target.checked })
-                            }
-                            className="h-4 w-4 accent-blue-600"
-                          />
-                          Que la onda responda al ratón
-                        </label>
-                        <p className="-mt-1 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-                          Encendido, la onda atrapa el ratón mientras está a la
-                          vista: es lo que permite pasarle el cursor por encima y
-                          usar su menú. A cambio, los clics que caigan sobre ella
-                          van a ella y no a lo que tengas debajo. Apagándolo
-                          vuelve a ser un cristal que se atraviesa — y entonces su
-                          menú deja de existir, así que sólo podrás moverla o
-                          clavarla volviendo a encender esto.
-                        </p>
-                      </>
+                          {keyLabel(k)}
+                        </kbd>
+                      ))
                     )}
                   </div>
-                ) : (
-                  <p className="text-xs text-slate-400">Cargando…</p>
-                )}
-              </Section>
-            </>
-          )}
 
-          {tab === "diccionario" && (
-            <Section
-              title="Diccionario personal"
-              hint="Nombres propios, marcas o términos que Dicho debe escribir exactamente así. Con reemplazo corrige transcripciones erróneas; cada corrección aplicada queda marcada en el Historial."
-            >
-              <div className="mb-3 flex gap-2">
-                <input
-                  className={`${inputCls} flex-1`}
-                  placeholder="Término que transcribe mal"
-                  value={term}
-                  onChange={(e) => setTerm(e.target.value)}
-                />
-                <input
-                  className={`${inputCls} flex-1`}
-                  placeholder="Cómo debe escribirse (opcional)"
-                  value={replacement}
-                  onChange={(e) => setReplacement(e.target.value)}
-                />
-                <button
-                  className={btnCls}
-                  disabled={!term.trim()}
-                  onClick={() =>
-                    invoke("dict_add", {
-                      term,
-                      replacement: replacement.trim() || null,
-                    }).then(() => {
-                      setTerm("");
-                      setReplacement("");
-                      refreshDict();
-                    })
-                  }
-                >
-                  Agregar
-                </button>
-              </div>
-              {dict.length === 0 ? (
-                <p className="text-xs text-slate-400 dark:text-slate-500">
-                  Aún no hay términos.
-                </p>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {dict.map((d) => (
-                    <li
-                      key={d.id}
-                      className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/60"
+                  <KeyboardPicker selected={draft} onToggle={toggleKey} />
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      className={btnCls}
+                      disabled={
+                        !draftChanged || draft.length === 0 || !draftHasModifier
+                      }
+                      onClick={() => {
+                        update({ hotkey: draft });
+                        setHotkeyDraft(null);
+                      }}
                     >
-                      <span className="text-slate-700 dark:text-slate-200">
-                        {d.term}
-                        {d.replacement && (
-                          <span className="text-slate-400 dark:text-slate-500">
-                            {" "}
-                            → {d.replacement}
-                          </span>
-                        )}
-                      </span>
+                      Guardar atajo
+                    </button>
+                    <button
+                      className={btnGhostCls}
+                      onClick={() =>
+                        setHotkeyDraft(["ControlLeft", "MetaLeft"])
+                      }
+                    >
+                      Restaurar Ctrl + Win
+                    </button>
+                    {draftChanged && (
                       <button
-                        className="text-xs text-slate-400 transition-colors hover:text-amber-600 dark:text-slate-500 dark:hover:text-amber-400"
-                        onClick={() =>
-                          invoke("dict_remove", { id: d.id }).then(refreshDict)
-                        }
+                        className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                        onClick={() => setHotkeyDraft(null)}
                       >
-                        Eliminar
+                        Descartar cambios
                       </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Section>
-          )}
+                    )}
+                  </div>
+                  {!draftHasModifier && draft.length > 0 && (
+                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                      Incluye al menos un modificador (Ctrl, Win, Alt o Mayús);
+                      si no, el dictado se activaría al escribir normal.
+                    </p>
+                  )}
+                </Section>
 
-          {tab === "historial" && (
-            <Section title="Tus dictados">
-              <div className="mb-3 flex items-center gap-3">
-                <input
-                  className={`${inputCls} flex-1`}
-                  placeholder="Buscar en tus dictados…"
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    refreshHistory(e.target.value);
-                  }}
-                />
-                <label className="flex shrink-0 items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={onlyCorrected}
-                    onChange={(e) => setOnlyCorrected(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-blue-600"
-                  />
-                  Solo con correcciones
-                </label>
-              </div>
-              {visibleHistory.length === 0 ? (
-                <p className="text-xs text-slate-400 dark:text-slate-500">
-                  {onlyCorrected
-                    ? "Ningún dictado con correcciones del diccionario todavía."
-                    : "Aquí aparecerá todo lo que dictes."}
-                </p>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {visibleHistory.map((h) => (
-                    <li
-                      key={h.id}
-                      className="group rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/60"
-                    >
-                      <p className="text-slate-800 dark:text-slate-100">
-                        {h.polished}
-                      </p>
-                      {h.corrections.length > 0 && (
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {h.corrections.map((c, i) => (
+                <Section
+                  id="onda"
+                  title="La onda flotante"
+                  hint="La cápsula que aparece mientras hablas. Las dos hacen exactamente lo mismo: sólo cambia la cara. Pulsa la que te guste y se queda puesta."
+                >
+                  {settings ? (
+                    <div className="flex flex-col gap-3">
+                      <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={settings.hud_enabled}
+                          onChange={(e) =>
+                            update({ hud_enabled: e.target.checked })
+                          }
+                          className="h-4 w-4 accent-blue-600"
+                        />
+                        Mostrarla mientras dicto
+                      </label>
+
+                      {settings.hud_enabled && (
+                        <>
+                          <VistaPrevia
+                            value={settings.hud_style}
+                            onChange={(v) => update({ hud_style: v })}
+                            onVerCaritas={() => setVerAnimaciones(true)}
+                          />
+
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
+                            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                              Todo lo demás se hace sobre la onda misma
+                            </p>
+                            <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                              Pásale el ratón por encima y aparece un botón de
+                              lápiz a la derecha. Ahí puedes{" "}
+                              <strong>clavarla</strong> para que se quede
+                              siempre a la vista, o{" "}
+                              <strong>cambiarla de sitio</strong> —y entonces
+                              los botones se convierten en «listo» y «devolverla
+                              a su sitio»—. Clavada y sin dictar se pone
+                              translúcida para no estorbar.
+                            </p>
+                            <p className="mt-2 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+                              Si la onda no está a la vista, enciéndela abajo o
+                              dicta una vez: sale sola.
+                            </p>
+                          </div>
+
+                          <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+                            <input
+                              type="checkbox"
+                              checked={settings.hud_arrastrable}
+                              onChange={(e) =>
+                                update({ hud_arrastrable: e.target.checked })
+                              }
+                              className="h-4 w-4 accent-blue-600"
+                            />
+                            Que la onda responda al ratón
+                          </label>
+                          <p className="-mt-1 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+                            Encendido, la onda atrapa el ratón mientras está a
+                            la vista: es lo que permite pasarle el cursor por
+                            encima y usar su menú. A cambio, los clics que
+                            caigan sobre ella van a ella y no a lo que tengas
+                            debajo. Apagándolo vuelve a ser un cristal que se
+                            atraviesa — y entonces su menú deja de existir, así
+                            que sólo podrás moverla o clavarla volviendo a
+                            encender esto.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400">Cargando…</p>
+                  )}
+                </Section>
+
+                <Section
+                  id="labs"
+                  tono="labs"
+                  title="LABS · Cómo te redacta"
+                  hint="Cuánto permiso le das a Dicho sobre lo que dijiste. Sube un escalón sólo cuando quieras que te ayude a ordenar la idea, no a copiarla."
+                >
+                  {settings ? (
+                    <div className="flex flex-col gap-2.5">
+                      <style>{LABS_CSS}</style>
+                      {/* El sello. Verde ácido y matraz, a propósito distinto del
+                        azul del resto: es la única parte de la app que se
+                        anuncia como experimental, y tiene que verse. */}
+                      <div className="flex items-center gap-2.5 rounded-xl border border-dashed border-emerald-400/70 bg-emerald-50/60 px-3 py-2 dark:border-emerald-500/40 dark:bg-emerald-950/30">
+                        <span className="labs-sello text-emerald-600 dark:text-emerald-400">
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-5 w-5"
+                          >
+                            <path d="M9 3h6" />
+                            <path d="M10 3v6.5L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9.5V3" />
+                            <path d="M7.3 14h9.4" />
+                          </svg>
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <span className="rounded bg-emerald-600 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-widest text-white dark:bg-emerald-500">
+                            LABS
+                          </span>
+                          <span className="ml-2 text-[11px] text-emerald-800 dark:text-emerald-300">
+                            Experimento en curso: esto puede cambiar de una
+                            versión a otra.
+                          </span>
+                        </div>
+                      </div>
+
+                      {NIVELES.map((n) => {
+                        const activo = settings.polish === n.id;
+                        const bloqueado = n.id !== "rules" && !hasKey;
+                        return (
+                          <button
+                            key={n.id}
+                            type="button"
+                            disabled={bloqueado}
+                            onClick={() => update({ polish: n.id })}
+                            className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                              /* Sobre el verde de la sección hay que invertir
+                                 lo de siempre: el activo va en blanco macizo y
+                                 el inactivo translúcido. Con las clases de
+                                 antes —verde claro el activo, blanco el
+                                 inactivo— el activo se fundía con el fondo y el
+                                 inactivo destacaba más que él, al revés. */
+                              activo
+                                ? "border-emerald-500 bg-white ring-2 ring-emerald-500/30 dark:border-emerald-400 dark:bg-slate-900 dark:ring-emerald-400/30"
+                                : "border-emerald-200/80 bg-white/50 hover:border-emerald-400 hover:bg-white/80 dark:border-emerald-900/60 dark:bg-slate-900/40 dark:hover:border-emerald-700"
+                            }`}
+                          >
                             <span
-                              key={i}
-                              title="Corregido por tu diccionario"
-                              className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-sky-500/10 dark:text-sky-300"
+                              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                                activo
+                                  ? "border-emerald-600 dark:border-emerald-400"
+                                  : "border-slate-300 dark:border-slate-600"
+                              }`}
                             >
-                              <span className="line-through opacity-60">
-                                {c.term}
-                              </span>
-                              <span>→</span>
-                              <span>{c.replacement}</span>
-                              {c.count > 1 && (
-                                <span className="opacity-60">×{c.count}</span>
+                              {activo && (
+                                <span className="h-2 w-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
                               )}
                             </span>
-                          ))}
-                        </div>
-                      )}
-                      <div className="mt-1 flex items-center gap-3 text-[11px] text-slate-400 dark:text-slate-500">
-                        <span>{fmtDate(h.ts)}</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-semibold">
+                                  {n.titulo}
+                                </span>
+                                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                  {n.coste}
+                                </span>
+                                {bloqueado && (
+                                  <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                    necesita la key de Groq (Ajustes)
+                                  </span>
+                                )}
+                              </span>
+                              <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                                {n.desc}
+                              </span>
+                              <span className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth={2.2}
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className="mt-[3px] h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+                                >
+                                  <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" />
+                                </svg>
+                                <span>{n.limite}</span>
+                              </span>
+                              <span className="mt-1.5 block rounded-lg bg-slate-50 px-2 py-1 font-mono text-[10px] leading-relaxed text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+                                {n.ejemplo}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                      <label className="mt-1 flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={settings.hud_niveles}
+                          onChange={(e) =>
+                            update({ hud_niveles: e.target.checked })
+                          }
+                          className="mt-0.5 h-4 w-4 accent-emerald-600"
+                        />
                         <span>
-                          {h.engine === "parakeet" ? "local" : h.engine}
+                          Enseñar la cinta de niveles debajo de la onda
+                          <span className="mt-1 block text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+                            Una tira fina con los tres, y el puesto en azul.
+                            Sirve para cambiarlo de un clic justo antes de
+                            hablar, que es cuando de verdad lo decides. Se ve
+                            mejor con la onda clavada.
+                          </span>
                         </span>
-                        <span>{(h.duration_ms / 1000).toFixed(1)} s</span>
-                        <BotonCopiar texto={h.polished} />
+                      </label>
+
+                      <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+                        Editor es el único que puede cambiarte las palabras. Si
+                        el resultado se aleja demasiado de lo que dijiste —o
+                        trae palabras que tú no usaste— Dicho lo descarta solo y
+                        escribe la versión limpia de siempre, sin avisar y sin
+                        perder nada.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400">Cargando…</p>
+                  )}
+                </Section>
+              </>
+            )}
+
+            {tab === "diccionario" && (
+              <Section
+                id="diccionario"
+                title="Diccionario personal"
+                hint="Nombres propios, marcas o términos que Dicho debe escribir exactamente así. Con reemplazo corrige transcripciones erróneas; cada corrección aplicada queda marcada en el Historial."
+              >
+                <div className="mb-3 flex gap-2">
+                  <input
+                    className={`${inputCls} flex-1`}
+                    placeholder="Término que transcribe mal"
+                    value={term}
+                    onChange={(e) => setTerm(e.target.value)}
+                  />
+                  <input
+                    className={`${inputCls} flex-1`}
+                    placeholder="Cómo debe escribirse (opcional)"
+                    value={replacement}
+                    onChange={(e) => setReplacement(e.target.value)}
+                  />
+                  <button
+                    className={btnCls}
+                    disabled={!term.trim()}
+                    onClick={() =>
+                      invoke("dict_add", {
+                        term,
+                        replacement: replacement.trim() || null,
+                      }).then(() => {
+                        setTerm("");
+                        setReplacement("");
+                        refreshDict();
+                      })
+                    }
+                  >
+                    Agregar
+                  </button>
+                </div>
+                {dict.length === 0 ? (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    Aún no hay términos.
+                  </p>
+                ) : (
+                  <ul className="flex flex-col gap-1">
+                    {dict.map((d) => (
+                      <li
+                        key={d.id}
+                        className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/60"
+                      >
+                        <span className="text-slate-700 dark:text-slate-200">
+                          {d.term}
+                          {d.replacement && (
+                            <span className="text-slate-400 dark:text-slate-500">
+                              {" "}
+                              → {d.replacement}
+                            </span>
+                          )}
+                        </span>
                         <button
-                          className="opacity-0 transition-opacity hover:text-amber-600 group-hover:opacity-100 dark:hover:text-amber-400"
+                          className="text-xs text-slate-400 transition-colors hover:text-amber-600 dark:text-slate-500 dark:hover:text-amber-400"
                           onClick={() =>
-                            invoke("delete_history", { id: h.id }).then(() =>
-                              refreshHistory(search),
+                            invoke("dict_remove", { id: d.id }).then(
+                              refreshDict,
                             )
                           }
                         >
                           Eliminar
                         </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Section>
-          )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Section>
+            )}
 
-          {tab === "ajustes" && settings && (
-            <>
-              <Section title="Dictado">
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                  <label className="flex flex-col gap-1.5">
-                    <span className={labelCls}>Motor de transcripción</span>
-                    <select
-                      className={fieldCls}
-                      value={settings.engine}
-                      onChange={(e) =>
-                        update({
-                          engine: e.target.value as AppSettings["engine"],
-                        })
-                      }
-                    >
-                      <option value="parakeet">
-                        Local — Parakeet V3 (privado, gratis)
-                      </option>
-                      <option value="groq" disabled={!hasKey}>
-                        Cloud — Groq Whisper turbo{" "}
-                        {hasKey ? "" : "(requiere API key)"}
-                      </option>
-                    </select>
-                    <span className="text-[11px] leading-snug text-slate-400 dark:text-slate-500">
-                      ¿Mezclas español e inglés en la misma frase? El motor
-                      local elige un solo idioma por dictado; para spanglish
-                      fluido usa el motor cloud (gratis con API key de Groq).
-                    </span>
-                  </label>
-
-                  <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
-                    <strong className="text-slate-600 dark:text-slate-300">
-                      Cómo te redacta se elige en Inicio,
-                    </strong>{" "}
-                    en la sección LABS: ahí están los tres niveles, con un ejemplo
-                    de lo que hace cada uno.
-                  </p>
-
-                  <label className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+            {tab === "historial" && (
+              <Section id="dictados" title="Tus dictados">
+                <div className="mb-3 flex items-center gap-3">
+                  <input
+                    className={`${inputCls} flex-1`}
+                    placeholder="Buscar en tus dictados…"
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      refreshHistory(e.target.value);
+                    }}
+                  />
+                  <label className="flex shrink-0 items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                     <input
                       type="checkbox"
-                      checked={settings.no_traducir}
-                      onChange={(e) => update({ no_traducir: e.target.checked })}
-                      className="mt-0.5 h-4 w-4 accent-blue-600"
+                      checked={onlyCorrected}
+                      onChange={(e) => setOnlyCorrected(e.target.checked)}
+                      className="h-3.5 w-3.5 accent-blue-600"
                     />
-                    <span>
-                      No traducir nunca
-                      <span className="mt-0.5 block text-xs text-slate-400 dark:text-slate-500">
-                        Conserva cada palabra en el idioma en que la dijiste. El motor
-                        decide un solo idioma cada 30 s, así que Dicho corta el audio en
-                        tus pausas para que cada tramo decida por su cuenta; aun así, una
-                        palabra suelta en el otro idioma puede salir traducida.
-                      </span>
-                    </span>
-                  </label>
-
-                  <label className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={settings.copiar_al_portapapeles}
-                      onChange={(e) =>
-                        update({ copiar_al_portapapeles: e.target.checked })
-                      }
-                      className="mt-0.5 h-4 w-4 accent-blue-600"
-                    />
-                    <span>
-                      Dejar el dictado en el portapapeles
-                      <span className="mt-0.5 block text-xs text-slate-400 dark:text-slate-500">
-                        Además de pegarlo donde estés escribiendo, el texto se queda
-                        copiado y puedes volver a pegarlo con Ctrl+V donde quieras. Ojo:
-                        con esto encendido, <strong>cada dictado pisa lo que tuvieras
-                        copiado</strong>. Apagado, Dicho te devuelve lo de antes.
-                      </span>
-                    </span>
-                  </label>
-
-                  <label className="flex flex-col gap-1.5">
-                    <span className={labelCls}>Idioma del dictado</span>
-                    <select
-                      className={`${fieldCls} disabled:opacity-40`}
-                      disabled={settings.no_traducir}
-                      value={settings.language}
-                      onChange={(e) => update({ language: e.target.value })}
-                    >
-                      <option value="auto">Detección automática</option>
-                      <option value="es">Español</option>
-                      <option value="en">English</option>
-                    </select>
-                    {settings.no_traducir && (
-                      <span className="text-xs text-slate-400 dark:text-slate-500">
-                        Sin efecto mientras "no traducir" esté encendido: fijar el idioma
-                        es justo lo que empuja al motor a traducir el otro.
-                      </span>
-                    )}
+                    Solo con correcciones
                   </label>
                 </div>
-              </Section>
-
-              <Section title="Modelo de voz local">
-                {model?.state === "ready" && !downloading && (
-                  <p className="flex items-center gap-2 text-sm text-blue-600 dark:text-sky-400">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white dark:bg-sky-500">
-                      ✓
-                    </span>
-                    Parakeet V3 listo — todo se procesa en tu equipo, sin
-                    internet.
+                {visibleHistory.length === 0 ? (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    {onlyCorrected
+                      ? "Ningún dictado con correcciones del diccionario todavía."
+                      : "Aquí aparecerá todo lo que dictes."}
                   </p>
-                )}
-                {downloading && (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
-                      Descargando modelo…{" "}
-                      {progress ? fmtBytes(progress.downloaded) : ""}
-                      {progress ? ` de ${fmtBytes(progress.total)}` : ""}
-                    </p>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                      <div
-                        className="h-full rounded-full bg-blue-600 transition-all dark:bg-sky-500"
-                        style={{
-                          width: progress
-                            ? `${Math.round((progress.downloaded / progress.total) * 100)}%`
-                            : "0%",
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-                {model?.state === "missing" && !downloading && (
-                  <div className="flex items-center gap-3">
-                    <p className="flex-1 text-sm text-slate-600 dark:text-slate-300">
-                      Falta el modelo Parakeet V3 ({fmtBytes(671_000_000)},
-                      descarga única).
-                    </p>
-                    <button
-                      className={btnCls}
-                      onClick={() => {
-                        setModelError(null);
-                        invoke("download_model");
-                      }}
-                    >
-                      {modelError ? "Reintentar" : "Descargar"}
-                    </button>
-                  </div>
-                )}
-                {modelError && !downloading && (
-                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                    {modelError}
-                  </p>
-                )}
-              </Section>
-
-              <Section
-                title="Conectar Groq — opcional, gratis y sin tarjeta"
-                hint="Dicho ya funciona entero sin esto. Conectar Groq es para cuando quieres más velocidad o dictas mezclando español e inglés en la misma frase."
-              >
-                {hasKey ? (
-                  <div className="flex items-center gap-3">
-                    <p className="flex-1 text-sm text-blue-600 dark:text-sky-400">
-                      ✓ Groq conectado. Arriba, en «Motor de transcripción», ya
-                      puedes elegir el motor cloud y la limpieza con IA.
-                    </p>
-                    <button
-                      className={btnGhostCls}
-                      onClick={() =>
-                        invoke("delete_groq_key").then(() => {
-                          setHasKey(false);
-                          if (settings)
-                            update({ engine: "parakeet", polish: "rules" });
-                        })
-                      }
-                    >
-                      Desconectar
-                    </button>
-                  </div>
                 ) : (
-                  <div className="flex flex-col gap-5">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
-                        <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                          Ahora mismo — motor local
-                        </p>
-                        <ul className="flex flex-col gap-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-                          <li>Tu voz no sale nunca de este equipo.</li>
-                          <li>Funciona sin internet.</li>
-                          <li>
-                            Elige un solo idioma por dictado: el spanglish se le
-                            atraganta.
-                          </li>
-                          <li>Ocupa 670 MB en disco y RAM mientras dictas.</li>
-                        </ul>
-                      </div>
-                      <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5 dark:border-sky-900 dark:bg-sky-950/40">
-                        <p className="mb-2 text-xs font-semibold text-blue-700 dark:text-sky-300">
-                          Con Groq conectado
-                        </p>
-                        <ul className="flex flex-col gap-1.5 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
-                          <li>Más rápido, sobre todo en dictados largos.</li>
-                          <li>
-                            Respeta el spanglish: cada tramo decide su idioma.
-                          </li>
-                          <li>
-                            Desbloquea la limpieza con IA, que además ordena la
-                            frase.
-                          </li>
-                          <li>
-                            Necesita internet y envía tu audio a Groq para
-                            transcribirlo.
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                        Sacar la key son tres minutos:
-                      </p>
-                      <ol className="flex flex-col gap-1.5 text-xs leading-snug text-slate-500 dark:text-slate-400">
-                        <li>
-                          <b className="text-slate-700 dark:text-slate-300">1.</b>{" "}
-                          Entra a console.groq.com y crea la cuenta con Google o
-                          GitHub. No pide tarjeta.
-                        </li>
-                        <li>
-                          <b className="text-slate-700 dark:text-slate-300">2.</b>{" "}
-                          En el menú «API Keys», pulsa «Create API Key» y ponle
-                          un nombre cualquiera, por ejemplo Dicho.
-                        </li>
-                        <li>
-                          <b className="text-slate-700 dark:text-slate-300">3.</b>{" "}
-                          Copia la clave que empieza por <code>gsk_</code> y
-                          pégala aquí abajo. Sólo se muestra una vez.
-                        </li>
-                      </ol>
-                      <button
-                        className={`${btnGhostCls} mt-3`}
-                        onClick={() => openUrl("https://console.groq.com/keys")}
+                  <ul className="flex flex-col gap-1">
+                    {visibleHistory.map((h) => (
+                      <li
+                        key={h.id}
+                        className="group rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/60"
                       >
-                        Abrir console.groq.com ↗
-                      </button>
-                    </div>
+                        <p className="text-slate-800 dark:text-slate-100">
+                          {h.polished}
+                        </p>
+                        {h.corrections.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {h.corrections.map((c, i) => (
+                              <span
+                                key={i}
+                                title="Corregido por tu diccionario"
+                                className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-sky-500/10 dark:text-sky-300"
+                              >
+                                <span className="line-through opacity-60">
+                                  {c.term}
+                                </span>
+                                <span>→</span>
+                                <span>{c.replacement}</span>
+                                {c.count > 1 && (
+                                  <span className="opacity-60">×{c.count}</span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="mt-1 flex items-center gap-3 text-[11px] text-slate-400 dark:text-slate-500">
+                          <span>{fmtDate(h.ts)}</span>
+                          <span>
+                            {h.engine === "parakeet" ? "local" : h.engine}
+                          </span>
+                          <span>{(h.duration_ms / 1000).toFixed(1)} s</span>
+                          <BotonCopiar texto={h.polished} />
+                          <button
+                            className="opacity-0 transition-opacity hover:text-amber-600 group-hover:opacity-100 dark:hover:text-amber-400"
+                            onClick={() =>
+                              invoke("delete_history", { id: h.id }).then(() =>
+                                refreshHistory(search),
+                              )
+                            }
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Section>
+            )}
 
-                    <div className="flex gap-2">
-                      <input
-                        type="password"
-                        className={`${inputCls} flex-1`}
-                        placeholder="Pega aquí tu key: gsk_…"
-                        value={keyInput}
-                        onChange={(e) => setKeyInput(e.target.value)}
-                      />
-                      <button
-                        className={btnCls}
-                        disabled={!keyInput.trim()}
-                        onClick={() =>
-                          invoke("set_groq_key", { key: keyInput })
-                            .then(() => {
-                              setHasKey(true);
-                              setKeyInput("");
-                              // Conectar Groq sin activarlo no le sirve a nadie.
-                              update({ engine: "groq" });
-                            })
-                            .catch((e) => alert(String(e)))
+            {tab === "ajustes" && settings && (
+              <>
+                <Section id="dictado" title="Dictado">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                    <label className="flex flex-col gap-1.5">
+                      <span className={labelCls}>Motor de transcripción</span>
+                      <select
+                        className={fieldCls}
+                        value={settings.engine}
+                        onChange={(e) =>
+                          update({
+                            engine: e.target.value as AppSettings["engine"],
+                          })
                         }
                       >
-                        Conectar
-                      </button>
-                    </div>
+                        <option value="parakeet">
+                          Local — Parakeet V3 (privado, gratis)
+                        </option>
+                        <option value="groq" disabled={!hasKey}>
+                          Cloud — Groq Whisper turbo{" "}
+                          {hasKey ? "" : "(requiere API key)"}
+                        </option>
+                      </select>
+                      <span className="text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+                        ¿Mezclas español e inglés en la misma frase? El motor
+                        local elige un solo idioma por dictado; para spanglish
+                        fluido usa el motor cloud (gratis con API key de Groq).
+                      </span>
+                    </label>
 
-                    <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-                      La key se guarda cifrada en el Administrador de
-                      credenciales de Windows, nunca en un archivo del proyecto.
-                      El plan gratuito de Groq admite 20 peticiones por minuto,
-                      de sobra para dictar todo el día: Dicho manda un trozo cada
-                      20-55 segundos de audio.
+                    <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                      <strong className="text-slate-600 dark:text-slate-300">
+                        Cómo te redacta se elige en Inicio,
+                      </strong>{" "}
+                      en la sección LABS: ahí están los tres niveles, con un
+                      ejemplo de lo que hace cada uno.
                     </p>
-                  </div>
-                )}
-              </Section>
 
-              <Section
-                title="Cuenta de Google"
-                hint="Inicia sesión para llevar tu diccionario y tu historial a cualquier dispositivo. Se guardan en un espacio privado de tu propio Google Drive: nadie más los ve, ni siquiera nosotros."
-              >
-                {google?.email ? (
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold uppercase text-white dark:bg-sky-500">
-                      {google.email[0]}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
-                        {google.email}
-                      </p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500">
-                        {google.last_sync_ms
-                          ? `Última sincronización: ${fmtDate(google.last_sync_ms)}`
-                          : "Aún sin sincronizar"}
-                      </p>
-                    </div>
-                    <button
-                      className={btnGhostCls}
-                      disabled={googleBusy !== null}
-                      onClick={googleSync}
-                    >
-                      {googleBusy === "sync"
-                        ? "Sincronizando…"
-                        : "Sincronizar ahora"}
-                    </button>
-                    <button
-                      className="text-xs text-slate-400 transition-colors hover:text-amber-600 dark:text-slate-500 dark:hover:text-amber-400"
-                      onClick={googleLogout}
-                    >
-                      Cerrar sesión
-                    </button>
-                  </div>
-                ) : google?.configured ? (
-                  <button
-                    className="flex items-center gap-2.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-                    disabled={googleBusy !== null}
-                    onClick={googleLogin}
-                  >
-                    <GoogleG />
-                    {googleBusy === "login"
-                      ? "Esperando al navegador…"
-                      : "Continuar con Google"}
-                  </button>
-                ) : google ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
-                      Para activar la sincronización hace falta un cliente OAuth
-                      gratuito de Google (una sola vez, ~5 minutos).
-                    </p>
-                    <button
-                      className={`${btnGhostCls} self-start`}
-                      onClick={() => setShowSetup(!showSetup)}
-                    >
-                      {showSetup ? "Ocultar pasos" : "Configurar"}
-                    </button>
-                    {showSetup && settings && (
-                      <div className="mt-1 flex flex-col gap-2 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
-                        <ol className="list-inside list-decimal space-y-1">
-                          <li>
-                            Abre la{" "}
-                            <button
-                              className="font-semibold text-blue-600 underline dark:text-sky-400"
-                              onClick={() =>
-                                openUrl("https://console.cloud.google.com")
-                              }
-                            >
-                              Google Cloud Console
-                            </button>{" "}
-                            y crea un proyecto (p. ej. "Dicho").
-                          </li>
-                          <li>
-                            En "APIs y servicios → Biblioteca" habilita{" "}
-                            <b>Google Drive API</b>.
-                          </li>
-                          <li>
-                            En "Pantalla de consentimiento OAuth" elige
-                            "Externo" y agrégate como usuario de prueba.
-                          </li>
-                          <li>
-                            En "Credenciales → Crear credenciales → ID de
-                            cliente de OAuth" elige tipo{" "}
-                            <b>App de escritorio</b>.
-                          </li>
-                          <li>Copia aquí el ID y el secreto de cliente:</li>
-                        </ol>
-                        <input
-                          className={`${inputCls} w-full`}
-                          placeholder="Client ID (…apps.googleusercontent.com)"
-                          value={settings.google_client_id}
-                          onChange={(e) =>
-                            update({ google_client_id: e.target.value })
-                          }
-                        />
-                        <input
-                          type="password"
-                          className={`${inputCls} w-full`}
-                          placeholder="Client secret (GOCSPX-…)"
-                          value={settings.google_client_secret}
-                          onChange={(e) =>
-                            update({ google_client_secret: e.target.value })
-                          }
-                        />
-                        <button
-                          className={`${btnCls} self-start`}
-                          disabled={
-                            !settings.google_client_id.trim() ||
-                            !settings.google_client_secret.trim()
-                          }
-                          onClick={refreshGoogle}
-                        >
-                          Listo
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-400">Cargando…</p>
-                )}
-                {googleError && (
-                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                    {googleError}
-                  </p>
-                )}
-              </Section>
+                    <label className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={settings.no_traducir}
+                        onChange={(e) =>
+                          update({ no_traducir: e.target.checked })
+                        }
+                        className="mt-0.5 h-4 w-4 accent-blue-600"
+                      />
+                      <span>
+                        No traducir nunca
+                        <span className="mt-0.5 block text-xs text-slate-400 dark:text-slate-500">
+                          Conserva cada palabra en el idioma en que la dijiste.
+                          El motor decide un solo idioma cada 30 s, así que
+                          Dicho corta el audio en tus pausas para que cada tramo
+                          decida por su cuenta; aun así, una palabra suelta en
+                          el otro idioma puede salir traducida.
+                        </span>
+                      </span>
+                    </label>
 
-              <Section
-                title="Sistema"
-                hint="El atajo para dictar y la onda flotante se configuran en Inicio."
-              >
-                <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={settings.autostart}
-                    onChange={(e) => update({ autostart: e.target.checked })}
-                    className="h-4 w-4 accent-blue-600"
-                  />
-                  Iniciar con Windows
-                </label>
-              </Section>
+                    <label className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={settings.copiar_al_portapapeles}
+                        onChange={(e) =>
+                          update({ copiar_al_portapapeles: e.target.checked })
+                        }
+                        className="mt-0.5 h-4 w-4 accent-blue-600"
+                      />
+                      <span>
+                        Dejar el dictado en el portapapeles
+                        <span className="mt-0.5 block text-xs text-slate-400 dark:text-slate-500">
+                          Además de pegarlo donde estés escribiendo, el texto se
+                          queda copiado y puedes volver a pegarlo con Ctrl+V
+                          donde quieras. Ojo: con esto encendido,{" "}
+                          <strong>
+                            cada dictado pisa lo que tuvieras copiado
+                          </strong>
+                          . Apagado, Dicho te devuelve lo de antes.
+                        </span>
+                      </span>
+                    </label>
 
-              <Section
-                title="Novedades de esta versión"
-                hint="Qué trajo la versión que tienes puesta. Va dentro de la app, así que está a mano siempre, con o sin internet."
-              >
-                {novedades ? (
-                  <>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                      Dicho {novedades.version}
-                      {novedades.fecha && (
-                        <span className="ml-2 text-xs font-normal text-slate-400 dark:text-slate-500">
-                          {novedades.fecha}
+                    <label className="flex flex-col gap-1.5">
+                      <span className={labelCls}>Idioma del dictado</span>
+                      <select
+                        className={`${fieldCls} disabled:opacity-40`}
+                        disabled={settings.no_traducir}
+                        value={settings.language}
+                        onChange={(e) => update({ language: e.target.value })}
+                      >
+                        <option value="auto">Detección automática</option>
+                        <option value="es">Español</option>
+                        <option value="en">English</option>
+                      </select>
+                      {settings.no_traducir && (
+                        <span className="text-xs text-slate-400 dark:text-slate-500">
+                          Sin efecto mientras "no traducir" esté encendido:
+                          fijar el idioma es justo lo que empuja al motor a
+                          traducir el otro.
                         </span>
                       )}
+                    </label>
+                  </div>
+                </Section>
+
+                <Section id="modelo-local" title="Modelo de voz local">
+                  {model?.state === "ready" && !downloading && (
+                    <p className="flex items-center gap-2 text-sm text-blue-600 dark:text-sky-400">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white dark:bg-sky-500">
+                        ✓
+                      </span>
+                      Parakeet V3 listo — todo se procesa en tu equipo, sin
+                      internet.
                     </p>
-                    <ul className="mt-2.5 flex flex-col gap-2">
-                      {novedades.bullets.map((b, i) => (
-                        <li
-                          key={i}
-                          className="flex gap-2.5 text-sm leading-relaxed text-slate-600 dark:text-slate-300"
-                        >
-                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500 dark:bg-sky-400" />
-                          <span>{sinMarcas(b)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    {versionActual && novedades.version !== versionActual && (
-                      <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
-                        Esta copia es la {versionActual} y no trae apartado
-                        propio; arriba sale el más reciente que hay escrito.
+                  )}
+                  {downloading && (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        Descargando modelo…{" "}
+                        {progress ? fmtBytes(progress.downloaded) : ""}
+                        {progress ? ` de ${fmtBytes(progress.total)}` : ""}
                       </p>
-                    )}
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                        <div
+                          className="h-full rounded-full bg-blue-600 transition-all dark:bg-sky-500"
+                          style={{
+                            width: progress
+                              ? `${Math.round((progress.downloaded / progress.total) * 100)}%`
+                              : "0%",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {model?.state === "missing" && !downloading && (
+                    <div className="flex items-center gap-3">
+                      <p className="flex-1 text-sm text-slate-600 dark:text-slate-300">
+                        Falta el modelo Parakeet V3 ({fmtBytes(671_000_000)},
+                        descarga única).
+                      </p>
+                      <button
+                        className={btnCls}
+                        onClick={() => {
+                          setModelError(null);
+                          invoke("download_model");
+                        }}
+                      >
+                        {modelError ? "Reintentar" : "Descargar"}
+                      </button>
+                    </div>
+                  )}
+                  {modelError && !downloading && (
+                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                      {modelError}
+                    </p>
+                  )}
+                </Section>
+
+                <Section
+                  id="groq"
+                  title="Conectar Groq — opcional, gratis y sin tarjeta"
+                  hint="Dicho ya funciona entero sin esto. Conectar Groq es para cuando quieres más velocidad o dictas mezclando español e inglés en la misma frase."
+                >
+                  {hasKey ? (
+                    <div className="flex items-center gap-3">
+                      <p className="flex-1 text-sm text-blue-600 dark:text-sky-400">
+                        ✓ Groq conectado. Arriba, en «Motor de transcripción»,
+                        ya puedes elegir el motor cloud y la limpieza con IA.
+                      </p>
+                      <button
+                        className={btnGhostCls}
+                        onClick={() =>
+                          invoke("delete_groq_key").then(() => {
+                            setHasKey(false);
+                            if (settings)
+                              update({ engine: "parakeet", polish: "rules" });
+                          })
+                        }
+                      >
+                        Desconectar
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-5">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
+                          <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            Ahora mismo — motor local
+                          </p>
+                          <ul className="flex flex-col gap-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                            <li>Tu voz no sale nunca de este equipo.</li>
+                            <li>Funciona sin internet.</li>
+                            <li>
+                              Elige un solo idioma por dictado: el spanglish se
+                              le atraganta.
+                            </li>
+                            <li>
+                              Ocupa 670 MB en disco y RAM mientras dictas.
+                            </li>
+                          </ul>
+                        </div>
+                        <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5 dark:border-sky-900 dark:bg-sky-950/40">
+                          <p className="mb-2 text-xs font-semibold text-blue-700 dark:text-sky-300">
+                            Con Groq conectado
+                          </p>
+                          <ul className="flex flex-col gap-1.5 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
+                            <li>Más rápido, sobre todo en dictados largos.</li>
+                            <li>
+                              Respeta el spanglish: cada tramo decide su idioma.
+                            </li>
+                            <li>
+                              Desbloquea la limpieza con IA, que además ordena
+                              la frase.
+                            </li>
+                            <li>
+                              Necesita internet y envía tu audio a Groq para
+                              transcribirlo.
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          Sacar la key son tres minutos:
+                        </p>
+                        <ol className="flex flex-col gap-1.5 text-xs leading-snug text-slate-500 dark:text-slate-400">
+                          <li>
+                            <b className="text-slate-700 dark:text-slate-300">
+                              1.
+                            </b>{" "}
+                            Entra a console.groq.com y crea la cuenta con Google
+                            o GitHub. No pide tarjeta.
+                          </li>
+                          <li>
+                            <b className="text-slate-700 dark:text-slate-300">
+                              2.
+                            </b>{" "}
+                            En el menú «API Keys», pulsa «Create API Key» y
+                            ponle un nombre cualquiera, por ejemplo Dicho.
+                          </li>
+                          <li>
+                            <b className="text-slate-700 dark:text-slate-300">
+                              3.
+                            </b>{" "}
+                            Copia la clave que empieza por <code>gsk_</code> y
+                            pégala aquí abajo. Sólo se muestra una vez.
+                          </li>
+                        </ol>
+                        <button
+                          className={`${btnGhostCls} mt-3`}
+                          onClick={() =>
+                            openUrl("https://console.groq.com/keys")
+                          }
+                        >
+                          Abrir console.groq.com ↗
+                        </button>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          className={`${inputCls} flex-1`}
+                          placeholder="Pega aquí tu key: gsk_…"
+                          value={keyInput}
+                          onChange={(e) => setKeyInput(e.target.value)}
+                        />
+                        <button
+                          className={btnCls}
+                          disabled={!keyInput.trim()}
+                          onClick={() =>
+                            invoke("set_groq_key", { key: keyInput })
+                              .then(() => {
+                                setHasKey(true);
+                                setKeyInput("");
+                                // Conectar Groq sin activarlo no le sirve a nadie.
+                                update({ engine: "groq" });
+                              })
+                              .catch((e) => alert(String(e)))
+                          }
+                        >
+                          Conectar
+                        </button>
+                      </div>
+
+                      <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+                        La key se guarda cifrada en el Administrador de
+                        credenciales de Windows, nunca en un archivo del
+                        proyecto. El plan gratuito de Groq admite 20 peticiones
+                        por minuto, de sobra para dictar todo el día: Dicho
+                        manda un trozo cada 20-55 segundos de audio.
+                      </p>
+                    </div>
+                  )}
+                </Section>
+
+                <Section
+                  id="google"
+                  title="Cuenta de Google"
+                  hint="Inicia sesión para llevar tu diccionario y tu historial a cualquier dispositivo. Se guardan en un espacio privado de tu propio Google Drive: nadie más los ve, ni siquiera nosotros."
+                >
+                  {google?.email ? (
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold uppercase text-white dark:bg-sky-500">
+                        {google.email[0]}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+                          {google.email}
+                        </p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">
+                          {google.last_sync_ms
+                            ? `Última sincronización: ${fmtDate(google.last_sync_ms)}`
+                            : "Aún sin sincronizar"}
+                        </p>
+                      </div>
+                      <button
+                        className={btnGhostCls}
+                        disabled={googleBusy !== null}
+                        onClick={googleSync}
+                      >
+                        {googleBusy === "sync"
+                          ? "Sincronizando…"
+                          : "Sincronizar ahora"}
+                      </button>
+                      <button
+                        className="text-xs text-slate-400 transition-colors hover:text-amber-600 dark:text-slate-500 dark:hover:text-amber-400"
+                        onClick={googleLogout}
+                      >
+                        Cerrar sesión
+                      </button>
+                    </div>
+                  ) : google?.configured ? (
                     <button
-                      className={`${btnGhostCls} mt-3`}
-                      onClick={() => setVerCambios((v) => !v)}
+                      className="flex items-center gap-2.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                      disabled={googleBusy !== null}
+                      onClick={googleLogin}
                     >
-                      {verCambios
-                        ? "Ocultar versiones anteriores"
-                        : `Ver versiones anteriores (${CAMBIOS.length - 1})`}
+                      <GoogleG />
+                      {googleBusy === "login"
+                        ? "Esperando al navegador…"
+                        : "Continuar con Google"}
                     </button>
-                    {verCambios && (
-                      <div className="mt-3 flex flex-col gap-4 border-t border-slate-200 pt-3 dark:border-slate-800">
-                        {CAMBIOS.filter((c) => c.version !== novedades.version).map(
-                          (c) => (
+                  ) : google ? (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        Para activar la sincronización hace falta un cliente
+                        OAuth gratuito de Google (una sola vez, ~5 minutos).
+                      </p>
+                      <button
+                        className={`${btnGhostCls} self-start`}
+                        onClick={() => setShowSetup(!showSetup)}
+                      >
+                        {showSetup ? "Ocultar pasos" : "Configurar"}
+                      </button>
+                      {showSetup && settings && (
+                        <div className="mt-1 flex flex-col gap-2 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+                          <ol className="list-inside list-decimal space-y-1">
+                            <li>
+                              Abre la{" "}
+                              <button
+                                className="font-semibold text-blue-600 underline dark:text-sky-400"
+                                onClick={() =>
+                                  openUrl("https://console.cloud.google.com")
+                                }
+                              >
+                                Google Cloud Console
+                              </button>{" "}
+                              y crea un proyecto (p. ej. "Dicho").
+                            </li>
+                            <li>
+                              En "APIs y servicios → Biblioteca" habilita{" "}
+                              <b>Google Drive API</b>.
+                            </li>
+                            <li>
+                              En "Pantalla de consentimiento OAuth" elige
+                              "Externo" y agrégate como usuario de prueba.
+                            </li>
+                            <li>
+                              En "Credenciales → Crear credenciales → ID de
+                              cliente de OAuth" elige tipo{" "}
+                              <b>App de escritorio</b>.
+                            </li>
+                            <li>Copia aquí el ID y el secreto de cliente:</li>
+                          </ol>
+                          <input
+                            className={`${inputCls} w-full`}
+                            placeholder="Client ID (…apps.googleusercontent.com)"
+                            value={settings.google_client_id}
+                            onChange={(e) =>
+                              update({ google_client_id: e.target.value })
+                            }
+                          />
+                          <input
+                            type="password"
+                            className={`${inputCls} w-full`}
+                            placeholder="Client secret (GOCSPX-…)"
+                            value={settings.google_client_secret}
+                            onChange={(e) =>
+                              update({ google_client_secret: e.target.value })
+                            }
+                          />
+                          <button
+                            className={`${btnCls} self-start`}
+                            disabled={
+                              !settings.google_client_id.trim() ||
+                              !settings.google_client_secret.trim()
+                            }
+                            onClick={refreshGoogle}
+                          >
+                            Listo
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400">Cargando…</p>
+                  )}
+                  {googleError && (
+                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                      {googleError}
+                    </p>
+                  )}
+                </Section>
+
+                <Section
+                  id="sistema"
+                  title="Sistema"
+                  hint="El atajo para dictar y la onda flotante se configuran en Inicio."
+                >
+                  <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={settings.autostart}
+                      onChange={(e) => update({ autostart: e.target.checked })}
+                      className="h-4 w-4 accent-blue-600"
+                    />
+                    Iniciar con Windows
+                  </label>
+                </Section>
+
+                <Section
+                  id="novedades"
+                  title="Novedades de esta versión"
+                  hint="Qué trajo la versión que tienes puesta. Va dentro de la app, así que está a mano siempre, con o sin internet."
+                >
+                  {novedades ? (
+                    <>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                        Dicho {novedades.version}
+                        {novedades.fecha && (
+                          <span className="ml-2 text-xs font-normal text-slate-400 dark:text-slate-500">
+                            {novedades.fecha}
+                          </span>
+                        )}
+                      </p>
+                      <ul className="mt-2.5 flex flex-col gap-2">
+                        {novedades.bullets.map((b, i) => (
+                          <li
+                            key={i}
+                            className="flex gap-2.5 text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+                          >
+                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500 dark:bg-sky-400" />
+                            <span>{sinMarcas(b)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {versionActual && novedades.version !== versionActual && (
+                        <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
+                          Esta copia es la {versionActual} y no trae apartado
+                          propio; arriba sale el más reciente que hay escrito.
+                        </p>
+                      )}
+                      <button
+                        className={`${btnGhostCls} mt-3`}
+                        onClick={() => setVerCambios((v) => !v)}
+                      >
+                        {verCambios
+                          ? "Ocultar versiones anteriores"
+                          : `Ver versiones anteriores (${CAMBIOS.length - 1})`}
+                      </button>
+                      {verCambios && (
+                        <div className="mt-3 flex flex-col gap-4 border-t border-slate-200 pt-3 dark:border-slate-800">
+                          {CAMBIOS.filter(
+                            (c) => c.version !== novedades.version,
+                          ).map((c) => (
                             <div key={c.version}>
                               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                                 {c.version}
@@ -1602,105 +1744,106 @@ export default function Settings() {
                                 ))}
                               </ul>
                             </div>
-                          ),
-                        )}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-xs text-slate-400">
-                    No hay notas escritas todavía.
-                  </p>
-                )}
-              </Section>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-slate-400">
+                      No hay notas escritas todavía.
+                    </p>
+                  )}
+                </Section>
 
-              <Section
-                title="Actualizaciones"
-                hint="Dicho mira si hay versión nueva cada vez que abres esta ventana. Cada actualización viene firmada: si la firma no cuadra, no se instala."
-              >
-                {actualizacion.fase === "disponible" ? (
-                  <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5 dark:border-sky-900 dark:bg-sky-950/40">
-                    <p className="text-sm font-semibold text-blue-700 dark:text-sky-300">
-                      Dicho {actualizacion.version} ya está disponible
-                    </p>
-                    {actualizacion.notas && (
-                      <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                        {actualizacion.notas}
+                <Section
+                  id="actualizaciones"
+                  title="Actualizaciones"
+                  hint="Dicho mira si hay versión nueva cada vez que abres esta ventana. Cada actualización viene firmada: si la firma no cuadra, no se instala."
+                >
+                  {actualizacion.fase === "disponible" ? (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5 dark:border-sky-900 dark:bg-sky-950/40">
+                      <p className="text-sm font-semibold text-blue-700 dark:text-sky-300">
+                        Dicho {actualizacion.version} ya está disponible
                       </p>
-                    )}
-                    <button
-                      className={`${btnCls} mt-3`}
-                      onClick={instalarActualizacion}
-                    >
-                      Actualizar ahora
-                    </button>
-                    <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-                      Dicho se cierra un momento para instalarla y vuelve solo.
-                      No perderás el historial ni el diccionario.
-                    </p>
-                  </div>
-                ) : actualizacion.fase === "descargando" ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
-                      Descargando {actualizacion.version}…{" "}
-                      {actualizacion.total > 0
-                        ? `${fmtBytes(actualizacion.hechos)} de ${fmtBytes(actualizacion.total)}`
-                        : ""}
-                    </p>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                      <div
-                        className="h-full rounded-full bg-blue-600 transition-all dark:bg-sky-500"
-                        style={{
-                          width:
-                            actualizacion.total > 0
-                              ? `${Math.round((actualizacion.hechos / actualizacion.total) * 100)}%`
-                              : "0%",
-                        }}
-                      />
-                    </div>
-                  </div>
-                ) : actualizacion.fase === "listo" ? (
-                  <p className="text-sm text-blue-600 dark:text-sky-400">
-                    Descarga terminada — instalando y reiniciando Dicho…
-                  </p>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <p className="text-sm text-slate-700 dark:text-slate-200">
-                        Versión instalada: {versionActual ?? "…"}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                        {actualizacion.fase === "buscando"
-                          ? "Buscando…"
-                          : actualizacion.fase === "alDia"
-                            ? "Estás al día."
-                            : actualizacion.fase === "error"
-                              ? "No se pudo comprobar. Revisa tu conexión."
-                              : "Se comprueba sola al abrir esta ventana."}
+                      {actualizacion.notas && (
+                        <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                          {actualizacion.notas}
+                        </p>
+                      )}
+                      <button
+                        className={`${btnCls} mt-3`}
+                        onClick={instalarActualizacion}
+                      >
+                        Actualizar ahora
+                      </button>
+                      <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+                        Dicho se cierra un momento para instalarla y vuelve
+                        solo. No perderás el historial ni el diccionario.
                       </p>
                     </div>
-                    <button
-                      className={btnGhostCls}
-                      disabled={actualizacion.fase === "buscando"}
-                      onClick={() => buscarActualizacion(true)}
-                    >
-                      Buscar actualizaciones
-                    </button>
-                  </div>
-                )}
-                {actualizacion.fase === "error" && (
-                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                    {actualizacion.mensaje}
-                  </p>
-                )}
-              </Section>
-            </>
-          )}
-        </div>
-      </main>
-      {verAnimaciones && (
-        <Animaciones onClose={() => setVerAnimaciones(false)} />
-      )}
-    </div>
+                  ) : actualizacion.fase === "descargando" ? (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        Descargando {actualizacion.version}…{" "}
+                        {actualizacion.total > 0
+                          ? `${fmtBytes(actualizacion.hechos)} de ${fmtBytes(actualizacion.total)}`
+                          : ""}
+                      </p>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                        <div
+                          className="h-full rounded-full bg-blue-600 transition-all dark:bg-sky-500"
+                          style={{
+                            width:
+                              actualizacion.total > 0
+                                ? `${Math.round((actualizacion.hechos / actualizacion.total) * 100)}%`
+                                : "0%",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : actualizacion.fase === "listo" ? (
+                    <p className="text-sm text-blue-600 dark:text-sky-400">
+                      Descarga terminada — instalando y reiniciando Dicho…
+                    </p>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <p className="text-sm text-slate-700 dark:text-slate-200">
+                          Versión instalada: {versionActual ?? "…"}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                          {actualizacion.fase === "buscando"
+                            ? "Buscando…"
+                            : actualizacion.fase === "alDia"
+                              ? "Estás al día."
+                              : actualizacion.fase === "error"
+                                ? "No se pudo comprobar. Revisa tu conexión."
+                                : "Se comprueba sola al abrir esta ventana."}
+                        </p>
+                      </div>
+                      <button
+                        className={btnGhostCls}
+                        disabled={actualizacion.fase === "buscando"}
+                        onClick={() => buscarActualizacion(true)}
+                      >
+                        Buscar actualizaciones
+                      </button>
+                    </div>
+                  )}
+                  {actualizacion.fase === "error" && (
+                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                      {actualizacion.mensaje}
+                    </p>
+                  )}
+                </Section>
+              </>
+            )}
+          </div>
+        </main>
+        {verAnimaciones && (
+          <Animaciones onClose={() => setVerAnimaciones(false)} />
+        )}
+      </div>
+    </Plegado.Provider>
   );
 }

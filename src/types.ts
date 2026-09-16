@@ -16,6 +16,8 @@ export interface AppSettings {
   no_traducir: boolean;
   /** Deja el dictado en el portapapeles al terminar, para volver a pegarlo. */
   copiar_al_portapapeles: boolean;
+  /** Ids de las secciones plegadas (se guardan las cerradas, no las abiertas). */
+  secciones_plegadas: string[];
   hud_enabled: boolean;
   hud_style: HudStyle;
   /** Un rincón por pantalla, por tamaño del área de trabajo ("3840x2040"). */
