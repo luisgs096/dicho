@@ -10,6 +10,12 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.9.3 — 15 de septiembre de 2026
+
+- **Los dos botones de posición quedan juntos** en el menú de la onda: ahora el
+  orden es clavar · devolverla a su sitio · cambiarla de sitio. Antes el de
+  clavar se metía en medio y partía la pareja.
+
 ## 0.9.2 — 15 de septiembre de 2026
 
 - **La onda ya no se te escapa.** Si le pasas el ratón por encima se queda a la

@@ -271,20 +271,24 @@ export function MenuOnda(props: {
   }
 
   // De dentro hacia fuera: el primero en salir es el que queda pegado al más.
-  // Leídos de izquierda a derecha quedan en el orden de siempre — devolver,
-  // clavar, mover — y el que más viaja es el que sale el último.
+  // Leídos de izquierda a derecha: clavar, devolver, mover.
+  //
+  // **Los dos de posición van juntos** —devolverla a su sitio y cambiarla de
+  // sitio— porque son la misma conversación: dónde vive la onda. Clavar es otra
+  // cosa (si se queda o no a la vista), así que se va al extremo y deja de
+  // partir la pareja en dos.
   const orbita = [
-    {
-      titulo: "Devolverla a su sitio de siempre",
-      icono: <IconoReset />,
-      onClick: props.onReset,
-      tono: "normal" as const,
-    },
     {
       titulo: props.pin ? "Desclavarla" : "Clavarla en pantalla",
       icono: <IconoPin />,
       onClick: props.onPin,
       tono: props.pin ? ("activo" as const) : ("normal" as const),
+    },
+    {
+      titulo: "Devolverla a su sitio de siempre",
+      icono: <IconoReset />,
+      onClick: props.onReset,
+      tono: "normal" as const,
     },
     {
       titulo: "Cambiarla de sitio",
