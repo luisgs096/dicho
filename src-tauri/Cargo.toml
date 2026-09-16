@@ -1,6 +1,6 @@
 [package]
 name = "mike"
-version = "0.9.7"
+version = "0.9.8"
 description = "Dictado por voz push-to-talk, local y gratuito"
 authors = ["luisg"]
 edition = "2021"

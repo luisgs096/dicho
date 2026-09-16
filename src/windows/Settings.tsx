@@ -809,6 +809,24 @@ export default function Settings() {
                         </button>
                       );
                     })}
+                    <label className="mt-1 flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={settings.hud_niveles}
+                        onChange={(e) => update({ hud_niveles: e.target.checked })}
+                        className="mt-0.5 h-4 w-4 accent-emerald-600"
+                      />
+                      <span>
+                        Enseñar la cinta de niveles debajo de la onda
+                        <span className="mt-1 block text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+                          Una tira fina con los tres, y el puesto en azul. Sirve
+                          para cambiarlo de un clic justo antes de hablar, que es
+                          cuando de verdad lo decides. Se ve mejor con la onda
+                          clavada.
+                        </span>
+                      </span>
+                    </label>
+
                     <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
                       Estructurado es el único que puede cambiarte las palabras.
                       Si el resultado se aleja demasiado de lo que dijiste —o trae

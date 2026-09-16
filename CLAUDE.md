@@ -71,6 +71,12 @@ conocimiento. Y se commitea con el resto.
   al cancelar el atajo *sigue apretado*, así que hay una bandera
   `esperando_soltar`; sin ella `all_down` seguiría siendo cierto y arrancaría un
   dictado nuevo en el acto.
+- **La ventana del HUD mide 112 de alto, no 96** (desde la 0.9.8): debajo de la
+  cápsula va la cinta de niveles y arriba asoma el botón del menú, que al pasarle
+  el ratón crece y saca halo. **Ese número está en dos sitios y tienen que ir a la
+  par**: `HUD_H` en `pipeline.rs` y el divisor de `--k` en `Hud.tsx`, que traduce
+  el lienzo real a escala. Cambiar uno solo hace que todo el contenido crezca o
+  encoja en esa proporción.
 - **El menú vive en la onda, no en Ajustes** (`MenuOnda` en `Hud.tsx`). Un botón
   de lápiz que aparece al pasar el ratón y despliega [clavar | mover]; si eliges
   mover, los mismos botones pasan a ser [listo | devolver a su sitio]. Clavada

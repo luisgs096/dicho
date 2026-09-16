@@ -19,6 +19,8 @@ export interface AppSettings {
   /** Un rincón por pantalla, por tamaño del área de trabajo ("3840x2040"). */
   hud_posiciones: Record<string, HudPos>;
   hud_arrastrable: boolean;
+  /** La cinta de niveles debajo de la onda. */
+  hud_niveles: boolean;
   /** Clavada: la onda se queda a la vista siempre, no sólo mientras dictas. */
   hud_pin: boolean;
   /** Lo transparente que se pone clavada y en reposo. 1 = opaca. */

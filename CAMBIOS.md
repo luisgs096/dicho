@@ -10,6 +10,16 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.9.8 — 15 de septiembre de 2026
+
+- **La onda ahora lleva su cinta de niveles debajo.** Una tira fina con los tres
+  —Tal cual · Ordenado · Estructurado— y el que está puesto en azul. Sirve para
+  cambiarlo **de un clic justo antes de hablar**, que es el momento en que de
+  verdad lo decides. Va en los dos estilos, el de caritas y el clásico.
+- Se prende y se apaga desde **LABS**, en Inicio. Y se aprovecha mejor con la
+  onda clavada, porque así está siempre a la vista.
+- Los dos niveles con IA salen apagados si todavía no pusiste tu key de Groq.
+
 ## 0.9.7 — 15 de septiembre de 2026
 
 - **LABS: ahora decides cuánto puede cambiar Dicho lo que dijiste.** En Inicio

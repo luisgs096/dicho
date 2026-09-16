@@ -107,6 +107,11 @@ pub struct AppSettings {
     /// Si el HUD atrapa el ratón para poder arrastrarlo. Apagado vuelve a ser
     /// un cristal: los clics lo atraviesan y llegan a lo que haya debajo.
     pub hud_arrastrable: bool,
+    /// La cinta de niveles debajo de la onda: enseña cuál está puesto y deja
+    /// cambiarlo de un clic, que es el momento en que de verdad lo decides —
+    /// justo antes de hablar, no en un ajuste que pusiste hace una semana.
+    #[serde(default = "verdadero")]
+    pub hud_niveles: bool,
     /// Clavada: la onda se queda a la vista siempre, no sólo mientras dictas.
     /// Es el "modo mascota": la cápsula vive en tu escritorio.
     #[serde(default)]
@@ -133,6 +138,11 @@ fn opacidad_reposo_default() -> f32 {
     0.45
 }
 
+/// Para los ajustes que nacen encendidos y sólo se apagan a mano.
+fn verdadero() -> bool {
+    true
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -145,6 +155,7 @@ impl Default for AppSettings {
             hud_style: HudStyle::Tamagotchi,
             hud_posiciones: HashMap::new(),
             hud_arrastrable: true,
+            hud_niveles: true,
             hud_pin: false,
             hud_opacidad_reposo: opacidad_reposo_default(),
             ultima_version_vista: String::new(),

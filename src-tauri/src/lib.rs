@@ -200,6 +200,7 @@ pub fn run() {
             commands::hud_pos_reset,
             commands::hud_pin,
             commands::hud_encima,
+            commands::hud_nivel,
             commands::programar_relanzamiento,
         ])
         .run(tauri::generate_context!())

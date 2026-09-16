@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { AppSettings, HudStyle, RecordingState } from "../types";
+import type { AppSettings, HudStyle, PolishKind, RecordingState } from "../types";
 import {
   CARITA_COMILONA,
   CARITA_ERUCTO,
@@ -340,6 +340,70 @@ export function MenuOnda(props: {
   );
 }
 
+/**
+ * La cinta de niveles, debajo de la cápsula y en los dos estilos.
+ *
+ * Existe porque el nivel de redacción se decide **justo antes de hablar**, no
+ * una semana antes en un ajuste. Teniéndolo aquí, el gesto es: miras la onda,
+ * ves en qué modo está, y si no es el que quieres lo cambias de un clic sin
+ * abrir nada.
+ *
+ * Los dos niveles con IA se apagan solos si no hay key de Groq: enseñar un
+ * botón que no puede funcionar es peor que no enseñarlo.
+ */
+const NIVELES_HUD: { id: PolishKind; corto: string; largo: string }[] = [
+  { id: "rules", corto: "Tal cual", largo: "Tal cual — tus palabras exactas" },
+  { id: "groq_llm", corto: "Ordenado", largo: "Ordenado — mismas palabras, mejor forma" },
+  {
+    id: "groq_estructurado",
+    corto: "Estructurado",
+    largo: "Estructurado — le da forma a la idea",
+  },
+];
+
+const CINTA_CSS = `
+  .cinta-n { transition: background-color .15s, color .15s; }
+  .cinta-n:hover:not(.on):not(:disabled) { background: var(--lcdBorder); }
+`;
+
+function CintaNiveles(props: {
+  nivel: PolishKind;
+  hasKey: boolean;
+  dark: boolean;
+}) {
+  return (
+    <div
+      className="mt-[3px] flex h-[13px] w-[336px] overflow-hidden rounded-md shadow-sm"
+      style={{ background: props.dark ? "#16223a" : "#cdd7e6" }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <style>{CINTA_CSS}</style>
+      {NIVELES_HUD.map((n) => {
+        const on = props.nivel === n.id;
+        const bloqueado = n.id !== "rules" && !props.hasKey;
+        return (
+          <button
+            key={n.id}
+            type="button"
+            title={bloqueado ? `${n.largo} (necesita la key de Groq)` : n.largo}
+            disabled={bloqueado}
+            onClick={() => invoke("hud_nivel", { nivel: n.id }).catch(() => {})}
+            className={`cinta-n flex-1 text-center font-mono text-[7px] font-bold uppercase leading-[13px] tracking-[.14em] disabled:opacity-35 ${
+              on ? "on" : ""
+            }`}
+            style={{
+              background: on ? (props.dark ? "#38bdf8" : "#2563eb") : "transparent",
+              color: on ? "#fff" : props.dark ? "#5c6f8f" : "#8296b2",
+            }}
+          >
+            {n.corto}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function MicIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className}>
@@ -409,6 +473,10 @@ export default function Hud() {
   /** Clavada en pantalla: no se esconde al acabar el dictado. */
   const [pin, setPin] = useState(false);
   const [opacidadReposo, setOpacidadReposo] = useState(0.45);
+  /** El nivel de redacción y si se puede usar: los pinta la cinta de abajo. */
+  const [nivel, setNivel] = useState<PolishKind>("rules");
+  const [verNiveles, setVerNiveles] = useState(true);
+  const [hasKey, setHasKey] = useState(false);
   /** El menú de la onda está desplegado. */
   const [menu, setMenu] = useState(false);
   /** El ratón está encima: saca los controles y le quita el velo. */
@@ -439,9 +507,11 @@ export default function Hud() {
   // lienzo más grande: se escala todo en bloque para llenarlo igual.
   useEffect(() => {
     const ajustar = () => {
+      // 112 es el alto lógico de la ventana (ver HUD_H en pipeline.rs). Los dos
+      // números tienen que ir a la par: éste traduce el lienzo real a escala.
       document.documentElement.style.setProperty(
         "--k",
-        (window.innerHeight / 96).toFixed(3),
+        (window.innerHeight / 112).toFixed(3),
       );
       // La pantalla de cine mide 260 lógicos de alto; su escala va aparte.
       document.documentElement.style.setProperty(
@@ -523,6 +593,10 @@ export default function Hud() {
     };
   }, []);
 
+  useEffect(() => {
+    invoke<boolean>("has_groq_key").then(setHasKey).catch(() => {});
+  }, []);
+
   // Zarandéala mientras la colocas y se marea. Cada meneo sube un escalón:
   // mareada → aguantándose → ya no aguantó. El backend sólo avisa de que hubo
   // meneo; la escalada es cosa de aquí, que es presentación pura.
@@ -577,6 +651,8 @@ export default function Hud() {
           setHudStyle(s.hud_style);
           setPin(s.hud_pin);
           setOpacidadReposo(s.hud_opacidad_reposo ?? 0.45);
+          setNivel(s.polish);
+          setVerNiveles(s.hud_niveles ?? true);
         })
         .catch(console.error);
     load();
@@ -781,7 +857,9 @@ export default function Hud() {
       >
         <style>{CLASSIC_CSS + DRAG_CSS}</style>
         <div
-          className={`relative ${colocando ? "colocando" : ""}`}
+          className={`relative flex flex-col items-center ${
+            colocando ? "colocando" : ""
+          }`}
           style={{ transform: "scale(var(--k, 1))" }}
         >
           {(colocando || menu || encima) && (
@@ -889,6 +967,9 @@ export default function Hud() {
               </p>
             )}
           </div>
+          {verNiveles && (
+            <CintaNiveles nivel={nivel} hasKey={hasKey} dark={dark} />
+          )}
         </div>
       </div>
     );
@@ -943,7 +1024,9 @@ export default function Hud() {
     >
       <style>{FACE_CSS + DRAG_CSS}</style>
       <div
-        className={`relative ${colocando ? "colocando" : ""}`}
+        className={`relative flex flex-col items-center ${
+          colocando ? "colocando" : ""
+        }`}
         style={{ transform: "scale(var(--k, 1))" }}
       >
         {(colocando || menu || encima) && (
@@ -983,6 +1066,9 @@ export default function Hud() {
             {cinta}
           </div>
         </div>
+        {verNiveles && (
+          <CintaNiveles nivel={nivel} hasKey={hasKey} dark={dark} />
+        )}
       </div>
     </div>
   );

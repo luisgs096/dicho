@@ -112,7 +112,13 @@ pub(crate) fn diag(app: &AppHandle, msg: &str) {
 /// El HUD mide esto en puntos lógicos; en píxeles depende de la escala del
 /// monitor donde caiga.
 const HUD_W: f64 = 360.0;
-const HUD_H: f64 = 96.0;
+/// 112 y no 96 desde la 0.9.8: debajo de la cápsula va la cinta de niveles
+/// (13 px y su margen) y arriba asoma el botón del menú, que al pasarle el ratón
+/// crece y saca halo. Con 96 el botón llegaba justo al borde y Windows le
+/// recortaba el halo. **Si cambia este número hay que cambiar el divisor de
+/// `--k` en Hud.tsx**, que es quien traduce el lienzo a escala: si no, todo el
+/// contenido crece o encoge en la misma proporción.
+const HUD_H: f64 = 112.0;
 /// La pantalla de cine de la actualización: cuadrada, y del doble de alto.
 ///
 /// Una tira de 360×96 no deja poner nada en escena — no hay arriba ni abajo, y

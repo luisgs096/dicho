@@ -224,6 +224,27 @@ pub fn hud_colocar(app: AppHandle, on: bool) {
     pipeline::modo_colocar(&app, on);
 }
 
+/// Cambia el nivel de redacción desde la cinta de la onda.
+///
+/// Vive aquí y no en `save_settings` porque el HUD es una ventana aparte con su
+/// propia copia de los ajustes: mandar el objeto entero desde ahí pisaría
+/// cualquier cosa que el usuario estuviera tocando en Ajustes al mismo tiempo.
+#[tauri::command]
+pub fn hud_nivel(
+    app: AppHandle,
+    state: State<'_, SettingsState>,
+    nivel: settings::PolishKind,
+) -> Result<(), String> {
+    let copia = {
+        let mut s = state.write().map_err(|e| e.to_string())?;
+        s.polish = nivel;
+        s.clone()
+    };
+    settings::save(&app, &copia).map_err(|e| e.to_string())?;
+    let _ = app.emit("settings-changed", ());
+    Ok(())
+}
+
 /// El ratón entró o salió de la onda. Lo avisa el propio HUD.
 ///
 /// Mientras está encima no se esconde aunque el dictado haya terminado: si se
