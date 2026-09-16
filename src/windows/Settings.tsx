@@ -293,6 +293,9 @@ interface KbKey {
   code: string | null;
   label: string;
   w?: number;
+  /** Aire, no tecla. La fila de abajo llega un hueco más a la derecha que la
+   *  del Mayús, y sin esto la ↑ no cae encima de la ↓. */
+  hueco?: boolean;
 }
 
 const K = (code: string, label: string, w?: number): KbKey => ({
@@ -353,35 +356,40 @@ const IMPRESO: Record<Idioma, Record<string, string>> = {
  *  es ANSI y no la tiene. */
 const esIso = (i: Idioma) => i !== "us";
 
+/** Ancho de una fila en "unidades de tecla". Todas las filas suman esto, y de
+ *  ahí sale que las columnas cuadren entre filas: la ↑ justo encima de la ↓. */
+const ANCHO = 15.8;
+
 const MAIN_ROWS = (idioma: Idioma): KbKey[][] => {
   const imp = IMPRESO[idioma];
   const e = (k: KbKey): KbKey =>
     k.code && imp[k.code] ? { ...k, label: imp[k.code] } : k;
   return [
-    [
-      K("Escape", "Esc", 1.4),
-      ...Array.from({ length: 12 }, (_, i) => K(`F${i + 1}`, `F${i + 1}`)),
-    ],
+    // Las trece de la fila de funciones, repartidas a partes iguales: en un
+    // portátil ocupan todo el ancho, no se quedan cortas.
+    Array.from({ length: 13 }, (_, i) =>
+      K(i === 0 ? "Escape" : `F${i}`, i === 0 ? "Esc" : `F${i}`, ANCHO / 13),
+    ),
     [
       K("BackQuote", "`"),
       ...[..."1234567890"].map((d) => K(`Num${d}`, d)),
       K("Minus", "-"),
       K("Equal", "="),
-      K("Backspace", "⌫", 1.8),
+      K("Backspace", "⌫", 2.8),
     ].map(e),
     [
       K("Tab", "Tab", 1.5),
       ...[..."QWERTYUIOP"].map((c) => K(`Key${c}`, c)),
       K("LeftBracket", "["),
       K("RightBracket", "]"),
-      K("BackSlash", "\\", 1.3),
+      K("BackSlash", "\\", 2.3),
     ].map(e),
     [
       K("CapsLock", "Bloq Mayús", 1.9),
       ...[..."ASDFGHJKL"].map((c) => K(`Key${c}`, c)),
       K("SemiColon", ";"),
       K("Quote", "'"),
-      K("Return", "Entrar", 1.9),
+      K("Return", "Entrar", 2.9),
     ].map(e),
     [
       K("ShiftLeft", "Mayús", esIso(idioma) ? 1.4 : 2.4),
@@ -390,7 +398,12 @@ const MAIN_ROWS = (idioma: Idioma): KbKey[][] => {
       K("Comma", ","),
       K("Dot", "."),
       K("Slash", "/"),
-      K("ShiftRight", "Mayús", 2.4),
+      // El Mayús derecho se acorta para dejarle sitio a la ↑, que es justo
+      // como está en un teclado de verdad: la flecha de arriba se mete al
+      // final de esta fila y las otras tres van debajo.
+      K("ShiftRight", "Mayús", 1.4),
+      K("UpArrow", "↑"),
+      { code: null, label: "", hueco: true },
     ].map(e),
   ];
 };
@@ -399,24 +412,34 @@ const MAIN_ROWS = (idioma: Idioma): KbKey[][] => {
  *  es como están en un teclado de verdad. Antes iban en línea con el resto y
  *  las cuatro se aplastaban hasta no leerse — con la fila sumando 16 anchos
  *  contra los 13 de las de arriba, la ↑ y la ↓ desaparecían. */
+/** Fila de abajo, con las tres flechas al final — debajo del Mayús derecho,
+ *  donde están de verdad. Antes iban las cuatro en línea con el resto y se
+ *  aplastaban hasta no leerse: la fila sumaba 16 anchos contra los 14,8 de las
+ *  de arriba, así que la ↑ y la ↓ desaparecían. */
 const BOTTOM_ROW_LAPTOP: KbKey[] = [
   K("ControlLeft", "Ctrl", 1.3),
   { code: null, label: "Fn" },
   K("MetaLeft", "Win", 1.1),
   K("Alt", "Alt", 1.1),
-  K("Space", "Espacio", 5.2),
+  K("Space", "Espacio", 5.9),
   K("AltGr", "AltGr", 1.1),
   K("ControlRight", "Ctrl", 1.3),
+  K("LeftArrow", "←"),
+  K("DownArrow", "↓"),
+  K("RightArrow", "→"),
 ];
 
 const BOTTOM_ROW_EXTENDED: KbKey[] = [
-  K("ControlLeft", "Ctrl", 1.6),
-  K("MetaLeft", "Win", 1.3),
-  K("Alt", "Alt", 1.3),
-  K("Space", "Espacio", 7),
-  K("AltGr", "AltGr", 1.3),
-  K("MetaRight", "Win", 1.3),
-  K("ControlRight", "Ctrl", 1.6),
+  K("ControlLeft", "Ctrl", 1.3),
+  K("MetaLeft", "Win", 1.1),
+  K("Alt", "Alt", 1.1),
+  K("Space", "Espacio", 5.9),
+  K("AltGr", "AltGr", 1.1),
+  K("MetaRight", "Win", 1.1),
+  K("ControlRight", "Ctrl", 1.2),
+  K("LeftArrow", "←"),
+  K("DownArrow", "↓"),
+  K("RightArrow", "→"),
 ];
 
 const MODIFIERS = new Set([
@@ -440,8 +463,11 @@ function Cap(props: {
   className?: string;
 }) {
   const { k, selected } = props;
+  if (k.hueco) {
+    return <span style={{ flex: `${k.w ?? 1} ${k.w ?? 1} 0%` }} />;
+  }
   const base =
-    "flex h-8 items-center justify-center overflow-hidden rounded-md border text-[9px] font-medium leading-none transition-colors";
+    "flex items-center justify-center overflow-hidden rounded-md border text-[9px] font-medium leading-none transition-colors";
   const style = k.code
     ? selected
       ? "border-blue-700 bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/40"
@@ -457,7 +483,7 @@ function Cap(props: {
       disabled={!k.code}
       title={k.code ? keyLabel(k.code) : "No capturable"}
       onClick={() => k.code && props.onToggle(k.code)}
-      style={{ flex: `${k.w ?? 1} ${k.w ?? 1} 0%` }}
+      style={{ width: "100%", height: "100%" }}
       className={`${base} ${style}${ocupada} ${props.className ?? ""}`}
     >
       <span className="truncate px-0.5">{k.label}</span>
@@ -499,24 +525,38 @@ export function KeyboardPicker(props: {
     />
   );
 
-  const flechas = (
-    // En T invertida, como en el teclado de verdad: la ↑ va encima, entre la ←
-    // y la →. En línea con el resto se aplastaban hasta desaparecer.
-    <div className="flex w-[15%] shrink-0 flex-col justify-end gap-1">
-      {/* Rejilla en las dos filas y no flex: con flex, el ancho de la ↑ no
-          descuenta los huecos y queda medio botón corrida respecto a la ↓. */}
-      <div className="grid grid-cols-3 gap-1">
-        <span />
-        {cap(K("UpArrow", "↑"), 100)}
-        <span />
+  /** Una fila, colocada por posición.
+   *
+   *  Con flex no cuadraba: una fila de catorce teclas y otra de diez reparten
+   *  sus huecos de forma distinta, así que las columnas no coincidían entre
+   *  filas y la ↑ quedaba nueve píxeles corrida respecto a la ↓. Puestas por
+   *  porcentaje sobre el mismo ancho, coinciden siempre. */
+  const fila = (row: KbKey[], r: number) => {
+    let acc = 0;
+    return (
+      <div key={r} className="relative h-8">
+        {row.map((k, i) => {
+          const w = k.w ?? 1;
+          const izq = (acc / ANCHO) * 100;
+          const ancho = (w / ANCHO) * 100;
+          acc += w;
+          if (k.hueco) return null;
+          return (
+            <div
+              key={i}
+              className="absolute top-0 bottom-0"
+              style={{
+                left: `calc(${izq}% + 2px)`,
+                width: `calc(${ancho}% - 4px)`,
+              }}
+            >
+              {cap(k, i)}
+            </div>
+          );
+        })}
       </div>
-      <div className="grid grid-cols-3 gap-1">
-        {cap(K("LeftArrow", "←"), 101)}
-        {cap(K("DownArrow", "↓"), 102)}
-        {cap(K("RightArrow", "→"), 103)}
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div>
@@ -553,25 +593,17 @@ export function KeyboardPicker(props: {
       <div className="flex gap-2 rounded-xl bg-slate-100 p-2 dark:bg-slate-950/60">
         {/* Bloque principal */}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          {MAIN_ROWS(idioma).map((row, r) => (
-            <div key={r} className="flex gap-1">
-              {row.map((k, i) => cap(k, i))}
-            </div>
-          ))}
-          <div className="flex gap-1">
-            {(layout === "laptop"
-              ? BOTTOM_ROW_LAPTOP
-              : BOTTOM_ROW_EXTENDED
-            ).map((k, i) => cap(k, i))}
-          </div>
+          {MAIN_ROWS(idioma).map(fila)}
+          {fila(
+            layout === "laptop" ? BOTTOM_ROW_LAPTOP : BOTTOM_ROW_EXTENDED,
+            99,
+          )}
         </div>
-
-        {layout === "laptop" && flechas}
 
         {layout === "extendido" && (
           <>
             {/* Bloque de navegación + flechas */}
-            <div className="flex w-[19%] shrink-0 flex-col gap-1">
+            <div className="w-[19%] shrink-0">
               <div className="grid grid-cols-3 gap-1">
                 {[
                   K("Insert", "Ins"),
@@ -581,14 +613,6 @@ export function KeyboardPicker(props: {
                   K("End", "Fin"),
                   K("PageDown", "AvPág"),
                 ].map((k, i) => cap(k, i))}
-              </div>
-              <div className="mt-auto grid grid-cols-3 gap-1">
-                <span />
-                {cap(K("UpArrow", "↑"), 100)}
-                <span />
-                {cap(K("LeftArrow", "←"), 101)}
-                {cap(K("DownArrow", "↓"), 102)}
-                {cap(K("RightArrow", "→"), 103)}
               </div>
             </div>
           </>

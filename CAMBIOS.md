@@ -10,6 +10,16 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.11.2 — 16 de septiembre de 2026
+
+- **Las flechas vuelven a su sitio: dentro del teclado.** En la 0.11.1 las saqué a
+  un bloque aparte a la derecha, y en un portátil no están ahí — la ↑ va al final
+  de la fila del Mayús derecho y las otras tres justo debajo. Ahora es así, en los
+  dos teclados.
+- De paso, el teclado entero cuadra: las teclas se colocan por posición y no
+  repartiéndose el hueco, así que todas las filas empiezan y acaban en la misma
+  columna y la ↑ queda exactamente encima de la ↓.
+
 ## 0.11.1 — 16 de septiembre de 2026
 
 - **La tecla para cancelar ya se elige.** Antes era Escape y punto, y eso tenía un
