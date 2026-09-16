@@ -10,6 +10,15 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.9.4 — 15 de septiembre de 2026
+
+- **Te avisa cuando hay versión nueva.** Sale una campanita verde en el botón de
+  **Ajustes** del panel lateral, latiendo despacio. Verde y no roja a propósito:
+  una versión nueva es una buena noticia, no una alarma.
+- Y ahora Dicho **vuelve a mirar si hay novedades cada vez que traes la ventana
+  al frente**. Antes sólo miraba al abrirla, así que con la ventana abierta de
+  fondo podía no enterarse nunca.
+
 ## 0.9.3 — 15 de septiembre de 2026
 
 - **Los dos botones de posición quedan juntos** en el menú de la onda: ahora el

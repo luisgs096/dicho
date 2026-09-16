@@ -123,11 +123,33 @@ function Section(props: {
   );
 }
 
+/** Campanita del aviso de versión nueva. */
+function CampanaIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="h-[11px] w-[11px]">
+      <path d="M12 2a6 6 0 0 0-6 6v3.6l-1.3 2.6A1 1 0 0 0 5.6 16h12.8a1 1 0 0 0 .9-1.4L18 11.6V8a6 6 0 0 0-6-6Z" />
+      <path d="M9.8 17.5a2.3 2.3 0 0 0 4.4 0Z" />
+    </svg>
+  );
+}
+
+const AVISO_CSS = `
+  /* El aviso late despacio: llama la atención sin pedir auxilio. Verde y no
+     rojo a propósito — una versión nueva es una buena noticia, no una alarma. */
+  @keyframes latido {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, .55); }
+    60% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+  }
+  .aviso { animation: latido 2.4s ease-out infinite; }
+`;
+
 function NavItem(props: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
+  /** Hay algo esperando ahí dentro: sale la campanita verde. */
+  aviso?: boolean;
 }) {
   return (
     <button
@@ -140,6 +162,15 @@ function NavItem(props: {
     >
       <span className="h-4 w-4 shrink-0">{props.icon}</span>
       {props.label}
+      {props.aviso && (
+        <span
+          className="aviso ml-auto flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"
+          title="Hay una versión nueva"
+          aria-label="Hay una versión nueva"
+        >
+          <CampanaIcon />
+        </span>
+      )}
     </button>
   );
 }
@@ -533,6 +564,7 @@ export default function Settings() {
 
   return (
     <div className="flex h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <style>{AVISO_CSS}</style>
       <aside className="flex w-52 shrink-0 flex-col border-r border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <h1 className="px-3 text-2xl font-black tracking-tight text-blue-600 dark:text-sky-400">
           Dicho
@@ -565,6 +597,7 @@ export default function Settings() {
               onClick={() => setTab("ajustes")}
               icon={<GearIcon />}
               label="Ajustes"
+              aviso={actualizacion.fase === "disponible"}
             />
           </div>
         </nav>
