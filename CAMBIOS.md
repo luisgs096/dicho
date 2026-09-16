@@ -10,6 +10,16 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.10.1 — 15 de septiembre de 2026
+
+- **"Estructurado" ahora se llama "Editor".** El nombre viejo no decía nada:
+  "Ordenado" y "Estructurado" eran dos adjetivos del mismo eje y sonaban igual,
+  así que no se entendía en qué se diferenciaban. "Editor" nombra un oficio —lo
+  que hace es lo que haría un editor con tu texto— y por eso no se confunde con
+  "Estándar".
+- Tu modo elegido se respeta: por dentro sigue siendo el mismo ajuste, sólo
+  cambia el nombre que ves.
+
 ## 0.10.0 — 15 de septiembre de 2026
 
 - **El modo Estructurado ahora sí redacta.** No estaba haciendo casi nada: medido

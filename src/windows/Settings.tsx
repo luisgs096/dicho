@@ -214,7 +214,7 @@ const NIVELES: {
   },
   {
     id: "groq_estructurado",
-    titulo: "Estructurado",
+    titulo: "Editor",
     coste: "~2-3 s",
     desc: "Te lo REDACTA. No limpia tu dictado: lee la idea entera y la vuelve a escribir en párrafos, encadenando las frases y cambiando las muletillas por conectores de verdad. Suele salir un tercio más corto. Usa un modelo más grande, por eso tarda un par de segundos más.",
     limite: "No añade información, ejemplos, cifras ni conclusiones que no dijiste. Si se pasa, Dicho lo descarta solo y te deja el texto sin tocar.",
@@ -848,7 +848,7 @@ export default function Settings() {
                     </label>
 
                     <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-                      Estructurado es el único que puede cambiarte las palabras.
+                      Editor es el único que puede cambiarte las palabras.
                       Si el resultado se aleja demasiado de lo que dijiste —o trae
                       palabras que tú no usaste— Dicho lo descarta solo y escribe
                       la versión limpia de siempre, sin avisar y sin perder nada.

@@ -374,8 +374,8 @@ const NIVELES_HUD: {
   },
   {
     id: "groq_estructurado",
-    corto: "Estructurado",
-    largo: "Estructurado — reordena tu idea",
+    corto: "Editor",
+    largo: "Editor — te redacta la idea en párrafos",
     color: "var(--p)",
   },
 ];
