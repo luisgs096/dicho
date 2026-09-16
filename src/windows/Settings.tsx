@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -100,6 +100,42 @@ function GoogleG() {
         d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
       />
     </svg>
+  );
+}
+
+/** Copiar al portapapeles, diciéndolo.
+ *
+ *  Antes el botón llamaba a writeText y se quedaba mudo: no había forma de
+ *  saber si había funcionado, así que uno lo pulsaba dos veces por si acaso. La
+ *  confirmación va en el propio botón —no hace falta un sistema de avisos para
+ *  una palabra— y el temporizador se limpia al desmontar, que si no React
+ *  protesta cuando borras la entrada antes de que pasen los 1,5 s. */
+function BotonCopiar(props: { texto: string }) {
+  const [copiado, setCopiado] = useState(false);
+  const reloj = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (reloj.current) window.clearTimeout(reloj.current);
+    },
+    [],
+  );
+  return (
+    <button
+      className={`ml-auto opacity-0 transition-opacity group-hover:opacity-100 ${
+        copiado
+          ? "font-medium text-emerald-600 opacity-100 dark:text-emerald-400"
+          : "hover:text-blue-600 dark:hover:text-sky-400"
+      }`}
+      onClick={() => {
+        navigator.clipboard.writeText(props.texto).then(() => {
+          setCopiado(true);
+          if (reloj.current) window.clearTimeout(reloj.current);
+          reloj.current = window.setTimeout(() => setCopiado(false), 1500);
+        });
+      }}
+    >
+      {copiado ? "¡Copiado!" : "Copiar"}
+    </button>
   );
 }
 
@@ -1066,14 +1102,7 @@ export default function Settings() {
                           {h.engine === "parakeet" ? "local" : h.engine}
                         </span>
                         <span>{(h.duration_ms / 1000).toFixed(1)} s</span>
-                        <button
-                          className="ml-auto opacity-0 transition-opacity hover:text-blue-600 group-hover:opacity-100 dark:hover:text-sky-400"
-                          onClick={() =>
-                            navigator.clipboard.writeText(h.polished)
-                          }
-                        >
-                          Copiar
-                        </button>
+                        <BotonCopiar texto={h.polished} />
                         <button
                           className="opacity-0 transition-opacity hover:text-amber-600 group-hover:opacity-100 dark:hover:text-amber-400"
                           onClick={() =>
@@ -1144,6 +1173,26 @@ export default function Settings() {
                         decide un solo idioma cada 30 s, así que Dicho corta el audio en
                         tus pausas para que cada tramo decida por su cuenta; aun así, una
                         palabra suelta en el otro idioma puede salir traducida.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={settings.copiar_al_portapapeles}
+                      onChange={(e) =>
+                        update({ copiar_al_portapapeles: e.target.checked })
+                      }
+                      className="mt-0.5 h-4 w-4 accent-blue-600"
+                    />
+                    <span>
+                      Dejar el dictado en el portapapeles
+                      <span className="mt-0.5 block text-xs text-slate-400 dark:text-slate-500">
+                        Además de pegarlo donde estés escribiendo, el texto se queda
+                        copiado y puedes volver a pegarlo con Ctrl+V donde quieras. Ojo:
+                        con esto encendido, <strong>cada dictado pisa lo que tuvieras
+                        copiado</strong>. Apagado, Dicho te devuelve lo de antes.
                       </span>
                     </span>
                   </label>

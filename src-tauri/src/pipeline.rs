@@ -112,13 +112,19 @@ pub(crate) fn diag(app: &AppHandle, msg: &str) {
 /// El HUD mide esto en puntos lógicos; en píxeles depende de la escala del
 /// monitor donde caiga.
 const HUD_W: f64 = 360.0;
-/// 112 y no 96 desde la 0.9.8: debajo de la cápsula va la cinta de niveles
-/// (13 px y su margen) y arriba asoma el botón del menú, que al pasarle el ratón
-/// crece y saca halo. Con 96 el botón llegaba justo al borde y Windows le
-/// recortaba el halo. **Si cambia este número hay que cambiar el divisor de
-/// `--k` en Hud.tsx**, que es quien traduce el lienzo a escala: si no, todo el
-/// contenido crece o encoge en la misma proporción.
-const HUD_H: f64 = 112.0;
+/// Alto de la ventana: la cápsula (74) más el aire que necesita el botón del
+/// menú, que asoma 8 px por arriba y al pasarle el ratón crece y saca halo.
+///
+/// Fue 96, luego 112 —cuando la cinta de niveles colgaba por debajo— y ahora
+/// 104: desde `befdf50` la cinta vive **dentro** del LCD, así que los 19 px de
+/// abajo se quedaron vacíos y sólo servían para atrapar clics donde no hay nada
+/// dibujado. Con 104 quedan 15 arriba y 15 abajo: de sobra para el halo, que
+/// medido necesita unos 8,7.
+///
+/// **Si cambia este número hay que cambiar el divisor de `--k` en Hud.tsx**, que
+/// es quien traduce el lienzo a escala: si no, todo el contenido crece o encoge
+/// en la misma proporción.
+const HUD_H: f64 = 104.0;
 /// La pantalla de cine de la actualización: cuadrada, y del doble de alto.
 ///
 /// Una tira de 360×96 no deja poner nada en escena — no hay arriba ni abajo, y
@@ -828,7 +834,11 @@ fn procesar(
 
     match outcome {
         Ok(StopResult::Done(raw, polished, engine_name, stt_ms, corrections)) => {
-            if let Err(e) = inject_text(&polished) {
+            let conservar = settings
+                .read()
+                .map(|s| s.copiar_al_portapapeles)
+                .unwrap_or(false);
+            if let Err(e) = inject_text(&polished, conservar) {
                 emit_state(
                     app,
                     "error",

@@ -245,10 +245,12 @@ export function MenuOnda(props: {
   onListo: () => void;
   onReset: () => void;
 }) {
-  // Asomando por la esquina, pero con cuentas: la ventana del HUD deja 16 px de
-  // aire por arriba y 12 por los lados, y al pasar el ratón el botón crece un
-  // 18 % (≈2,4 px por lado) y saca un halo de 3. Sobresalir 8 arriba y 4 a la
-  // derecha deja margen justo para eso sin que Windows lo recorte.
+  // Asomando por la esquina, pero con cuentas. La ventana de 104 deja 22 px de
+  // aire por arriba y 12 por los lados —el aire no se reparte a medias: la
+  // cápsula va pegada abajo justo para que el menú tenga sitio—, y al pasar el
+  // ratón el botón crece un 18 % (≈2,4 px por lado) y saca un halo de 3.
+  // Sobresalir 8 arriba y 4 a la derecha deja margen de sobra: medido, el borde
+  // de arriba del halo se queda a 8,7 px del techo de la ventana.
   const marco = "absolute -right-1 -top-2 z-10 h-[26px] w-[26px]";
 
   if (props.colocando) {
@@ -517,11 +519,11 @@ export default function Hud() {
   // lienzo más grande: se escala todo en bloque para llenarlo igual.
   useEffect(() => {
     const ajustar = () => {
-      // 112 es el alto lógico de la ventana (ver HUD_H en pipeline.rs). Los dos
+      // 104 es el alto lógico de la ventana (ver HUD_H en pipeline.rs). Los dos
       // números tienen que ir a la par: éste traduce el lienzo real a escala.
       document.documentElement.style.setProperty(
         "--k",
-        (window.innerHeight / 112).toFixed(3),
+        (window.innerHeight / 104).toFixed(3),
       );
       // La pantalla de cine mide 260 lógicos de alto; su escala va aparte.
       document.documentElement.style.setProperty(
@@ -852,7 +854,7 @@ export default function Hud() {
         : "border-slate-200/80 bg-white/95 text-slate-700";
     return (
       <div
-        className={`flex h-screen w-screen items-center justify-center ${gesto}`}
+        className={`flex h-screen w-screen items-end justify-center pb-2 ${gesto}`}
         style={{ ...vars, opacity: velo, transition: "opacity .18s" }}
         onPointerDown={agarrar}
         onPointerEnter={() => {
@@ -1021,7 +1023,7 @@ export default function Hud() {
 
   return (
     <div
-      className={`flex h-screen w-screen items-center justify-center ${gesto}`}
+      className={`flex h-screen w-screen items-end justify-center pb-2 ${gesto}`}
       style={{ ...vars, opacity: velo, transition: "opacity .18s" }}
       onPointerDown={agarrar}
       onPointerEnter={() => {

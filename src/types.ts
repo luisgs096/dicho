@@ -14,6 +14,8 @@ export interface AppSettings {
   polish: PolishKind;
   language: string;
   no_traducir: boolean;
+  /** Deja el dictado en el portapapeles al terminar, para volver a pegarlo. */
+  copiar_al_portapapeles: boolean;
   hud_enabled: boolean;
   hud_style: HudStyle;
   /** Un rincón por pantalla, por tamaño del área de trabajo ("3840x2040"). */

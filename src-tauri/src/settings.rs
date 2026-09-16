@@ -96,6 +96,12 @@ pub struct AppSettings {
     /// el motor (fijarlo es lo que hace que Whisper traduzca el otro) y le pasa
     /// una muestra de spanglish como contexto de estilo.
     pub no_traducir: bool,
+    /// Deja el dictado en el portapapeles al terminar, en vez de devolver lo
+    /// que hubiera antes. El texto ya pasa por ahí para pegarse (ver
+    /// `inject::inject_text`), así que esto sólo se salta la restauración.
+    /// Apagado por defecto: encenderlo significa que cada dictado pisa lo que
+    /// tuvieras copiado.
+    pub copiar_al_portapapeles: bool,
     pub hud_enabled: bool,
     pub hud_style: HudStyle,
     /// El rincón donde el usuario dejó el HUD **en cada pantalla**, por
@@ -151,6 +157,7 @@ impl Default for AppSettings {
             polish: PolishKind::Rules,
             language: "auto".into(),
             no_traducir: true,
+            copiar_al_portapapeles: false,
             hud_enabled: true,
             hud_style: HudStyle::Tamagotchi,
             hud_posiciones: HashMap::new(),
