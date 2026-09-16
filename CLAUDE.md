@@ -109,10 +109,21 @@ conocimiento. Y se commitea con el resto.
   corazón, aspa— y **todos son de ancho impar**: `eyes()` centra con
   `(3 - ancho) / 2`, así que un ancho par los dejaría a medio píxel.
   Exporta `CARITA_COMILONA`/`CARITA_ERUCTO`, los dos índices que el HUD encadena,
-  **`ACTUALIZADO`** (las cinco de estrenar versión: disquete, cerebro, playera,
-  pilas y evolución — se sortea una al primer arranque tras actualizar, y el
-  número de versión lo pone el HUD en la pantallita porque a 3 px un dígito
-  bordado no se lee)
+  **`ACTUALIZADO`** (la película de estrenar versión, que es **el único sitio
+  con lienzo propio**: 48x48 en vez de la tira de 48x16, porque una secuencia
+  necesita cielo y suelo — la razón por la que los V-Pet de Digimon dibujaban en
+  cuadrado. Nueve tiempos en 6 s, una sola pasada y `forwards`: sonríe, la cámara
+  bascula a cenital, se abren dos compuertas, sale la pieza carcomida, entra la
+  dorada, **se enciende el anillo**, cierran, vuelve al frente, arranca con ojos
+  en aspa y la boca de barra de carga, y sonríe con el número de versión.
+  El basculado es **aplastado, no rotación**: la vista de frente se encoge a cero
+  en Y mientras la cenital crece desde cero — rotar pixel-art lo destroza.
+  Aprendizajes: la pieza vieja tiene que ir **maciza y en el color de la cara**,
+  porque tintada de gris claro y con huecos se leía como cuatro puntos sueltos; y
+  cinco animaciones cortas se leen peor que una larga con **causa y efecto** —
+  las cinco primeras eran un objeto entrando al lado de una cara que cambiaba, sin
+  relación entre ambas cosas. El backend pone la ventana cuadrada con `MODO_CINE`
+  y la devuelve a su tira al acabar)
   y **`MAREO`**: las tres caritas que sólo salen al zarandear la onda mientras la
   colocas (mareada → aguantándose → vomita). Van **fuera de `V`** a propósito, que
   si no saldrían al azar en mitad de un dictado. Dos aprendizajes de dibujarlas:

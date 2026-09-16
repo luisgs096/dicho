@@ -10,6 +10,30 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.9.6 — 15 de septiembre de 2026
+
+- **La animación de estrenar versión ahora es una escena de verdad.** Para ese
+  momento —y sólo para ése— la onda **se vuelve una pantalla cuadrada**, con su
+  suelo y su sombra, y la secuencia tiene cuatro tiempos: el bicho tranquilo,
+  la cosa que llega, **la silueta que lo tapa parpadeando cada vez más deprisa**,
+  y el fogonazo del que sale estrenado.
+- La silueta es el recurso de los Pokémon de Game Boy, donde el bicho se pintaba
+  todo de negro justo antes de evolucionar: lo que engancha no es el cambio, es
+  que te lo escondan un segundo antes.
+- Sólo con las caritas puestas. En el estilo clásico no hay bicho que evolucione.
+
+## 0.9.6 — 15 de septiembre de 2026
+
+- **Al actualizar, Dicho te cuenta una película.** Para ese momento —y sólo para
+  ése— la onda se vuelve una pantalla cuadrada y pasa esto: la carita sonríe, la
+  cámara bascula y le mira la cabeza **desde arriba**, se abren dos compuertas,
+  sale la pieza vieja carcomida, entra una nueva y dorada, **y el anillo se
+  enciende**. Se cierran las compuertas, la cámara vuelve al frente, y arranca
+  con los ojos en aspa y la lengua fuera mientras **la boca se le llena como una
+  barra de carga**. Al terminar: sonrisa y **el número de la versión** que acaba
+  de entrar.
+- Sólo con las caritas puestas. En el estilo clásico no hay bicho que abrir.
+
 ## 0.9.5 — 15 de septiembre de 2026
 
 - **Dicho celebra cuando lo actualizas.** Al primer arranque con una versión

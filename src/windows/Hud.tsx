@@ -416,7 +416,6 @@ export default function Hud() {
   /** Destello de relevo entre una carita del mareo y la siguiente. */
   const [relevo, setRelevo] = useState(false);
   const mareoDesde = useRef(0);
-  const estrenoRef = useRef(0);
   const [agarrando, setAgarrando] = useState(false);
   const [dark, setDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
@@ -443,6 +442,11 @@ export default function Hud() {
       document.documentElement.style.setProperty(
         "--k",
         (window.innerHeight / 96).toFixed(3),
+      );
+      // La pantalla de cine mide 260 lógicos de alto; su escala va aparte.
+      document.documentElement.style.setProperty(
+        "--kc",
+        (window.innerHeight / 260).toFixed(3),
       );
       // Si el lienzo se desbordara, Windows le metería barras de scroll que
       // roban 15 px y ya no se van. No debería volver a pasar (overflow
@@ -544,13 +548,6 @@ export default function Hud() {
       un.then((f) => f());
     };
   }, [colocando]);
-
-  // Una de las cinco, al azar, cada vez que se estrena versión.
-  useEffect(() => {
-    if (rec.state === "actualizado") {
-      estrenoRef.current = Math.floor(Math.random() * ACTUALIZADO.length);
-    }
-  }, [rec.state]);
 
   // El destello de la pantalla al cambiar de escalón: es el relevo entre una
   // carita y la siguiente, para que no parezca un corte.
@@ -719,10 +716,8 @@ export default function Hud() {
   // qué va el dictado, y para entonces no hay dictado ninguno.
   const mareada = mareo > 0 ? MAREO[mareo - 1] : null;
   const cancelada = rec.state === "cancelado" ? CARITA_CANCELADO : null;
-  // Cuál de las cinco toca esta vez. Se sortea al entrar en el estado y no en
-  // cada render: si no, cambiaría de animación a media celebración.
-  const estrenada =
-    rec.state === "actualizado" ? ACTUALIZADO[estrenoRef.current] : null;
+  // Una sola, y contada entera: ver `ACTUALIZADO` en faces.ts.
+  const estrenada = rec.state === "actualizado" ? ACTUALIZADO : null;
   // En error se reutiliza la carita de "señal perdida" con el mensaje real.
   const v =
     mareada ??
@@ -893,6 +888,38 @@ export default function Hud() {
                 {colocando ? "Arrástrame donde quieras" : "Dicho"}
               </p>
             )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── la pantalla de cine del estreno de versión ────────────────────────────
+  // Lienzo cuadrado y no la tira de siempre: la secuencia necesita cielo para
+  // que caigan cosas, suelo para la sombra y sitio para acercar la cámara. El
+  // backend hace la ventana cuadrada (`MODO_CINE`) justo antes de avisar.
+  if (estrenada) {
+    return (
+      <div
+        className="flex h-screen w-screen items-center justify-center select-none"
+        style={vars}
+      >
+        <style>{FACE_CSS + DRAG_CSS}</style>
+        <div style={{ transform: "scale(var(--kc, 1))" }}>
+          <div className="tama cine">
+            <div className="screen cine-screen">
+              <span className="scene-cine">
+                <svg
+                  viewBox="0 0 48 48"
+                  dangerouslySetInnerHTML={{ __html: estrenada.scene }}
+                />
+              </span>
+              {/* Lo que pidió Luis: cada vez que se actualiza, el número que
+                  acaba de entrar. Aparece con la sonrisa, al final. */}
+              <span className="cine-pie">
+                v{rec.state === "actualizado" ? rec.version : ""}
+              </span>
+            </div>
           </div>
         </div>
       </div>

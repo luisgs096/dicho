@@ -209,24 +209,9 @@ const ESCURRE = ["X", "X", "X"];
 const ASPA = ["X...X", ".X.X.", "..X..", ".X.X.", "X...X"];
 
 // ─── piezas de la actualización ─────────────────────────────────────────────
-/** Disquete: cuadrado con la ventanilla metálica arriba y la etiqueta abajo.
- *  Seis de ancho es el mínimo para que se distingan las dos cosas. */
-const DISQUETE = ["XXXXXX", "XoooXX", "XoooXX", "XXXXXX", "XoooXX", "XXXXXX"];
-/** Cerebro de repuesto, con sus dos lóbulos y sus dos ojitos. Tres filas y no
- *  cinco: la cara ocupa de y=5 a y=13, así que arriba sólo quedan tres libres
- *  (el lienzo empieza en y=2). Con cinco se dibujaba encima de los ojos. */
-const CEREBRO = [".XXX.", "XoXoX", ".XXX."];
-/** Caja de paquetería, con la cinta cruzándola. */
-const PAQUETE = ["XXXXXXX", "XXoXoXX", "XXXXXXX", "XXoXoXX", "XXXXXXX"];
-/** Playera: hombros, mangas y cuerpo. El número de versión va en la pantalla,
- *  no en la tela: a 3 px un dígito bordado no se lee. */
-const PLAYERA = ["XX.XXX.XX", "XXXXXXXXX", ".XXXXXXX.", ".XXXXXXX.", ".XX...XX."];
-/** Pila: el cuerpo y el botoncito de arriba. */
-const PILA = [".X.", "XXX", "XoX", "XoX", "XXX"];
-/** Barra de progreso: el marco, y el relleno va aparte para poder animarlo. */
+/** Marco de la barra de progreso. El relleno va aparte para poder animarlo, y
+ *  en la película de la actualización **es la boca** del bicho. */
 const BARRA_MARCO = ["XXXXXXXXXXXX", "X..........X", "XXXXXXXXXXXX"];
-/** Nube de polvo del disquete, que lleva años en el cajón. */
-const POLVO = ["X.X", ".X.", "X.X"];
 
 const CARRILLOS_MEDIO = [".XXXXXXXXX.", "X.........X", ".XXXXXXXXX."];
 const CARRILLOS_LLENO = [
@@ -596,109 +581,97 @@ export const CARITA_CANCELADO: Variant = {
     <g class="a-aspa">${spr(tint(ASPA, "w"), 35, 5)}</g>`,
 };
 
-/**
- * **Acabas de actualizar.** Se enseña una vez, al primer arranque con una
- * versión nueva, y luego no vuelve hasta la siguiente. Cinco variantes al azar,
- * como todo lo demás.
- *
- * El hilo que las une: en un tamagotchi la evolución es *el* momento — el bicho
- * cambia y tú lo miras. Aquí la actualización es su evolución, así que cada una
- * cuenta la misma historia con un objeto distinto: algo llega, entra, y el
- * bicho sale mejorado. Todas acaban con la carita contenta, nunca a medias.
- *
- * El número de versión no va bordado en los sprites: a 3 px un dígito no se
- * lee. Lo pone el HUD en la pantallita de estado, que para eso está.
- */
-export const ACTUALIZADO: Variant[] = [
-  {
-    // 1 · El disquete. Llega de la derecha, suelta el polvo de años de cajón,
-    // se mete por la ranura lateral y la barra se llena de un tirón.
-    status: "Actualizado",
-    scene: `${flip(
-      [
-        eyes(OJO, 5) + spr(BOCA_CHICA, 21, 12),
-        eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11),
-        eyes(OJO_MEDIO, 7) + spr(RAYA, 20, 12),
-        eyes(OJO_ARCO, 6) + spr(SONRISA, 18, 12),
-      ],
-      "1.4s",
-    )}
-      <g class="a-disco">${spr(tint(DISQUETE, "a"), 33, 6)}</g>
-      <g class="a-polvo">${spr(tint(POLVO, "faint"), 39, 4)}</g>
-      <g class="a-barra-up">${spr(BARRA_MARCO, 4, 13)}
-        <rect class="relleno" x="5" y="14" width="10" height="1" fill="var(--m)"/></g>`,
-  },
-  {
-    // 2 · El cerebro de repuesto. Se abre la tapa, el viejo sale gris por la
-    // izquierda, el nuevo entra rosa por arriba, y la tapa se cierra.
-    status: "Cerebro nuevo",
-    scene: `${flip(
-      [
-        eyes(OJO_MEDIO, 7) + spr(LADEADA, 18, 12),
-        eyes(OJO_LINEA, 7) + spr(RAYA, 20, 12),
-        eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11),
-        eyes(OJO_BRILLO, 5) + spr(SONRISA, 18, 12),
-      ],
-      "1.4s",
-    )}
-      <g class="a-viejo">${spr(tint(CEREBRO, "faint"), 20, 2)}</g>
-      <g class="a-nuevo">${spr(tint(CEREBRO, "p"), 20, 2)}</g>`,
-  },
-  {
-    // 3 · La playera nueva. Llega el paquete, se abre, y se la pone. La talla
-    // la dice la pantallita.
-    status: "Estrena",
-    scene: `${flip(
-      [
-        eyes(OJO, 5) + spr(BOCA_CHICA, 21, 12),
-        eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11),
-        eyes(OJO_BRILLO, 5) + spr(SONRISOTA, 18, 11),
-        eyes(OJO_ARCO, 6) + spr(SONRISA, 18, 12),
-      ],
-      "1.4s",
-    )}
-      <g class="a-paquete">${spr(tint(PAQUETE, "w"), 34, 8)}</g>
-      <g class="a-playera">${spr(tint(PLAYERA, "s"), 18, 10)}</g>`,
-  },
-  {
-    // 4 · Pila nueva. La vieja sale agotada y gris, la nueva entra verde, y al
-    // conectarla los ojos se le encienden de golpe.
-    status: "Pilas nuevas",
-    scene: `${flip(
-      [
-        eyes(OJO_MEDIO, 7) + spr(LADEADA, 18, 12),
-        eyes(OJO_LINEA, 7) + spr(RAYA, 20, 12),
-        eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11),
-        eyes(OJO_ESTRELLA, 4) + spr(SONRISOTA, 18, 11),
-      ],
-      "1.4s",
-    )}
-      <g class="a-pila-out">${spr(tint(PILA, "faint"), 36, 6)}</g>
-      <g class="a-pila-in">${spr(tint(PILA, "m"), 36, 6)}</g>
-      <g class="a-chispa-up1">${spr(tint(CHISPITA, "w"), 11, 4)}</g>
-      <g class="a-chispa-up2">${spr(tint(CHISPITA, "w"), 34, 12)}</g>`,
-  },
-  {
-    // 5 · La evolución, que es *el* momento de un tamagotchi: la pantalla se
-    // apaga en blanco, chisporrotea, y el bicho vuelve con otra cara. Aquí la
-    // versión nueva es justo eso. El fogonazo es un rectángulo del tamaño del
-    // lienzo y no un sprite: 768 cuadritos de 1×1 serían una barbaridad.
-    status: "¡Evolucionó!",
-    scene: `${flip(
-      [
-        eyes(OJO, 5) + spr(BOCA_CHICA, 21, 12),
-        eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11),
-        eyes(OJO_ESTRELLA, 4) + spr(SONRISOTA, 18, 11),
-        eyes(OJO_BRILLO, 5) + spr(SONRISA, 18, 12),
-      ],
-      "1.4s",
-    )}
-      <g class="a-fogonazo"><rect x="0" y="2" width="48" height="16" fill="currentColor"/></g>
-      <g class="a-evo1">${spr(tint(CHISPA, "a"), 10, 4)}</g>
-      <g class="a-evo2">${spr(tint(CHISPA, "p"), 35, 10)}</g>
-      <g class="a-evo3">${spr(tint(CHISPITA, "m"), 33, 4)}</g>`,
-  },
-];
+// ─── la película de la actualización ────────────────────────────────────────
+//
+// Una sola, contada entera, en vez de cinco cortas. El guion es de Luis, y la
+// referencia que lo cierra es el reactor de Tony Stark: los núcleos de paladio
+// se **gastan**, hay que abrir el pecho, sacar el usado —ennegrecido— y meter
+// uno limpio que vuelve a encender la luz.
+//
+//   1 · Sale la carita, contenta, de frente.
+//   2 · La cámara bascula a **vista cenital**: le miramos la cabeza desde arriba.
+//   3 · Se abren dos compuertas, una a cada lado, como la tapa de un cráneo, y
+//       debajo aparece el anillo del reactor — **apagado**, porque la pieza que
+//       lleva dentro ya no da más de sí.
+//   4 · Sale el disquete viejo, gastado, y se va por la izquierda.
+//   5 · Entra el nuevo, dorado, con su destello. Al asentarse, **el anillo se
+//       enciende**: ése es el momento de la película.
+//   6 · Las compuertas se cierran, y la luz se escapa un instante por la juntura.
+//   7 · La cámara vuelve al frente.
+//   8 · Cara de arranque: ojos en aspa y la lengua fuera. **La boca es la barra
+//       de carga** y se va llenando.
+//   9 · Sonrisa, y el número de la versión que acaba de entrar.
+//
+// Por qué funciona y las cinco de antes no: aquéllas eran un objeto entrando al
+// lado de una cara que cambiaba — dos cosas a la vez, sin relación entre ellas.
+// Ésta tiene **causa y efecto**, que es lo que convierte una animación en una
+// historia: le abren la cabeza, le cambian la pieza, se enciende, arranca, y
+// sonríe. Cada cuadro explica el siguiente.
+//
+// El basculado de la cámara es el truco viejo del aplastado: la vista de frente
+// se encoge a nada por el eje vertical mientras la cenital crece desde nada. No
+// se rota un solo píxel —rotar pixel-art lo destroza—, se cambia de plano.
+//
+// Se ve una vez y se queda quieta en el último cuadro (`forwards`). Es una
+// película, no un estado.
+
+/** El anillo del reactor, debajo de las compuertas. Apagado mientras la pieza
+ *  gastada sigue dentro; encendido en cuanto entra la nueva. */
+const REACTOR = `<circle cx="24" cy="24" r="9" fill="none" stroke="var(--faint)" stroke-width="1"/>
+  <circle class="p-anillo" cx="24" cy="24" r="9" fill="none" stroke="var(--a)" stroke-width="2"/>
+  <rect x="16" y="19" width="16" height="10" rx="1" fill="var(--lcd)"/>`;
+
+/** Las dos compuertas. Se abren hacia fuera desde la línea del centro. */
+const COMPUERTAS = `<g class="p-izq">
+    <rect x="8" y="13" width="16" height="22" rx="3" fill="var(--shellA)" stroke="var(--faint)" stroke-width="1"/>
+    <rect x="12" y="23" width="8" height="1" fill="var(--faint)" opacity=".45"/>
+  </g>
+  <g class="p-der">
+    <rect x="24" y="13" width="16" height="22" rx="3" fill="var(--shellA)" stroke="var(--faint)" stroke-width="1"/>
+    <rect x="28" y="23" width="8" height="1" fill="var(--faint)" opacity=".45"/>
+  </g>
+  <g class="p-juntura"><rect x="23" y="13" width="2" height="22" fill="var(--a)"/></g>`;
+
+/** El disquete nuevo: ventanilla metálica arriba y etiqueta abajo, los huecos
+ *  en color del LCD para que se lean como relieve. */
+const DISCO = ["XXXXXX", "XooXXX", "XooXXX", "XXXXXX", "XoXoXX", "XXXXXX"];
+/** El gastado. **Macizo y en el color de la cara**, no en el tono tenue: tintado
+ *  de gris claro y con los mismos huecos se leía como cuatro puntos sueltos en
+ *  vez de como una pieza. Los dos mordiscos son la corrosión — la idea de los
+ *  núcleos de paladio de Tony Stark, que salen del pecho carcomidos. */
+const DISCO_GASTADO = ["XXXXXX", "XXXXXX", "XoXXXX", "XXXXXX", "XXoXXX", "XXXXXX"];
+/** El destello que cruza el nuevo, en el color del LCD (o sea, un hueco). */
+const DESTELLO = ["..o", ".o.", "o.."];
+/** La lengua fuera, de arranque tonto. */
+const LENGUA = ["XXX", "XXX", ".X."];
+
+export const ACTUALIZADO: Variant = {
+  status: "",
+  scene: `<g class="p-frente">
+      <g transform="translate(0,16)">
+        <g class="p-ojos-ok">${flip([eyes(OJO, 5), eyes(OJO_LINEA, 7)], "1.1s")}</g>
+        <g class="p-ojos-x">${eyes(OJO_ASPA, 4)}</g>
+        <g class="p-boca-ok">${spr(SONRISOTA, 18, 11)}</g>
+        <g class="p-boca-carga">
+          ${spr(BARRA_MARCO, 16, 12)}
+          <rect class="p-relleno" x="17" y="13" width="10" height="1" fill="var(--m)"/>
+        </g>
+        <g class="p-lengua">${spr(tint(LENGUA, "p"), 21, 15)}</g>
+      </g>
+    </g>
+
+    <g class="p-cenital">
+      ${REACTOR}
+      <g class="p-viejo">${spr(DISCO_GASTADO, 21, 21)}</g>
+      <g class="p-nuevo">${spr(tint(DISCO, "w"), 21, 21)}
+        <g class="p-brillo">${spr(DESTELLO, 22, 22)}</g>
+      </g>
+      ${COMPUERTAS}
+    </g>
+
+    <g class="p-chispa1">${spr(tint(CHISPITA, "w"), 9, 12)}</g>
+    <g class="p-chispa2">${spr(tint(CHISPITA, "m"), 36, 31)}</g>`,
+};
 
 export const MAREO: Variant[] = [
   {
@@ -828,6 +801,19 @@ export const FACE_CSS = `
             overflow: hidden; position: relative; color: var(--face);
             display: flex; align-items: center; gap: 6px; padding: 0 12px 0 12px;
             transition: background .25s; }
+  /* La carcasa cuadrada del estreno de version: la misma concha y el mismo LCD,
+     pero 240x240 en vez de 336x64. Sin microfono ni pantallita lateral — aqui
+     la escena es lo unico que hay, y el pie de foto va debajo. */
+  .tama.cine { width: 240px; height: 240px; border-radius: 28px; padding: 7px; }
+  .cine-screen { border-radius: 22px; flex-direction: column; gap: 0;
+                 padding: 8px 8px 4px; }
+  .scene-cine { flex: 1; width: 100%; min-height: 0; }
+  .scene-cine svg { width: 100%; height: 100%; shape-rendering: crispEdges;
+                    overflow: hidden; display: block; }
+  .cine-pie { flex-shrink: 0; padding-bottom: 2px;
+              font: 700 9px/1.3 Consolas, "Cascadia Mono", monospace;
+              letter-spacing: .08em; text-transform: uppercase;
+              color: var(--faint); }
   .screen::before { content: ""; position: absolute; inset: 0; pointer-events: none;
     background-image: linear-gradient(var(--grid) 1px, transparent 1px),
                       linear-gradient(90deg, var(--grid) 1px, transparent 1px);
@@ -965,80 +951,134 @@ ${FLIP_CSS}
   @keyframes aspa { 0% { opacity: 0; } 12% { opacity: 1; } 24% { opacity: .35; }
                     36%, 100% { opacity: 1; } }
 
-  /* ── la actualización: algo llega, entra, y el bicho sale mejorado ─────── */
-  /* Todas duran 1,4 s y comparten la misma partitura: el objeto entra en el
-     primer cuarto, hace lo suyo en el segundo, y el último es la celebración. */
-  @keyframes llega { 0% { transform: translateX(14px); opacity: 0; }
-                     12% { transform: translateX(10px); opacity: 1; }
-                     24% { transform: translateX(4px); }
-                     36% { transform: translateX(0); }
-                     48% { transform: translateX(-3px); opacity: 1; }
-                     55%, 100% { transform: translateX(-6px); opacity: 0; } }
-  @keyframes polvito { 0%, 14% { opacity: 0; transform: translate(0, 0); }
-                       18% { opacity: 1; }
-                       26% { transform: translate(2px, -2px); }
-                       34% { transform: translate(4px, -3px); opacity: 0; }
-                       100% { opacity: 0; } }
-  /* La barra se llena de un tirón, al final, y se queda puesta. */
-  @keyframes barra-up { 0%, 52% { opacity: 0; } 56%, 100% { opacity: 1; } }
-  @keyframes llenado { 0%, 56% { transform: scaleX(0); }
-                       66% { transform: scaleX(.35); }
-                       74% { transform: scaleX(.7); }
-                       82%, 100% { transform: scaleX(1); } }
-  /* El viejo se va por la izquierda, agotado; el nuevo entra por la derecha y
-     se queda. Los dos por encima de la cabeza, que es donde hay sitio. */
-  @keyframes sale-viejo { 0% { opacity: 1; transform: translateX(0); }
-                          20% { transform: translateX(-5px); }
-                          34% { transform: translateX(-10px); }
-                          46% { transform: translateX(-15px); opacity: 1; }
-                          54%, 100% { transform: translateX(-20px); opacity: 0; } }
-  @keyframes entra-nuevo { 0%, 44% { opacity: 0; transform: translateX(20px); }
-                           50% { opacity: 1; transform: translateX(14px); }
-                           60% { transform: translateX(8px); }
-                           70% { transform: translateX(3px); }
-                           78%, 100% { transform: translateX(0); opacity: 1; } }
-  @keyframes paquete { 0% { transform: translate(8px, -6px); opacity: 0; }
-                       10% { opacity: 1; }
-                       26% { transform: translate(2px, 0); }
-                       38% { transform: translate(0, 0); }
-                       50%, 100% { transform: translate(0, 4px); opacity: 0; } }
-  @keyframes playera { 0%, 46% { opacity: 0; transform: translateY(-5px); }
-                       52% { opacity: 1; transform: translateY(-3px); }
-                       62% { transform: translateY(-1px); }
-                       70%, 100% { transform: translateY(0); opacity: 1; } }
-  @keyframes pila-out { 0%, 10% { opacity: 1; transform: translate(0, 0); }
-                        26% { transform: translate(4px, 1px); }
-                        40% { transform: translate(9px, 3px); opacity: 1; }
-                        48%, 100% { transform: translate(13px, 5px); opacity: 0; } }
-  @keyframes pila-in { 0%, 46% { opacity: 0; transform: translate(11px, -4px); }
-                       52% { opacity: 1; transform: translate(7px, -2px); }
-                       62% { transform: translate(3px, -1px); }
-                       70%, 100% { transform: translate(0, 0); opacity: 1; } }
-  /* El fogonazo de la evolución: la pantalla se come al bicho un instante. */
-  @keyframes fogonazo { 0%, 28% { opacity: 0; }
-                        32% { opacity: 1; } 40% { opacity: .3; }
-                        44% { opacity: 1; } 52%, 100% { opacity: 0; } }
-  @keyframes evo { 0%, 50% { opacity: 0; transform: scale(1); }
-                   58% { opacity: 1; } 72% { opacity: .4; }
-                   84% { opacity: 1; } 92%, 100% { opacity: 0; } }
+  /* ── la película de la actualización: 6 s, nueve tiempos, una sola pasada ── */
+  /* Todo cuelga del mismo reloj de 6 s y se para en el último cuadro:
+       0-11 %   la carita de frente
+       11-18 %  la cámara bascula a cenital
+       18-26 %  se abren las compuertas (el reactor, apagado)
+       26-40 %  sale la pieza gastada por la izquierda
+       40-54 %  entra la nueva, dorada — y el anillo SE ENCIENDE
+       54-62 %  se cierran las compuertas, la luz se escapa por la juntura
+       62-69 %  la cámara vuelve al frente
+       69-90 %  arrancando: ojos en aspa, lengua fuera, la boca se llena
+       90-100 % sonrisa                                                      */
+  .p-frente, .p-cenital, .p-izq, .p-der, .p-juntura, .p-viejo, .p-nuevo,
+  .p-brillo, .p-anillo, .p-ojos-ok, .p-ojos-x, .p-boca-ok, .p-boca-carga,
+  .p-lengua, .p-relleno, .p-chispa1, .p-chispa2 {
+    animation-duration: 6s;
+    animation-timing-function: steps(1, end);
+    animation-iteration-count: 1;
+    animation-fill-mode: forwards;
+  }
 
-  .a-disco { animation: llega 1.4s steps(1, end) infinite; }
-  .a-polvo { opacity: 0; animation: polvito 1.4s steps(1, end) infinite; }
-  .a-barra-up { opacity: 0; animation: barra-up 1.4s steps(1, end) infinite; }
-  .a-barra-up .relleno { transform-box: fill-box; transform-origin: left center;
-                         animation: llenado 1.4s steps(1, end) infinite; }
-  .a-viejo { opacity: 0; animation: sale-viejo 1.4s steps(1, end) infinite; }
-  .a-nuevo { opacity: 0; animation: entra-nuevo 1.4s steps(1, end) infinite; }
-  .a-paquete { opacity: 0; animation: paquete 1.4s steps(1, end) infinite; }
-  .a-playera { opacity: 0; animation: playera 1.4s steps(1, end) infinite; }
-  .a-pila-out { animation: pila-out 1.4s steps(1, end) infinite; }
-  .a-pila-in { opacity: 0; animation: pila-in 1.4s steps(1, end) infinite; }
-  .a-chispa-up1 { opacity: 0; animation: evo 1.4s steps(1, end) infinite; }
-  .a-chispa-up2 { opacity: 0; animation: evo 1.4s steps(1, end) .1s infinite; }
-  .a-fogonazo { opacity: 0; animation: fogonazo 1.4s steps(1, end) infinite; }
-  .a-evo1 { opacity: 0; animation: evo 1.4s steps(1, end) infinite; }
-  .a-evo2 { opacity: 0; animation: evo 1.4s steps(1, end) .07s infinite; }
-  .a-evo3 { opacity: 0; animation: evo 1.4s steps(1, end) .14s infinite; }
+  /* El basculado: la vista de frente se aplasta a nada y la cenital crece desde
+     nada. No se rota un píxel — rotar pixel-art lo destroza. */
+  .p-frente { transform-origin: 24px 24px; animation-name: p-frente; }
+  @keyframes p-frente {
+    0%, 11% { transform: scaleY(1); opacity: 1; }
+    13% { transform: scaleY(.55); opacity: 1; }
+    15% { transform: scaleY(.18); opacity: 1; }
+    17%, 62% { transform: scaleY(0); opacity: 0; }
+    64% { transform: scaleY(.18); opacity: 1; }
+    66% { transform: scaleY(.55); opacity: 1; }
+    68%, 100% { transform: scaleY(1); opacity: 1; }
+  }
+  .p-cenital { transform-origin: 24px 24px; opacity: 0; animation-name: p-cenital; }
+  @keyframes p-cenital {
+    0%, 14% { transform: scaleY(0); opacity: 0; }
+    16% { transform: scaleY(.3); opacity: 1; }
+    18%, 61% { transform: scaleY(1); opacity: 1; }
+    63% { transform: scaleY(.4); opacity: 1; }
+    65%, 100% { transform: scaleY(0); opacity: 0; }
+  }
+
+  /* Las compuertas, hacia fuera y de vuelta. */
+  .p-izq { animation-name: p-izq; }
+  @keyframes p-izq { 0%, 18% { transform: translateX(0); }
+                     21% { transform: translateX(-5px); }
+                     24% { transform: translateX(-11px); }
+                     26%, 54% { transform: translateX(-16px); }
+                     57% { transform: translateX(-9px); }
+                     60%, 100% { transform: translateX(0); } }
+  .p-der { animation-name: p-der; }
+  @keyframes p-der { 0%, 18% { transform: translateX(0); }
+                     21% { transform: translateX(5px); }
+                     24% { transform: translateX(11px); }
+                     26%, 54% { transform: translateX(16px); }
+                     57% { transform: translateX(9px); }
+                     60%, 100% { transform: translateX(0); } }
+  /* La juntura sólo se ve al cerrarse: la luz del reactor escapándose. */
+  .p-juntura { opacity: 0; animation-name: p-juntura; }
+  @keyframes p-juntura { 0%, 59% { opacity: 0; }
+                         60% { opacity: 1; } 62% { opacity: .3; }
+                         63% { opacity: 1; } 65%, 100% { opacity: 0; } }
+
+  /* EL MOMENTO: el anillo está muerto hasta que entra la pieza nueva. */
+  .p-anillo { opacity: 0; animation-name: p-anillo; }
+  @keyframes p-anillo { 0%, 49% { opacity: 0; }
+                        50% { opacity: 1; } 52% { opacity: .25; }
+                        53% { opacity: 1; } 55% { opacity: .5; }
+                        56%, 100% { opacity: 1; } }
+
+  /* La pieza gastada sale y se va por la izquierda. */
+  .p-viejo { animation-name: p-viejo; }
+  @keyframes p-viejo { 0%, 27% { transform: translate(0, 0); opacity: 1; }
+                       30% { transform: translate(0, -3px); }
+                       33% { transform: translate(-5px, -3px); }
+                       36% { transform: translate(-11px, -2px); }
+                       39% { transform: translate(-17px, 0); opacity: 1; }
+                       41%, 100% { transform: translate(-22px, 2px); opacity: 0; } }
+  /* Y la nueva entra por la derecha y se asienta. */
+  .p-nuevo { opacity: 0; animation-name: p-nuevo; }
+  @keyframes p-nuevo { 0%, 41% { transform: translate(20px, 2px); opacity: 0; }
+                       43% { transform: translate(14px, 0); opacity: 1; }
+                       45% { transform: translate(8px, -3px); }
+                       47% { transform: translate(3px, -3px); }
+                       49% { transform: translate(0, -2px); }
+                       50%, 100% { transform: translate(0, 0); opacity: 1; } }
+  /* El destello que la cruza: entra ya asentada, para que se lea "nueva". */
+  .p-brillo { opacity: 0; animation-name: p-brillo; }
+  @keyframes p-brillo { 0%, 50% { transform: translateX(0); opacity: 0; }
+                        51% { opacity: 1; }
+                        53% { transform: translateX(2px); }
+                        55% { transform: translateX(4px); }
+                        57% { transform: translateX(6px); opacity: 1; }
+                        58%, 100% { opacity: 0; } }
+
+  /* La cara de arranque: aspas y lengua mientras carga, sonrisa al final. */
+  .p-ojos-x { opacity: 0; animation-name: p-ojos-x; }
+  @keyframes p-ojos-x { 0%, 68% { opacity: 0; } 69%, 88% { opacity: 1; }
+                        89%, 100% { opacity: 0; } }
+  .p-ojos-ok { animation-name: p-ojos-ok; }
+  @keyframes p-ojos-ok { 0%, 68% { opacity: 1; } 69%, 88% { opacity: 0; }
+                         89%, 100% { opacity: 1; } }
+  .p-lengua { opacity: 0; animation-name: p-lengua; }
+  @keyframes p-lengua { 0%, 68% { opacity: 0; } 69%, 87% { opacity: 1; }
+                        88%, 100% { opacity: 0; } }
+  .p-boca-ok { animation-name: p-boca-ok; }
+  @keyframes p-boca-ok { 0%, 68% { opacity: 1; } 69%, 88% { opacity: 0; }
+                         89%, 100% { opacity: 1; } }
+  /* LA BOCA ES LA BARRA. Se llena a saltos, como una instalación de verdad —
+     un relleno continuo se lee como decoración; a tirones se lee como trabajo. */
+  .p-boca-carga { opacity: 0; animation-name: p-boca-carga; }
+  @keyframes p-boca-carga { 0%, 68% { opacity: 0; } 69%, 88% { opacity: 1; }
+                            89%, 100% { opacity: 0; } }
+  .p-relleno { transform-box: fill-box; transform-origin: left center;
+               animation-name: p-relleno; }
+  @keyframes p-relleno { 0%, 69% { transform: scaleX(0); }
+                         72% { transform: scaleX(.2); }
+                         76% { transform: scaleX(.3); }
+                         79% { transform: scaleX(.62); }
+                         82% { transform: scaleX(.68); }
+                         85% { transform: scaleX(.9); }
+                         87%, 100% { transform: scaleX(1); } }
+
+  /* Dos chispas para rematar la sonrisa. */
+  .p-chispa1, .p-chispa2 { opacity: 0; animation-name: p-chispa; }
+  .p-chispa2 { animation-delay: .12s; }
+  @keyframes p-chispa { 0%, 89% { opacity: 0; }
+                        91% { opacity: 1; } 94% { opacity: .3; }
+                        96% { opacity: 1; } 99%, 100% { opacity: 0; } }
 
   /* ── el mareo, sólo al zarandear la onda mientras la colocas ───────────── */
   /* Bamboleo: un píxel a cada lado. Con dos ya no parecía mareo sino temblor. */
