@@ -679,7 +679,18 @@ fn transcribir_completo(
 }
 
 enum StopResult {
-    Done(String, String, &'static str, i64, Vec<polish::Correction>),
+    /// raw, pulido, motor de voz, ms de STT, correcciones, modo que redactó,
+    /// ms de redacción. El modo es **el que de verdad redactó**, no el que se
+    /// pidió: si el Editor se cayó y entró el Estándar, se guarda el Estándar.
+    Done(
+        String,
+        String,
+        &'static str,
+        i64,
+        Vec<polish::Correction>,
+        &'static str,
+        i64,
+    ),
     /// Hubo grabación pero no se entendió nada: carita en el HUD.
     Empty,
     /// Toque accidental: sin feedback.
@@ -764,7 +775,6 @@ fn procesar(
             language,
             dictionary: store.dict_pairs(),
         };
-        let corrections = polish::corrections(&raw, &ctx);
         // El pulido deja rastro en dicho.log, y no es un lujo: sin esto no hay
         // forma de contestar "¿por qué este dictado salió igual que el crudo?".
         // Pasó de verdad —290 palabras, salida idéntica al crudo— y no se pudo
@@ -773,8 +783,12 @@ fn procesar(
         let modo = match polish_kind {
             PolishKind::Rules => "reglas",
             PolishKind::GroqLlm => "estandar",
-            PolishKind::GroqEstructurado => "estructurado",
+            PolishKind::GroqEstructurado => "editor",
         };
+        let t_polish = std::time::Instant::now();
+        // `modo_real` puede no ser el pedido: si el Editor falla y entra el
+        // Estándar, lo que se guarda es lo que salió, no lo que se quiso.
+        let mut modo_real = modo;
         let polished = match polish_kind {
             PolishKind::Rules => polish::rules::polish(&raw, &ctx),
             PolishKind::GroqEstructurado => {
@@ -789,9 +803,13 @@ fn procesar(
                     Err(e) => {
                         diag(app, &format!("Pulido [{modo}]: falló ({e}) → probando estándar"));
                         match polish::groq::polish(&raw, &ctx, polish::groq::Nivel::Ordenado) {
-                            Ok(t) => t,
+                            Ok(t) => {
+                                modo_real = "estandar";
+                                t
+                            }
                             Err(e2) => {
                                 diag(app, &format!("Pulido [estandar]: falló ({e2}) → reglas locales"));
+                                modo_real = "reglas";
                                 polish::rules::polish(&raw, &ctx)
                             }
                         }
@@ -803,10 +821,13 @@ fn procesar(
                 Ok(t) => t,
                 Err(e) => {
                     diag(app, &format!("Pulido [{modo}]: DESCARTADO ({e}) → reglas locales"));
+                    modo_real = "reglas";
                     polish::rules::polish(&raw, &ctx)
                 }
             },
         };
+        let polish_ms = t_polish.elapsed().as_millis() as i64;
+        let corrections = polish::corrections(&raw, &polished, &ctx);
         {
             let n_in = raw.split_whitespace().count();
             let n_out = polished.split_whitespace().count();
@@ -829,11 +850,21 @@ fn procesar(
             engine_name,
             stt_ms,
             corrections,
+            modo_real,
+            polish_ms,
         ))
     })();
 
     match outcome {
-        Ok(StopResult::Done(raw, polished, engine_name, stt_ms, corrections)) => {
+        Ok(StopResult::Done(
+            raw,
+            polished,
+            engine_name,
+            stt_ms,
+            corrections,
+            modo_real,
+            polish_ms,
+        )) => {
             let conservar = settings
                 .read()
                 .map(|s| s.copiar_al_portapapeles)
@@ -850,17 +881,22 @@ fn procesar(
             let corrections_json = (!corrections.is_empty())
                 .then(|| serde_json::to_string(&corrections).ok())
                 .flatten();
-            let _ = store.add_history(
-                &raw,
-                &polished,
-                engine_name,
-                held.as_millis() as i64,
-                corrections_json.as_deref(),
-            );
+            let _ = store.add_history(crate::store::NuevoDictado {
+                raw: &raw,
+                polished: &polished,
+                engine: engine_name,
+                duration_ms: held.as_millis() as i64,
+                corrections_json: corrections_json.as_deref(),
+                polish_mode: modo_real,
+                stt_ms,
+                polish_ms,
+            });
             log::info!(
-                "Dictado listo: {} ms grabación, {} ms STT",
+                "Dictado listo: {} ms grabación, {} ms STT, {} ms redacción [{}]",
                 held.as_millis(),
-                stt_ms
+                stt_ms,
+                polish_ms,
+                modo_real
             );
             emit_state(app, "done", Some(serde_json::json!({ "text": polished })));
             let _ = app.emit("history-changed", ());

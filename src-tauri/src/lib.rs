@@ -183,6 +183,7 @@ pub fn run() {
             commands::model_status,
             commands::download_model,
             commands::get_history,
+            commands::listas_analisis,
             commands::delete_history,
             commands::dict_list,
             commands::dict_add,

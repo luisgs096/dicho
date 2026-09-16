@@ -3,7 +3,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -16,10 +15,12 @@ import type {
   HistoryItem,
   ModelProgress,
   ModelStatus,
+  ListasAnalisis,
 } from "../types";
 import { keyLabel } from "../types";
 import Animaciones from "./Animaciones";
 import VistaPrevia from "./VistaPrevia";
+import { TarjetaDictado } from "./TarjetaDictado";
 import { CAMBIOS, cambioDe, sinMarcas } from "./cambios";
 import { useUpdater } from "./updater";
 
@@ -109,42 +110,6 @@ function GoogleG() {
   );
 }
 
-/** Copiar al portapapeles, diciéndolo.
- *
- *  Antes el botón llamaba a writeText y se quedaba mudo: no había forma de
- *  saber si había funcionado, así que uno lo pulsaba dos veces por si acaso. La
- *  confirmación va en el propio botón —no hace falta un sistema de avisos para
- *  una palabra— y el temporizador se limpia al desmontar, que si no React
- *  protesta cuando borras la entrada antes de que pasen los 1,5 s. */
-function BotonCopiar(props: { texto: string }) {
-  const [copiado, setCopiado] = useState(false);
-  const reloj = useRef<number | null>(null);
-  useEffect(
-    () => () => {
-      if (reloj.current) window.clearTimeout(reloj.current);
-    },
-    [],
-  );
-  return (
-    <button
-      className={`ml-auto opacity-0 transition-opacity group-hover:opacity-100 ${
-        copiado
-          ? "font-medium text-emerald-600 opacity-100 dark:text-emerald-400"
-          : "hover:text-blue-600 dark:hover:text-sky-400"
-      }`}
-      onClick={() => {
-        navigator.clipboard.writeText(props.texto).then(() => {
-          setCopiado(true);
-          if (reloj.current) window.clearTimeout(reloj.current);
-          reloj.current = window.setTimeout(() => setCopiado(false), 1500);
-        });
-      }}
-    >
-      {copiado ? "¡Copiado!" : "Copiar"}
-    </button>
-  );
-}
-
 /** Qué secciones están plegadas.
  *
  *  Va por contexto y no por props para no tener que enhebrar dos parámetros por
@@ -160,12 +125,11 @@ export const Plegado = createContext<{
  *
  *  El plegado usa `grid-template-rows: 1fr → 0fr`, que anima sin saber cuánto
  *  mide el contenido. La alternativa clásica es un `max-height` a ojo, y ésa se
- *  nota: o corta el contenido largo o deja la animación coja cuando el bloque es
- *  corto.
+ *  nota: o corta el contenido largo o deja la animación coja cuando el bloque
+ *  es corto.
  *
- *  `tono="labs"` tiñe la sección entera de verde. Es para LABS, donde el verde
- *  no es decoración: marca la única parte de la app que se anuncia como
- *  experimental. */
+ *  `tono="labs"` tiñe la sección entera de verde. No es decoración: marca la
+ *  única parte de la app que se anuncia como experimental. */
 export function Section(props: {
   id: string;
   title: string;
@@ -599,6 +563,7 @@ export default function Settings() {
   const [hasKey, setHasKey] = useState(false);
   const [keyInput, setKeyInput] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [listas, setListas] = useState<ListasAnalisis | null>(null);
   const [search, setSearch] = useState("");
   const [onlyCorrected, setOnlyCorrected] = useState(false);
   const [dict, setDict] = useState<DictItem[]>([]);
@@ -620,6 +585,12 @@ export default function Settings() {
   // Lo que trajo la versión que corre ahora. Sale de CAMBIOS.md, que viaja
   // dentro del binario: se ve sin internet y no depende de GitHub.
   const novedades = cambioDe(versionActual);
+
+  useEffect(() => {
+    invoke<ListasAnalisis>("listas_analisis")
+      .then(setListas)
+      .catch(() => {});
+  }, []);
 
   const refreshHistory = useCallback((q: string) => {
     invoke<HistoryItem[]>("get_history", { search: q || null, limit: 100 })
@@ -1189,52 +1160,17 @@ export default function Settings() {
                 ) : (
                   <ul className="flex flex-col gap-1">
                     {visibleHistory.map((h) => (
-                      <li
+                      <TarjetaDictado
                         key={h.id}
-                        className="group rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/60"
-                      >
-                        <p className="text-slate-800 dark:text-slate-100">
-                          {h.polished}
-                        </p>
-                        {h.corrections.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1.5">
-                            {h.corrections.map((c, i) => (
-                              <span
-                                key={i}
-                                title="Corregido por tu diccionario"
-                                className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-sky-500/10 dark:text-sky-300"
-                              >
-                                <span className="line-through opacity-60">
-                                  {c.term}
-                                </span>
-                                <span>→</span>
-                                <span>{c.replacement}</span>
-                                {c.count > 1 && (
-                                  <span className="opacity-60">×{c.count}</span>
-                                )}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <div className="mt-1 flex items-center gap-3 text-[11px] text-slate-400 dark:text-slate-500">
-                          <span>{fmtDate(h.ts)}</span>
-                          <span>
-                            {h.engine === "parakeet" ? "local" : h.engine}
-                          </span>
-                          <span>{(h.duration_ms / 1000).toFixed(1)} s</span>
-                          <BotonCopiar texto={h.polished} />
-                          <button
-                            className="opacity-0 transition-opacity hover:text-amber-600 group-hover:opacity-100 dark:hover:text-amber-400"
-                            onClick={() =>
-                              invoke("delete_history", { id: h.id }).then(() =>
-                                refreshHistory(search),
-                              )
-                            }
-                          >
-                            Eliminar
-                          </button>
-                        </div>
-                      </li>
+                        h={h}
+                        listas={listas}
+                        fmtDate={fmtDate}
+                        onBorrar={() =>
+                          invoke("delete_history", { id: h.id }).then(() =>
+                            refreshHistory(search),
+                          )
+                        }
+                      />
                     ))}
                   </ul>
                 )}

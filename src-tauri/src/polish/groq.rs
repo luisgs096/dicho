@@ -80,7 +80,7 @@ de palabras, no redactaste: limpiaste.\n\
 CÓMO SE REDACTA:\n\
  - Párrafos cerrados, donde cada frase lleve a la siguiente. Puedes cambiar el orden de las \
 palabras, partir una frase larga o fundir dos cortas.\n\
- - Las muletillas ('o sea', 'más bien', 'digamos', 'este', 'pues', 'a ver', 'y bueno') no \
+ - Las muletillas ('o sea', 'más bien', 'digamos', 'este', 'pues', 'a ver', 'y bueno', \n'la verdad', 'por así decirlo', '¿sabes?', '¿no?') no \
 pueden quedar en el texto final. Pero NO las cambies una por una por un conector: eso sale \
 peor. Reescribe la frase hasta que la muletilla sobre.\n\
  - No le pongas conector a todas las frases ni empieces dos seguidas con el mismo. La mayoría \
@@ -467,6 +467,21 @@ mod tests {
         let ordenado = "Necesito la configuración del perfil del DualSense Edge: \
                         sensibilidad y todos los settings del menú.";
         assert!(!inventa_demasiado(dictado, ordenado));
+    }
+
+    #[test]
+    fn el_prompt_nombra_todas_las_muletillas() {
+        // La lista vive en polish::MULETILLAS porque la usa también el contador
+        // del historial, y el prompt la lleva escrita para que se lea bien. Si
+        // alguien añade una a la lista y se olvida del prompt, el historial
+        // contaría algo que el Editor no tiene encargo de quitar — y los
+        // números no cuadrarían sin que nadie supiera por qué.
+        for m in crate::polish::MULETILLAS {
+            assert!(
+                EDITOR.contains(&format!("'{m}'")),
+                "el prompt del Editor no menciona la muletilla {m:?}"
+            );
+        }
     }
 
     #[test]

@@ -68,11 +68,14 @@ export type RecordingState =
   | { state: "actualizado"; version: string }
   | { state: "error"; message: string };
 
-/** Corrección del diccionario aplicada a un dictado. */
+/** Corrección del diccionario en un dictado. */
 export interface Correction {
   term: string;
   replacement: string;
+  /** Cuántas veces hacía falta corregir, contadas sobre el texto crudo. */
   count: number;
+  /** Cuántas llegaron de verdad al texto final. Con 0, el modelo la ignoró. */
+  aplicadas: number;
 }
 
 export interface HistoryItem {
@@ -81,8 +84,21 @@ export interface HistoryItem {
   raw: string;
   polished: string;
   engine: string;
+  /** Cuánto hablaste, no cuánto tardó en procesarse. */
   duration_ms: number;
   corrections: Correction[];
+  /** "reglas" | "estandar" | "editor". Ausente en los dictados anteriores a la
+   *  0.11: no se guardaba y no hay de dónde deducirlo. */
+  polish_mode: string | null;
+  stt_ms: number | null;
+  polish_ms: number | null;
+}
+
+/** Listas con las que se analiza un dictado, servidas por Rust (ver
+ *  `listas_analisis`) para no duplicarlas aquí. */
+export interface ListasAnalisis {
+  muletillas: string[];
+  anglicismos: string[];
 }
 
 export interface DictItem {

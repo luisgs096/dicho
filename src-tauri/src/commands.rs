@@ -71,6 +71,20 @@ pub fn get_history(
         .map_err(|e| e.to_string())
 }
 
+/// Las listas con las que el historial analiza un dictado.
+///
+/// Se mandan una vez y el contaje lo hace la interfaz: hacerlo en Rust
+/// significaría una llamada por tarjeta, y en el historial hay cien. Lo que no
+/// se duplica es la lista — vive en `polish` y de ahí sale también el prompt
+/// del Editor, con un test que vigila que no se separen.
+#[tauri::command]
+pub fn listas_analisis() -> serde_json::Value {
+    serde_json::json!({
+        "muletillas": crate::polish::MULETILLAS,
+        "anglicismos": crate::polish::ANGLICISMOS,
+    })
+}
+
 #[tauri::command]
 pub fn delete_history(store: State<'_, Arc<Store>>, id: i64) -> Result<(), String> {
     store.delete_history(id).map_err(|e| e.to_string())

@@ -16,9 +16,35 @@ pub struct HistoryItem {
     pub raw: String,
     pub polished: String,
     pub engine: String,
+    /// Cuánto tuviste la tecla apretada, o sea cuánto hablaste. **No** es lo
+    /// que tardó en procesarse: eso son `stt_ms` y `polish_ms`.
     pub duration_ms: i64,
-    /// Correcciones del diccionario aplicadas: [{term, replacement, count}].
+    /// Correcciones del diccionario: [{term, replacement, count, aplicadas}].
     pub corrections: serde_json::Value,
+    /// Qué modo redactó de verdad este dictado ("reglas" | "estandar" |
+    /// "editor"). `None` en los dictados anteriores a la 0.11: no se guardaba,
+    /// y no hay de dónde deducirlo. La interfaz tiene que enseñar un guion, no
+    /// inventarse uno.
+    pub polish_mode: Option<String>,
+    /// Milisegundos de transcripción y de redacción. `None` por lo mismo.
+    pub stt_ms: Option<i64>,
+    pub polish_ms: Option<i64>,
+}
+
+/// Lo que hace falta para guardar un dictado.
+///
+/// Era una lista de cinco parámetros posicionales y con los tres campos nuevos
+/// se iba a ocho: a esa altura nadie acierta el orden a la primera y el
+/// compilador no avisa, porque tres de ellos son enteros.
+pub struct NuevoDictado<'a> {
+    pub raw: &'a str,
+    pub polished: &'a str,
+    pub engine: &'a str,
+    pub duration_ms: i64,
+    pub corrections_json: Option<&'a str>,
+    pub polish_mode: &'a str,
+    pub stt_ms: i64,
+    pub polish_ms: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -48,7 +74,10 @@ impl Store {
                 polished TEXT NOT NULL,
                 engine TEXT NOT NULL,
                 duration_ms INTEGER NOT NULL,
-                corrections TEXT
+                corrections TEXT,
+                polish_mode TEXT,
+                stt_ms INTEGER,
+                polish_ms INTEGER
             );
             CREATE TABLE IF NOT EXISTS dictionary (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,28 +89,37 @@ impl Store {
                 value TEXT NOT NULL
             );",
         )?;
-        // Migración desde v0.1: la columna no existía; si ya está, el ALTER falla y se ignora.
+        // Migraciones: la columna no existía en su día; si ya está, el ALTER
+        // falla y se ignora. No hay sistema de versiones de esquema y para tres
+        // columnas no hace falta inventarlo.
         let _ = conn.execute("ALTER TABLE history ADD COLUMN corrections TEXT", []);
+        let _ = conn.execute("ALTER TABLE history ADD COLUMN polish_mode TEXT", []);
+        let _ = conn.execute("ALTER TABLE history ADD COLUMN stt_ms INTEGER", []);
+        let _ = conn.execute("ALTER TABLE history ADD COLUMN polish_ms INTEGER", []);
         Ok(Self {
             conn: Mutex::new(conn),
         })
     }
 
-    pub fn add_history(
-        &self,
-        raw: &str,
-        polished: &str,
-        engine: &str,
-        duration_ms: i64,
-        corrections_json: Option<&str>,
-    ) -> anyhow::Result<()> {
+    pub fn add_history(&self, d: NuevoDictado<'_>) -> anyhow::Result<()> {
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_millis() as i64;
         self.conn.lock().unwrap().execute(
-            "INSERT INTO history (ts, raw, polished, engine, duration_ms, corrections)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            rusqlite::params![ts, raw, polished, engine, duration_ms, corrections_json],
+            "INSERT INTO history
+               (ts, raw, polished, engine, duration_ms, corrections, polish_mode, stt_ms, polish_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            rusqlite::params![
+                ts,
+                d.raw,
+                d.polished,
+                d.engine,
+                d.duration_ms,
+                d.corrections_json,
+                d.polish_mode,
+                d.stt_ms,
+                d.polish_ms
+            ],
         )?;
         Ok(())
     }
@@ -105,13 +143,17 @@ impl Store {
                     .get::<_, Option<String>>(6)?
                     .and_then(|s| serde_json::from_str(&s).ok())
                     .unwrap_or_else(|| serde_json::Value::Array(Vec::new())),
+                polish_mode: row.get(7)?,
+                stt_ms: row.get(8)?,
+                polish_ms: row.get(9)?,
             });
             Ok(())
         };
         if let Some(q) = search.filter(|q| !q.trim().is_empty()) {
             let pattern = format!("%{}%", q.trim());
             let mut stmt = conn.prepare(
-                "SELECT id, ts, raw, polished, engine, duration_ms, corrections FROM history
+                "SELECT id, ts, raw, polished, engine, duration_ms, corrections,
+                        polish_mode, stt_ms, polish_ms FROM history
                  WHERE polished LIKE ?1 OR raw LIKE ?1 ORDER BY ts DESC LIMIT ?2",
             )?;
             let mut rows = stmt.query(rusqlite::params![pattern, limit])?;
@@ -120,7 +162,8 @@ impl Store {
             }
         } else {
             let mut stmt = conn.prepare(
-                "SELECT id, ts, raw, polished, engine, duration_ms, corrections FROM history
+                "SELECT id, ts, raw, polished, engine, duration_ms, corrections,
+                        polish_mode, stt_ms, polish_ms FROM history
                  ORDER BY ts DESC LIMIT ?1",
             )?;
             let mut rows = stmt.query(rusqlite::params![limit])?;
