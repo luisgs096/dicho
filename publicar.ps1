@@ -41,7 +41,15 @@ if (-not $Notas) {
   $cambios = "$raiz\CAMBIOS.md"
   if (-not (Test-Path $cambios)) { throw "Falta $cambios, de donde salen las notas" }
   $patron = "(?ms)^##\s+" + [regex]::Escape($Version) + "\s*[^\r\n]*\r?\n(.+?)(?=^##\s|\z)"
-  $m = [regex]::Match([IO.File]::ReadAllText($cambios), $patron)
+  $texto = [IO.File]::ReadAllText($cambios)
+  # Dos apartados para la misma version = el Release sale con el que toque
+  # primero, que puede ser uno viejo. Paso el 15/09/2026 con la 0.9.6: se
+  # publico describiendo una animacion que ya se habia tirado.
+  $cuantos = ([regex]::Matches($texto, "(?m)^##\s+" + [regex]::Escape($Version) + "\s")).Count
+  if ($cuantos -gt 1) {
+    throw "CAMBIOS.md tiene $cuantos apartados para la $Version. Deja uno solo."
+  }
+  $m = [regex]::Match($texto, $patron)
   if (-not $m.Success) {
     throw "CAMBIOS.md no tiene apartado '## $Version'. Escribe que trae la version antes de publicarla."
   }

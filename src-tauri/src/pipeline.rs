@@ -755,7 +755,17 @@ fn procesar(
         let corrections = polish::corrections(&raw, &ctx);
         let polished = match polish_kind {
             PolishKind::Rules => polish::rules::polish(&raw, &ctx),
-            PolishKind::GroqLlm => match polish::groq::polish(&raw, &ctx) {
+            PolishKind::GroqEstructurado => {
+                match polish::groq::polish(&raw, &ctx, polish::groq::Nivel::Estructurado) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        log::warn!("Redacción estructurada falló ({e}), usando reglas locales");
+                        polish::rules::polish(&raw, &ctx)
+                    }
+                }
+            }
+            PolishKind::GroqLlm => match polish::groq::polish(&raw, &ctx, polish::groq::Nivel::Ordenado)
+            {
                 Ok(t) => t,
                 Err(e) => {
                     log::warn!("Pulido LLM falló ({e}), usando reglas locales");

@@ -13,8 +13,13 @@ pub enum EngineKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PolishKind {
+    /// Tal cual: tus palabras exactas, sólo puntuación y diccionario. Sin IA.
     Rules,
+    /// Ordenado: mismas palabras, mejor forma. Es el de siempre.
     GroqLlm,
+    /// Estructurado: le da forma a la idea — junta lo disperso, quita las
+    /// vueltas, saca listas si las hay. **Puede cambiar tus palabras.**
+    GroqEstructurado,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

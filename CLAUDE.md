@@ -51,6 +51,20 @@ conocimiento. Y se commitea con el resto.
   botón: el arrastre nativo (`start_dragging()` → `WM_NCLBUTTONDOWN`) no sirve
   porque abre un bucle modal que **activa** la ventana, y el HUD es no activable
   a propósito para no robarle el foco a lo que estás escribiendo.
+- `src-tauri/src/polish/groq.rs` — el pulido con IA, en **dos niveles**
+  (`Nivel::Ordenado` y `Nivel::Estructurado`). Lo único que cambia entre ellos es
+  el encargo del prompt y las guardas, pero el contrato es distinto: ordenar
+  promete **tus palabras**, estructurar promete **tu idea** y para eso puede
+  reescribir. Dos redes, y la segunda hubo que inventarla:
+  `desvia_demasiado()` mira el tamaño (techo igual en los dos; suelo a la mitad
+  en ordenado, a un sexto en estructurado, que para eso se pide) e
+  `inventa_demasiado()` mira **de quién son las palabras**. La segunda existe
+  porque con datos reales la longitud no separa: de los once dictados que el
+  modelo contestó, tres quedaron en proporciones de 0,20 · 0,29 · 0,29 — justo
+  lo que mide un buen resumen de un divague. Lo que sí los separa es que
+  reordenar usa las palabras del hablante y contestar trae otras nuevas, así que
+  se cuenta qué fracción de las palabras de 5+ letras ya estaba en el dictado.
+  Por debajo de la mitad, se descarta y cae al pulido por reglas.
 - `src-tauri/src/hotkey.rs` — hook global rdev; lee `settings.hotkey` en cada evento →
   cambios de atajo aplican en vivo sin reiniciar. **Escape mientras grabas manda
   `Cmd::Cancel`**: se tira el audio y no se transcribe nada. Ojo con la trampa —

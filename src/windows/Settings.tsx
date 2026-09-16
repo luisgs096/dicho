@@ -184,6 +184,47 @@ const btnGhostCls =
   "rounded-xl border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800";
 const labelCls = "text-xs font-medium text-slate-500 dark:text-slate-400";
 
+/** Los tres escalones de redacción. El orden importa: de menos a más permiso
+ *  sobre tus palabras, que es lo único que de verdad los distingue. */
+const NIVELES: {
+  id: AppSettings["polish"];
+  titulo: string;
+  coste: string;
+  desc: string;
+  ejemplo: string;
+}[] = [
+  {
+    id: "rules",
+    titulo: "Tal cual",
+    coste: "al instante",
+    desc: "Tus palabras exactas. Sólo puntuación, acentos y tu diccionario. No pasa por ninguna IA ni sale de tu equipo.",
+    ejemplo: "«o sea creo que deberíamos mover la reunión al jueves» → O sea, creo que deberíamos mover la reunión al jueves.",
+  },
+  {
+    id: "groq_llm",
+    titulo: "Ordenado",
+    coste: "~1 s",
+    desc: "Mismas palabras, mejor forma: quita muletillas, aplica tus correcciones al vuelo y puntúa bien. Es el de siempre.",
+    ejemplo: "«o sea creo que deberíamos, bueno, mover la reunión al jueves» → Creo que deberíamos mover la reunión al jueves.",
+  },
+  {
+    id: "groq_estructurado",
+    titulo: "Estructurado",
+    coste: "~2 s",
+    desc: "Le da forma a la idea: junta lo que dijiste disperso, tira los rodeos y saca listas si las hay. Puede cambiar tus palabras, nunca añadir las que no dijiste.",
+    ejemplo: "«lo que quiero decir es que, este, quizás mover la reunión, o sea moverla al jueves, porque el miércoles no puedo» → Movamos la reunión al jueves: el miércoles no puedo.",
+  },
+];
+
+/** El sello de laboratorio: verde ácido y un matraz. Es la única parte de la
+ *  app que se anuncia como experimental, y tiene que verse distinta al resto
+ *  para que se note que ahí las cosas pueden cambiar. */
+const LABS_CSS = `
+  .labs-sello { animation: burbuja 3s ease-in-out infinite; }
+  @keyframes burbuja { 0%, 100% { transform: translateY(0) rotate(-6deg); }
+                       50% { transform: translateY(-2px) rotate(-6deg); } }
+`;
+
 const TAB_META: Record<Tab, { title: string; desc: string }> = {
   inicio: {
     title: "Inicio",
@@ -682,6 +723,105 @@ export default function Settings() {
               </Section>
 
               <Section
+                title="LABS · Cómo te redacta"
+                hint="Cuánto permiso le das a Dicho sobre lo que dijiste. Sube un escalón sólo cuando quieras que te ayude a ordenar la idea, no a copiarla."
+              >
+                {settings ? (
+                  <div className="flex flex-col gap-2.5">
+                    <style>{LABS_CSS}</style>
+                    {/* El sello. Verde ácido y matraz, a propósito distinto del
+                        azul del resto: es la única parte de la app que se
+                        anuncia como experimental, y tiene que verse. */}
+                    <div className="flex items-center gap-2.5 rounded-xl border border-dashed border-emerald-400/70 bg-emerald-50/60 px-3 py-2 dark:border-emerald-500/40 dark:bg-emerald-950/30">
+                      <span className="labs-sello text-emerald-600 dark:text-emerald-400">
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-5 w-5"
+                        >
+                          <path d="M9 3h6" />
+                          <path d="M10 3v6.5L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9.5V3" />
+                          <path d="M7.3 14h9.4" />
+                        </svg>
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <span className="rounded bg-emerald-600 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-widest text-white dark:bg-emerald-500">
+                          LABS
+                        </span>
+                        <span className="ml-2 text-[11px] text-emerald-800 dark:text-emerald-300">
+                          Experimento en curso: esto puede cambiar de una versión
+                          a otra.
+                        </span>
+                      </div>
+                    </div>
+
+                    {NIVELES.map((n) => {
+                      const activo = settings.polish === n.id;
+                      const bloqueado = n.id !== "rules" && !hasKey;
+                      return (
+                        <button
+                          key={n.id}
+                          type="button"
+                          disabled={bloqueado}
+                          onClick={() => update({ polish: n.id })}
+                          className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                            activo
+                              ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-500/20 dark:border-emerald-400 dark:bg-emerald-950/40 dark:ring-emerald-400/20"
+                              : "border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/40 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-700"
+                          }`}
+                        >
+                          <span
+                            className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                              activo
+                                ? "border-emerald-600 dark:border-emerald-400"
+                                : "border-slate-300 dark:border-slate-600"
+                            }`}
+                          >
+                            {activo && (
+                              <span className="h-2 w-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-semibold">
+                                {n.titulo}
+                              </span>
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                {n.coste}
+                              </span>
+                              {bloqueado && (
+                                <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                  necesita la key de Groq (Ajustes)
+                                </span>
+                              )}
+                            </span>
+                            <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                              {n.desc}
+                            </span>
+                            <span className="mt-1.5 block rounded-lg bg-slate-50 px-2 py-1 font-mono text-[10px] leading-relaxed text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+                              {n.ejemplo}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                    <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+                      Estructurado es el único que puede cambiarte las palabras.
+                      Si el resultado se aleja demasiado de lo que dijiste —o trae
+                      palabras que tú no usaste— Dicho lo descarta solo y escribe
+                      la versión limpia de siempre, sin avisar y sin perder nada.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">Cargando…</p>
+                )}
+              </Section>
+
+              <Section
                 title="La onda flotante"
                 hint="La cápsula que aparece mientras hablas. Las dos hacen exactamente lo mismo: sólo cambia la cara. Pulsa la que te guste y se queda puesta."
               >
@@ -944,25 +1084,13 @@ export default function Settings() {
                     </span>
                   </label>
 
-                  <label className="flex flex-col gap-1.5">
-                    <span className={labelCls}>Limpieza del texto</span>
-                    <select
-                      className={fieldCls}
-                      value={settings.polish}
-                      onChange={(e) =>
-                        update({
-                          polish: e.target.value as AppSettings["polish"],
-                        })
-                      }
-                    >
-                      <option value="rules">
-                        Rápida local (muletillas + diccionario)
-                      </option>
-                      <option value="groq_llm" disabled={!hasKey}>
-                        IA — Groq Llama {hasKey ? "" : "(requiere API key)"}
-                      </option>
-                    </select>
-                  </label>
+                  <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                    <strong className="text-slate-600 dark:text-slate-300">
+                      Cómo te redacta se elige en Inicio,
+                    </strong>{" "}
+                    en la sección LABS: ahí están los tres niveles, con un ejemplo
+                    de lo que hace cada uno.
+                  </p>
 
                   <label className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-300">
                     <input

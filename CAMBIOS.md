@@ -10,17 +10,18 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
-## 0.9.6 — 15 de septiembre de 2026
+## 0.9.7 — 15 de septiembre de 2026
 
-- **La animación de estrenar versión ahora es una escena de verdad.** Para ese
-  momento —y sólo para ése— la onda **se vuelve una pantalla cuadrada**, con su
-  suelo y su sombra, y la secuencia tiene cuatro tiempos: el bicho tranquilo,
-  la cosa que llega, **la silueta que lo tapa parpadeando cada vez más deprisa**,
-  y el fogonazo del que sale estrenado.
-- La silueta es el recurso de los Pokémon de Game Boy, donde el bicho se pintaba
-  todo de negro justo antes de evolucionar: lo que engancha no es el cambio, es
-  que te lo escondan un segundo antes.
-- Sólo con las caritas puestas. En el estilo clásico no hay bicho que evolucione.
+- **LABS: ahora decides cuánto puede cambiar Dicho lo que dijiste.** En Inicio
+  hay una sección verde nueva con tres escalones: **Tal cual** (tus palabras
+  exactas, sin IA, al instante), **Ordenado** (el de siempre: quita muletillas y
+  puntúa) y **Estructurado**, que es el nuevo — junta lo que dijiste disperso,
+  tira los rodeos y saca listas si las hay.
+- Estructurado es para cuando piensas en voz alta y la idea sale dando vueltas.
+  Es el único que puede cambiarte las palabras, y **nunca puede añadir las que
+  no dijiste**: si el resultado trae vocabulario que tú no usaste, Dicho lo
+  descarta solo y escribe la versión limpia de siempre.
+- Funciona con la key gratuita de Groq, la misma que ya usabas.
 
 ## 0.9.6 — 15 de septiembre de 2026
 

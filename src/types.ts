@@ -1,5 +1,5 @@
 export type EngineKind = "parakeet" | "groq";
-export type PolishKind = "rules" | "groq_llm";
+export type PolishKind = "rules" | "groq_llm" | "groq_estructurado";
 export type HudStyle = "tamagotchi" | "classic";
 
 /** Dónde quedó el HUD, en fracción del hueco libre de la pantalla (0-1). */
