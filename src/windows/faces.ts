@@ -208,6 +208,26 @@ const ESCURRE = ["X", "X", "X"];
  *  no en la cara. Ésta es la de "no, olvídalo". */
 const ASPA = ["X...X", ".X.X.", "..X..", ".X.X.", "X...X"];
 
+// ─── piezas de la actualización ─────────────────────────────────────────────
+/** Disquete: cuadrado con la ventanilla metálica arriba y la etiqueta abajo.
+ *  Seis de ancho es el mínimo para que se distingan las dos cosas. */
+const DISQUETE = ["XXXXXX", "XoooXX", "XoooXX", "XXXXXX", "XoooXX", "XXXXXX"];
+/** Cerebro de repuesto, con sus dos lóbulos y sus dos ojitos. Tres filas y no
+ *  cinco: la cara ocupa de y=5 a y=13, así que arriba sólo quedan tres libres
+ *  (el lienzo empieza en y=2). Con cinco se dibujaba encima de los ojos. */
+const CEREBRO = [".XXX.", "XoXoX", ".XXX."];
+/** Caja de paquetería, con la cinta cruzándola. */
+const PAQUETE = ["XXXXXXX", "XXoXoXX", "XXXXXXX", "XXoXoXX", "XXXXXXX"];
+/** Playera: hombros, mangas y cuerpo. El número de versión va en la pantalla,
+ *  no en la tela: a 3 px un dígito bordado no se lee. */
+const PLAYERA = ["XX.XXX.XX", "XXXXXXXXX", ".XXXXXXX.", ".XXXXXXX.", ".XX...XX."];
+/** Pila: el cuerpo y el botoncito de arriba. */
+const PILA = [".X.", "XXX", "XoX", "XoX", "XXX"];
+/** Barra de progreso: el marco, y el relleno va aparte para poder animarlo. */
+const BARRA_MARCO = ["XXXXXXXXXXXX", "X..........X", "XXXXXXXXXXXX"];
+/** Nube de polvo del disquete, que lleva años en el cajón. */
+const POLVO = ["X.X", ".X.", "X.X"];
+
 const CARRILLOS_MEDIO = [".XXXXXXXXX.", "X.........X", ".XXXXXXXXX."];
 const CARRILLOS_LLENO = [
   ".XXXXXXXXXXXXX.",
@@ -576,6 +596,110 @@ export const CARITA_CANCELADO: Variant = {
     <g class="a-aspa">${spr(tint(ASPA, "w"), 35, 5)}</g>`,
 };
 
+/**
+ * **Acabas de actualizar.** Se enseña una vez, al primer arranque con una
+ * versión nueva, y luego no vuelve hasta la siguiente. Cinco variantes al azar,
+ * como todo lo demás.
+ *
+ * El hilo que las une: en un tamagotchi la evolución es *el* momento — el bicho
+ * cambia y tú lo miras. Aquí la actualización es su evolución, así que cada una
+ * cuenta la misma historia con un objeto distinto: algo llega, entra, y el
+ * bicho sale mejorado. Todas acaban con la carita contenta, nunca a medias.
+ *
+ * El número de versión no va bordado en los sprites: a 3 px un dígito no se
+ * lee. Lo pone el HUD en la pantallita de estado, que para eso está.
+ */
+export const ACTUALIZADO: Variant[] = [
+  {
+    // 1 · El disquete. Llega de la derecha, suelta el polvo de años de cajón,
+    // se mete por la ranura lateral y la barra se llena de un tirón.
+    status: "Actualizado",
+    scene: `${flip(
+      [
+        eyes(OJO, 5) + spr(BOCA_CHICA, 21, 12),
+        eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11),
+        eyes(OJO_MEDIO, 7) + spr(RAYA, 20, 12),
+        eyes(OJO_ARCO, 6) + spr(SONRISA, 18, 12),
+      ],
+      "1.4s",
+    )}
+      <g class="a-disco">${spr(tint(DISQUETE, "a"), 33, 6)}</g>
+      <g class="a-polvo">${spr(tint(POLVO, "faint"), 39, 4)}</g>
+      <g class="a-barra-up">${spr(BARRA_MARCO, 4, 13)}
+        <rect class="relleno" x="5" y="14" width="10" height="1" fill="var(--m)"/></g>`,
+  },
+  {
+    // 2 · El cerebro de repuesto. Se abre la tapa, el viejo sale gris por la
+    // izquierda, el nuevo entra rosa por arriba, y la tapa se cierra.
+    status: "Cerebro nuevo",
+    scene: `${flip(
+      [
+        eyes(OJO_MEDIO, 7) + spr(LADEADA, 18, 12),
+        eyes(OJO_LINEA, 7) + spr(RAYA, 20, 12),
+        eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11),
+        eyes(OJO_BRILLO, 5) + spr(SONRISA, 18, 12),
+      ],
+      "1.4s",
+    )}
+      <g class="a-viejo">${spr(tint(CEREBRO, "faint"), 20, 2)}</g>
+      <g class="a-nuevo">${spr(tint(CEREBRO, "p"), 20, 2)}</g>`,
+  },
+  {
+    // 3 · La playera nueva. Llega el paquete, se abre, y se la pone. La talla
+    // la dice la pantallita.
+    status: "Estrena",
+    scene: `${flip(
+      [
+        eyes(OJO, 5) + spr(BOCA_CHICA, 21, 12),
+        eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11),
+        eyes(OJO_BRILLO, 5) + spr(SONRISOTA, 18, 11),
+        eyes(OJO_ARCO, 6) + spr(SONRISA, 18, 12),
+      ],
+      "1.4s",
+    )}
+      <g class="a-paquete">${spr(tint(PAQUETE, "w"), 34, 8)}</g>
+      <g class="a-playera">${spr(tint(PLAYERA, "s"), 18, 10)}</g>`,
+  },
+  {
+    // 4 · Pila nueva. La vieja sale agotada y gris, la nueva entra verde, y al
+    // conectarla los ojos se le encienden de golpe.
+    status: "Pilas nuevas",
+    scene: `${flip(
+      [
+        eyes(OJO_MEDIO, 7) + spr(LADEADA, 18, 12),
+        eyes(OJO_LINEA, 7) + spr(RAYA, 20, 12),
+        eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11),
+        eyes(OJO_ESTRELLA, 4) + spr(SONRISOTA, 18, 11),
+      ],
+      "1.4s",
+    )}
+      <g class="a-pila-out">${spr(tint(PILA, "faint"), 36, 6)}</g>
+      <g class="a-pila-in">${spr(tint(PILA, "m"), 36, 6)}</g>
+      <g class="a-chispa-up1">${spr(tint(CHISPITA, "w"), 11, 4)}</g>
+      <g class="a-chispa-up2">${spr(tint(CHISPITA, "w"), 34, 12)}</g>`,
+  },
+  {
+    // 5 · La evolución, que es *el* momento de un tamagotchi: la pantalla se
+    // apaga en blanco, chisporrotea, y el bicho vuelve con otra cara. Aquí la
+    // versión nueva es justo eso. El fogonazo es un rectángulo del tamaño del
+    // lienzo y no un sprite: 768 cuadritos de 1×1 serían una barbaridad.
+    status: "¡Evolucionó!",
+    scene: `${flip(
+      [
+        eyes(OJO, 5) + spr(BOCA_CHICA, 21, 12),
+        eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11),
+        eyes(OJO_ESTRELLA, 4) + spr(SONRISOTA, 18, 11),
+        eyes(OJO_BRILLO, 5) + spr(SONRISA, 18, 12),
+      ],
+      "1.4s",
+    )}
+      <g class="a-fogonazo"><rect x="0" y="2" width="48" height="16" fill="currentColor"/></g>
+      <g class="a-evo1">${spr(tint(CHISPA, "a"), 10, 4)}</g>
+      <g class="a-evo2">${spr(tint(CHISPA, "p"), 35, 10)}</g>
+      <g class="a-evo3">${spr(tint(CHISPITA, "m"), 33, 4)}</g>`,
+  },
+];
+
 export const MAREO: Variant[] = [
   {
     // 1 · Mareada. Los ojos hacen balancín en contrafase —el izquierdo arriba
@@ -840,6 +964,81 @@ ${FLIP_CSS}
   /* El aspa entra de golpe, late una vez y se queda: es la que da el mensaje. */
   @keyframes aspa { 0% { opacity: 0; } 12% { opacity: 1; } 24% { opacity: .35; }
                     36%, 100% { opacity: 1; } }
+
+  /* ── la actualización: algo llega, entra, y el bicho sale mejorado ─────── */
+  /* Todas duran 1,4 s y comparten la misma partitura: el objeto entra en el
+     primer cuarto, hace lo suyo en el segundo, y el último es la celebración. */
+  @keyframes llega { 0% { transform: translateX(14px); opacity: 0; }
+                     12% { transform: translateX(10px); opacity: 1; }
+                     24% { transform: translateX(4px); }
+                     36% { transform: translateX(0); }
+                     48% { transform: translateX(-3px); opacity: 1; }
+                     55%, 100% { transform: translateX(-6px); opacity: 0; } }
+  @keyframes polvito { 0%, 14% { opacity: 0; transform: translate(0, 0); }
+                       18% { opacity: 1; }
+                       26% { transform: translate(2px, -2px); }
+                       34% { transform: translate(4px, -3px); opacity: 0; }
+                       100% { opacity: 0; } }
+  /* La barra se llena de un tirón, al final, y se queda puesta. */
+  @keyframes barra-up { 0%, 52% { opacity: 0; } 56%, 100% { opacity: 1; } }
+  @keyframes llenado { 0%, 56% { transform: scaleX(0); }
+                       66% { transform: scaleX(.35); }
+                       74% { transform: scaleX(.7); }
+                       82%, 100% { transform: scaleX(1); } }
+  /* El viejo se va por la izquierda, agotado; el nuevo entra por la derecha y
+     se queda. Los dos por encima de la cabeza, que es donde hay sitio. */
+  @keyframes sale-viejo { 0% { opacity: 1; transform: translateX(0); }
+                          20% { transform: translateX(-5px); }
+                          34% { transform: translateX(-10px); }
+                          46% { transform: translateX(-15px); opacity: 1; }
+                          54%, 100% { transform: translateX(-20px); opacity: 0; } }
+  @keyframes entra-nuevo { 0%, 44% { opacity: 0; transform: translateX(20px); }
+                           50% { opacity: 1; transform: translateX(14px); }
+                           60% { transform: translateX(8px); }
+                           70% { transform: translateX(3px); }
+                           78%, 100% { transform: translateX(0); opacity: 1; } }
+  @keyframes paquete { 0% { transform: translate(8px, -6px); opacity: 0; }
+                       10% { opacity: 1; }
+                       26% { transform: translate(2px, 0); }
+                       38% { transform: translate(0, 0); }
+                       50%, 100% { transform: translate(0, 4px); opacity: 0; } }
+  @keyframes playera { 0%, 46% { opacity: 0; transform: translateY(-5px); }
+                       52% { opacity: 1; transform: translateY(-3px); }
+                       62% { transform: translateY(-1px); }
+                       70%, 100% { transform: translateY(0); opacity: 1; } }
+  @keyframes pila-out { 0%, 10% { opacity: 1; transform: translate(0, 0); }
+                        26% { transform: translate(4px, 1px); }
+                        40% { transform: translate(9px, 3px); opacity: 1; }
+                        48%, 100% { transform: translate(13px, 5px); opacity: 0; } }
+  @keyframes pila-in { 0%, 46% { opacity: 0; transform: translate(11px, -4px); }
+                       52% { opacity: 1; transform: translate(7px, -2px); }
+                       62% { transform: translate(3px, -1px); }
+                       70%, 100% { transform: translate(0, 0); opacity: 1; } }
+  /* El fogonazo de la evolución: la pantalla se come al bicho un instante. */
+  @keyframes fogonazo { 0%, 28% { opacity: 0; }
+                        32% { opacity: 1; } 40% { opacity: .3; }
+                        44% { opacity: 1; } 52%, 100% { opacity: 0; } }
+  @keyframes evo { 0%, 50% { opacity: 0; transform: scale(1); }
+                   58% { opacity: 1; } 72% { opacity: .4; }
+                   84% { opacity: 1; } 92%, 100% { opacity: 0; } }
+
+  .a-disco { animation: llega 1.4s steps(1, end) infinite; }
+  .a-polvo { opacity: 0; animation: polvito 1.4s steps(1, end) infinite; }
+  .a-barra-up { opacity: 0; animation: barra-up 1.4s steps(1, end) infinite; }
+  .a-barra-up .relleno { transform-box: fill-box; transform-origin: left center;
+                         animation: llenado 1.4s steps(1, end) infinite; }
+  .a-viejo { opacity: 0; animation: sale-viejo 1.4s steps(1, end) infinite; }
+  .a-nuevo { opacity: 0; animation: entra-nuevo 1.4s steps(1, end) infinite; }
+  .a-paquete { opacity: 0; animation: paquete 1.4s steps(1, end) infinite; }
+  .a-playera { opacity: 0; animation: playera 1.4s steps(1, end) infinite; }
+  .a-pila-out { animation: pila-out 1.4s steps(1, end) infinite; }
+  .a-pila-in { opacity: 0; animation: pila-in 1.4s steps(1, end) infinite; }
+  .a-chispa-up1 { opacity: 0; animation: evo 1.4s steps(1, end) infinite; }
+  .a-chispa-up2 { opacity: 0; animation: evo 1.4s steps(1, end) .1s infinite; }
+  .a-fogonazo { opacity: 0; animation: fogonazo 1.4s steps(1, end) infinite; }
+  .a-evo1 { opacity: 0; animation: evo 1.4s steps(1, end) infinite; }
+  .a-evo2 { opacity: 0; animation: evo 1.4s steps(1, end) .07s infinite; }
+  .a-evo3 { opacity: 0; animation: evo 1.4s steps(1, end) .14s infinite; }
 
   /* ── el mareo, sólo al zarandear la onda mientras la colocas ───────────── */
   /* Bamboleo: un píxel a cada lado. Con dos ya no parecía mareo sino temblor. */

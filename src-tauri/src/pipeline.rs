@@ -287,6 +287,46 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
     });
 }
 
+/// Saca la onda a celebrar que acabas de actualizar. Una sola vez, al primer
+/// arranque con la versión nueva.
+///
+/// No se enseña si tienes la onda apagada: quien la apagó no quiere verla, y
+/// menos por sorpresa nada más encender el ordenador.
+pub(crate) fn celebrar_actualizacion(app: &AppHandle, version: &str) {
+    let visible = app
+        .try_state::<SettingsState>()
+        .and_then(|s| s.read().ok().map(|s| s.hud_enabled))
+        .unwrap_or(true);
+    if !visible {
+        return;
+    }
+    let Some(hud) = app.get_webview_window("hud") else {
+        return;
+    };
+    place_hud(app, &hud, area_hud(app));
+    emit_state(
+        app,
+        "actualizado",
+        Some(serde_json::json!({ "version": version })),
+    );
+    let _ = hud.show();
+    diag(app, &format!("Estrenando la versión {version}"));
+    // Lo que dura la fiesta. Tres vueltas del bucle de 1,4 s: suficiente para
+    // verla entera sin que se vuelva un cartel.
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(4400));
+        if GRABANDO.load(Ordering::SeqCst) || COLOCANDO.load(Ordering::SeqCst) {
+            return;
+        }
+        if hud_clavado(&app) {
+            emit_state(&app, "idle", None);
+        } else if let Some(hud) = app.get_webview_window("hud") {
+            let _ = hud.hide();
+        }
+    });
+}
+
 /// Devuelve el HUD a donde digan los ajustes, sin esperar al próximo dictado
 /// (lo usa "Restablecer posición" para que se vea el salto).
 pub(crate) fn recolocar_hud(app: &AppHandle) {

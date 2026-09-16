@@ -109,6 +109,10 @@ conocimiento. Y se commitea con el resto.
   corazón, aspa— y **todos son de ancho impar**: `eyes()` centra con
   `(3 - ancho) / 2`, así que un ancho par los dejaría a medio píxel.
   Exporta `CARITA_COMILONA`/`CARITA_ERUCTO`, los dos índices que el HUD encadena,
+  **`ACTUALIZADO`** (las cinco de estrenar versión: disquete, cerebro, playera,
+  pilas y evolución — se sortea una al primer arranque tras actualizar, y el
+  número de versión lo pone el HUD en la pantallita porque a 3 px un dígito
+  bordado no se lee)
   y **`MAREO`**: las tres caritas que sólo salen al zarandear la onda mientras la
   colocas (mareada → aguantándose → vomita). Van **fuera de `V`** a propósito, que
   si no saldrían al azar en mitad de un dictado. Dos aprendizajes de dibujarlas:

@@ -10,6 +10,18 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.9.5 — 15 de septiembre de 2026
+
+- **Dicho celebra cuando lo actualizas.** Al primer arranque con una versión
+  nueva, la onda sale una vez a festejarlo, con el número puesto en su
+  pantallita. Cinco variantes al azar: le llega un **disquete** que desempolva y
+  se mete por la ranura, le cambian el **cerebro** por uno rosa nuevecito, le
+  llega una **playera** por paquetería, le ponen **pilas nuevas** y se le
+  encienden los ojos, o directamente **evoluciona** como los tamagotchi de
+  siempre, con fogonazo y chispas.
+- Sólo sale al actualizar, nunca en una instalación nueva, y nunca si tienes la
+  onda apagada.
+
 ## 0.9.4 — 15 de septiembre de 2026
 
 - **Te avisa cuando hay versión nueva.** Sale una campanita verde en el botón de

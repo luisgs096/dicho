@@ -23,6 +23,8 @@ export interface AppSettings {
   hud_pin: boolean;
   /** Lo transparente que se pone clavada y en reposo. 1 = opaca. */
   hud_opacidad_reposo: number;
+  /** Con qué versión arrancó la última vez; así se sabe si acabas de actualizar. */
+  ultima_version_vista: string;
   autostart: boolean;
   google_client_id: string;
   google_client_secret: string;
@@ -56,6 +58,8 @@ export type RecordingState =
   | { state: "empty" }
   /** Te arrepentiste a media frase: el audio se tiró sin transcribir. */
   | { state: "cancelado" }
+  /** Primer arranque tras actualizar: la carita lo celebra una vez. */
+  | { state: "actualizado"; version: string }
   | { state: "error"; message: string };
 
 /** Corrección del diccionario aplicada a un dictado. */

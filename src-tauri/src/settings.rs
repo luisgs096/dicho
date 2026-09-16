@@ -110,6 +110,12 @@ pub struct AppSettings {
     /// Sólo aplica clavada: mientras dictas siempre se ve entera.
     #[serde(default = "opacidad_reposo_default")]
     pub hud_opacidad_reposo: f32,
+    /// Con qué versión arrancó la app la última vez. Si al arrancar no coincide
+    /// con la de ahora, es que acabas de actualizar y toca la animación —una
+    /// sola vez—. Vacío la primera vez de todas: una instalación nueva no ha
+    /// actualizado nada y no debe celebrarlo.
+    #[serde(default)]
+    pub ultima_version_vista: String,
     pub autostart: bool,
     /// Cliente OAuth "Desktop" de Google para la sincronización vía Drive.
     /// En apps instaladas el client_secret no es confidencial por diseño.
@@ -136,6 +142,7 @@ impl Default for AppSettings {
             hud_arrastrable: true,
             hud_pin: false,
             hud_opacidad_reposo: opacidad_reposo_default(),
+            ultima_version_vista: String::new(),
             autostart: false,
             google_client_id: String::new(),
             google_client_secret: String::new(),

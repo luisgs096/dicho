@@ -5,6 +5,7 @@ import type { AppSettings, HudStyle, RecordingState } from "../types";
 import {
   CARITA_COMILONA,
   CARITA_ERUCTO,
+  ACTUALIZADO,
   CARITA_CANCELADO,
   FACE_CSS,
   MAREO,
@@ -415,6 +416,7 @@ export default function Hud() {
   /** Destello de relevo entre una carita del mareo y la siguiente. */
   const [relevo, setRelevo] = useState(false);
   const mareoDesde = useRef(0);
+  const estrenoRef = useRef(0);
   const [agarrando, setAgarrando] = useState(false);
   const [dark, setDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
@@ -542,6 +544,13 @@ export default function Hud() {
       un.then((f) => f());
     };
   }, [colocando]);
+
+  // Una de las cinco, al azar, cada vez que se estrena versión.
+  useEffect(() => {
+    if (rec.state === "actualizado") {
+      estrenoRef.current = Math.floor(Math.random() * ACTUALIZADO.length);
+    }
+  }, [rec.state]);
 
   // El destello de la pantalla al cambiar de escalón: es el relevo entre una
   // carita y la siguiente, para que no parezca un corte.
@@ -710,18 +719,26 @@ export default function Hud() {
   // qué va el dictado, y para entonces no hay dictado ninguno.
   const mareada = mareo > 0 ? MAREO[mareo - 1] : null;
   const cancelada = rec.state === "cancelado" ? CARITA_CANCELADO : null;
+  // Cuál de las cinco toca esta vez. Se sortea al entrar en el estado y no en
+  // cada render: si no, cambiaría de animación a media celebración.
+  const estrenada =
+    rec.state === "actualizado" ? ACTUALIZADO[estrenoRef.current] : null;
   // En error se reutiliza la carita de "señal perdida" con el mensaje real.
   const v =
     mareada ??
     cancelada ??
+    estrenada ??
     (isError ? V["no-entendi"][3] : (V[face][variant] ?? V[face][0]));
-  const sad = (isError && !mareada && !cancelada) || v.sad;
+  const sad = (isError && !mareada && !cancelada && !estrenada) || v.sad;
   const porLimite = rec.state === "processing" && rec.motivo === "limite";
   const status = mareada
     ? mareada.status
     : cancelada
     ? cancelada.status
-    : colocando
+    : // Al estrenar, la pantallita lleva el número: en los sprites no cabe.
+      rec.state === "actualizado"
+      ? `v${rec.version}`
+      : colocando
     ? "Arrástrame"
     : isError
       ? rec.message
