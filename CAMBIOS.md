@@ -10,6 +10,33 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.11.0 — 16 de septiembre de 2026
+
+- **El historial ahora cuenta qué pasó con cada dictado.** Cada tarjeta enseña en
+  un renglón la fecha, el modo que redactó y cuántas correcciones hubo; el botón
+  de la **i** despliega el detalle. Al pasar el ratón por un indicador se resalta
+  en el texto lo que cuenta, cada uno con su color, y el interruptor
+  **CRUDO/FINAL** de arriba a la derecha te deja ver lo que salió de la voz antes
+  de redactar.
+- **Los chips de correcciones dejan de mentir.** Estaban calculados sobre el texto
+  crudo, así que eran una predicción y no un registro: medido, 10 de 21 decían
+  haberse aplicado y no estaban en el texto. Ahora se miden después de redactar y
+  las que el modelo ignoró salen marcadas — así te enteras de que tu diccionario
+  no se está respetando, en vez de creer que sí.
+- **La animación de actualizar es otra, y dura 1,8 s.** Dentro de la onda de
+  siempre: la cápsula se llena de verde menta mientras los ojos giran, sale tu
+  número de versión en grande sobre un destello blanco, y la carita vuelve
+  revelándose píxel a píxel. El estilo clásico también la tiene.
+- **Las secciones de la ventana se pliegan** y la app recuerda cómo las dejaste.
+  Ya no hace falta bajar media pantalla para llegar a lo de abajo.
+- **LABS se va al final de Inicio y se pone verde entero**, para que se note de un
+  vistazo qué parte es el experimento.
+- **El dictado se puede quedar en el portapapeles** (Ajustes), para volver a
+  pegarlo con Ctrl+V donde quieras. Y el botón de copiar del historial por fin
+  dice que copió.
+- La onda adelgaza 8 px: tenía una franja invisible abajo que sólo servía para
+  atrapar clics donde no había nada dibujado.
+
 ## 0.10.1 — 15 de septiembre de 2026
 
 - **"Estructurado" ahora se llama "Editor".** El nombre viejo no decía nada:
