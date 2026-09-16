@@ -10,6 +10,27 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.10.0 — 15 de septiembre de 2026
+
+- **El modo Estructurado ahora sí redacta.** No estaba haciendo casi nada: medido
+  contra tus propios dictados, devolvía el texto **idéntico** al crudo, con las
+  muletillas y los puntos suspensivos intactos. Ahora lee la idea entera y la
+  vuelve a escribir en párrafos. En tres dictados reales pasó de 1,00x a 0,49x–0,68x,
+  sin una sola muletilla y sin un solo "...".
+- **Usa un modelo más grande** (120b en vez de 20b). El chico no reordenaba: si te
+  corregías a media frase —"de tres opciones… no, de dos"— dejaba las dos y se
+  contradecía. Cuesta unos 2 segundos más, y sólo en este modo: el Estándar sigue
+  igual de rápido.
+- **El selector de la onda es ahora un toggle de dos**, Estándar y Estructurado,
+  cada uno con su color. Colapsado se ve sólo la rayita del que está puesto; al
+  pasar el ratón salen los nombres.
+- **Ya no se puede cambiar de modo a media frase.** Mientras dictas la barra se ve,
+  pero se queda quieta: elegirlo a mitad de un dictado no tenía a qué aplicarse.
+- Si el modelo grande no contesta, cae al Estándar antes que al pulido por reglas.
+  Antes pasaba de un texto redactado a uno sin tocar, y sin avisar.
+- Cada dictado deja en el log qué modo corrió y cuánto cambió el texto. Sin eso no
+  había forma de contestar "¿por qué salió igual que el crudo?".
+
 ## 0.9.9 — 15 de septiembre de 2026
 
 - **La cinta de niveles ahora vive dentro de la onda, no pegada debajo.** En la

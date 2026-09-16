@@ -759,14 +759,36 @@ fn procesar(
             dictionary: store.dict_pairs(),
         };
         let corrections = polish::corrections(&raw, &ctx);
+        // El pulido deja rastro en dicho.log, y no es un lujo: sin esto no hay
+        // forma de contestar "¿por qué este dictado salió igual que el crudo?".
+        // Pasó de verdad —290 palabras, salida idéntica al crudo— y no se pudo
+        // diagnosticar porque no quedaba escrito ni qué modo corrió ni si una
+        // guarda había descartado la respuesta del modelo.
+        let modo = match polish_kind {
+            PolishKind::Rules => "reglas",
+            PolishKind::GroqLlm => "estandar",
+            PolishKind::GroqEstructurado => "estructurado",
+        };
         let polished = match polish_kind {
             PolishKind::Rules => polish::rules::polish(&raw, &ctx),
             PolishKind::GroqEstructurado => {
                 match polish::groq::polish(&raw, &ctx, polish::groq::Nivel::Estructurado) {
                     Ok(t) => t,
+                    // Antes de rendirse, el escalón de al lado. El editor usa un
+                    // modelo grande con menos cuota en el plan gratis, así que
+                    // un 429 es verosímil; caer de golpe al pulido por reglas
+                    // sería pasar de un texto redactado a uno sin tocar, y en
+                    // silencio. El estándar es peor que el editor y mucho mejor
+                    // que nada.
                     Err(e) => {
-                        log::warn!("Redacción estructurada falló ({e}), usando reglas locales");
-                        polish::rules::polish(&raw, &ctx)
+                        diag(app, &format!("Pulido [{modo}]: falló ({e}) → probando estándar"));
+                        match polish::groq::polish(&raw, &ctx, polish::groq::Nivel::Ordenado) {
+                            Ok(t) => t,
+                            Err(e2) => {
+                                diag(app, &format!("Pulido [estandar]: falló ({e2}) → reglas locales"));
+                                polish::rules::polish(&raw, &ctx)
+                            }
+                        }
                     }
                 }
             }
@@ -774,11 +796,27 @@ fn procesar(
             {
                 Ok(t) => t,
                 Err(e) => {
-                    log::warn!("Pulido LLM falló ({e}), usando reglas locales");
+                    diag(app, &format!("Pulido [{modo}]: DESCARTADO ({e}) → reglas locales"));
                     polish::rules::polish(&raw, &ctx)
                 }
             },
         };
+        {
+            let n_in = raw.split_whitespace().count();
+            let n_out = polished.split_whitespace().count();
+            // "identico" es la señal que buscábamos: el pulido corrió y no tocó
+            // nada. Con reglas es normal; con un modo de IA es un síntoma.
+            let cambio = if raw.trim() == polished.trim() {
+                "IDENTICO".to_string()
+            } else {
+                format!("{:.2}x", n_out as f32 / n_in.max(1) as f32)
+            };
+            let susp = polished.matches("...").count() + polished.matches('…').count();
+            diag(
+                app,
+                &format!("Pulido [{modo}]: {n_in}→{n_out} palabras, {cambio}, {susp} suspensivos"),
+            );
+        }
         Ok(StopResult::Done(
             raw,
             polished,

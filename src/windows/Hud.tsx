@@ -341,15 +341,15 @@ export function MenuOnda(props: {
 }
 
 /**
- * La cinta de niveles, **dentro** de la cápsula y pegada a su borde de abajo.
+ * El toggle de redacción, **dentro** de la cápsula y pegada a su borde de abajo.
  *
  * Existe porque el nivel de redacción se decide justo antes de hablar, no una
  * semana antes en un ajuste. Teniéndolo aquí, el gesto es: miras la onda, ves
  * en qué modo está, y si no es el que quieres lo cambias de un clic.
  *
- * En reposo no es un menú: es **una rayita encendida** bajo el nivel que está
- * puesto —izquierda, centro o derecha—, que se lee de un vistazo sin robarle
- * sitio a la carita. Al pasar el ratón por cualquier parte de la cápsula se
+ * En reposo no es un menú: es **una rayita encendida** en la casilla del modo
+ * puesto —izquierda o derecha, con el color de ese modo—, que se lee de un
+ * vistazo sin robarle sitio a la carita. Al pasar el ratón por cualquier parte de la cápsula se
  * despliega con los nombres. Toda la presentación es CSS (`.niveles` en
  * faces.ts): el hover no pasa por React, así que no repinta nada ni reinicia
  * las animaciones de las caritas.
@@ -357,29 +357,51 @@ export function MenuOnda(props: {
  * La curvatura de los extremos no se dibuja aquí — la recorta `.screen`, que
  * es una pastilla con `overflow: hidden`.
  */
-const NIVELES_HUD: { id: PolishKind; corto: string; largo: string }[] = [
-  { id: "rules", corto: "Tal cual", largo: "Tal cual — tus palabras exactas" },
-  { id: "groq_llm", corto: "Ordenado", largo: "Ordenado — mismas palabras, mejor forma" },
+const NIVELES_HUD: {
+  id: PolishKind;
+  corto: string;
+  largo: string;
+  /** Color de su rayita. En reposo es lo ÚNICO que se ve, así que cada modo
+   *  lleva el suyo: si no, izquierda y derecha se distinguirían sólo por la
+   *  posición y habría que acordarse de cuál es cuál. */
+  color: string;
+}[] = [
+  {
+    id: "groq_llm",
+    corto: "Estándar",
+    largo: "Estándar — mismas palabras, mejor forma",
+    color: "var(--a)",
+  },
   {
     id: "groq_estructurado",
     corto: "Estructurado",
-    largo: "Estructurado — le da forma a la idea",
+    largo: "Estructurado — reordena tu idea",
+    color: "var(--p)",
   },
 ];
 
-function CintaNiveles(props: { nivel: PolishKind; hasKey: boolean }) {
+function CintaNiveles(props: { nivel: PolishKind; hasKey: boolean; quieta: boolean }) {
   return (
-    <div className="niveles" onPointerDown={(e) => e.stopPropagation()}>
+    <div
+      className={`niveles ${props.quieta ? "quieta" : ""}`}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
       {NIVELES_HUD.map((n) => {
-        const on = props.nivel === n.id;
-        const bloqueado = n.id !== "rules" && !props.hasKey;
+        const bloqueado = !props.hasKey || props.quieta;
         return (
           <button
             key={n.id}
             type="button"
             className="niv"
-            data-on={on ? "" : undefined}
-            title={bloqueado ? `${n.largo} (necesita la key de Groq)` : n.largo}
+            style={{ "--c": n.color } as React.CSSProperties}
+            data-on={props.nivel === n.id ? "" : undefined}
+            title={
+              props.quieta
+                ? "El modo se elige antes de dictar"
+                : props.hasKey
+                  ? n.largo
+                  : `${n.largo} (necesita la key de Groq)`
+            }
             disabled={bloqueado}
             onClick={() => invoke("hud_nivel", { nivel: n.id }).catch(() => {})}
           >
@@ -952,7 +974,13 @@ export default function Hud() {
                 {colocando ? "Arrástrame donde quieras" : "Dicho"}
               </p>
             )}
-            {verNiveles && <CintaNiveles nivel={nivel} hasKey={hasKey} />}
+            {verNiveles && (
+              <CintaNiveles
+                nivel={nivel}
+                hasKey={hasKey}
+                quieta={rec.state === "recording" || rec.state === "processing"}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -1046,7 +1074,13 @@ export default function Hud() {
               {status}
             </span>
             {cinta}
-            {verNiveles && <CintaNiveles nivel={nivel} hasKey={hasKey} />}
+            {verNiveles && (
+              <CintaNiveles
+                nivel={nivel}
+                hasKey={hasKey}
+                quieta={rec.state === "recording" || rec.state === "processing"}
+              />
+            )}
           </div>
         </div>
       </div>

@@ -191,6 +191,9 @@ const NIVELES: {
   titulo: string;
   coste: string;
   desc: string;
+  /** Lo que este escalón NO hace nunca. El techo importa más que el suelo: es
+   *  lo que te deja dictar sin releer con lupa. */
+  limite: string;
   ejemplo: string;
 }[] = [
   {
@@ -198,20 +201,23 @@ const NIVELES: {
     titulo: "Tal cual",
     coste: "al instante",
     desc: "Tus palabras exactas. Sólo puntuación, acentos y tu diccionario. No pasa por ninguna IA ni sale de tu equipo.",
+    limite: "No quita nada ni cambia el orden. Lo que dijiste llega entero, muletillas incluidas.",
     ejemplo: "«o sea creo que deberíamos mover la reunión al jueves» → O sea, creo que deberíamos mover la reunión al jueves.",
   },
   {
     id: "groq_llm",
-    titulo: "Ordenado",
+    titulo: "Estándar",
     coste: "~1 s",
-    desc: "Mismas palabras, mejor forma: quita muletillas, aplica tus correcciones al vuelo y puntúa bien. Es el de siempre.",
+    desc: "Mismas palabras, mejor forma: quita muletillas, aplica tus correcciones al vuelo y puntúa bien. Es el de siempre, y el más rápido.",
+    limite: "No resume, no reordena y no contesta. Si le dictas una pregunta, escribe la pregunta.",
     ejemplo: "«o sea creo que deberíamos, bueno, mover la reunión al jueves» → Creo que deberíamos mover la reunión al jueves.",
   },
   {
     id: "groq_estructurado",
     titulo: "Estructurado",
-    coste: "~2 s",
-    desc: "Le da forma a la idea: junta lo que dijiste disperso, tira los rodeos y saca listas si las hay. Puede cambiar tus palabras, nunca añadir las que no dijiste.",
+    coste: "~2-3 s",
+    desc: "Te lo REDACTA. No limpia tu dictado: lee la idea entera y la vuelve a escribir en párrafos, encadenando las frases y cambiando las muletillas por conectores de verdad. Suele salir un tercio más corto. Usa un modelo más grande, por eso tarda un par de segundos más.",
+    limite: "No añade información, ejemplos, cifras ni conclusiones que no dijiste. Si se pasa, Dicho lo descarta solo y te deja el texto sin tocar.",
     ejemplo: "«lo que quiero decir es que, este, quizás mover la reunión, o sea moverla al jueves, porque el miércoles no puedo» → Movamos la reunión al jueves: el miércoles no puedo.",
   },
 ];
@@ -801,6 +807,20 @@ export default function Settings() {
                             </span>
                             <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
                               {n.desc}
+                            </span>
+                            <span className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth={2.2}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="mt-[3px] h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+                              >
+                                <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" />
+                              </svg>
+                              <span>{n.limite}</span>
                             </span>
                             <span className="mt-1.5 block rounded-lg bg-slate-50 px-2 py-1 font-mono text-[10px] leading-relaxed text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
                               {n.ejemplo}

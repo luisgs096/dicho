@@ -820,40 +820,62 @@ export const FACE_CSS = `
     background-image: linear-gradient(var(--grid) 1px, transparent 1px),
                       linear-gradient(90deg, var(--grid) 1px, transparent 1px);
     background-size: 3px 3px; }
-  /* ── la cinta de niveles, DENTRO de la cápsula ──────────────────────────
-     Va absoluta contra el borde de abajo del LCD. La curvatura sale gratis:
-     .screen ya es una pastilla con overflow oculto, así que los extremos de la
-     cinta los recorta él con su propio radio. Pegarla por fuera —como estaba—
-     se veía como dos piezas distintas.
+  /* ── el toggle de redacción, DENTRO de la cápsula ──────────────────────
+     Dos casillas contra el borde de abajo del LCD. La curvatura sale gratis:
+     .screen ya es una pastilla con overflow oculto, así que los extremos los
+     recorta él con su propio radio.
 
-     En reposo es casi nada: una rayita encendida bajo el nivel que está puesto,
-     a la izquierda, al centro o a la derecha según cuál sea. Al pasar el ratón
-     por cualquier parte de la cápsula se despliega con sus nombres. */
+     Es un segmentado al estilo de los de Apple, pero traducido a pixel-art: en
+     vez de un pulgar que se desliza —deslizar medio píxel hace temblar el
+     dibujo— la pastilla del modo puesto aparece y desaparece de golpe, que es
+     la misma regla de steps(1, end) que siguen las caritas.
+
+     En reposo no es un menú: es UNA RAYITA encendida en la casilla del modo
+     puesto, izquierda o derecha, con el color de ese modo. Se lee de un vistazo
+     sin robarle sitio a la carita. Al pasar el ratón por cualquier parte de la
+     cápsula salen los dos nombres con su pastilla.
+
+     Mientras dictas se queda quieta: se sigue viendo, para saber en qué modo
+     estás, pero no se despliega ni acepta clics. Cambiar de modo a mitad de un
+     dictado no tendría a qué aplicarse. */
   .niveles { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
-           display: flex; height: 7px; padding: 0 14px; background: transparent;
-           transition: height .16s ease-out, background-color .16s; }
-  .tama:hover .niveles, .clasico:hover .niveles { height: 14px; }
-  .tama:hover .niveles, .clasico:hover .niveles { background: color-mix(in srgb, var(--lcdBorder) 70%, transparent); }
+             display: flex; height: 7px; padding: 0 14px; background: transparent;
+             transition: height .16s ease-out, background-color .16s; }
+  .tama:hover .niveles:not(.quieta), .clasico:hover .niveles:not(.quieta) {
+             height: 15px; background: color-mix(in srgb, var(--lcdBorder) 70%, transparent); }
   .niv { flex: 1; display: flex; align-items: center; justify-content: center;
-        position: relative; background: transparent; border: 0; padding: 0;
-        cursor: pointer; transition: background-color .16s; }
+         position: relative; background: transparent; border: 0; padding: 0;
+         cursor: pointer; }
   .niv:disabled { cursor: default; }
-  .tama:hover .niv:hover:not(:disabled):not([data-on]),
-  .clasico:hover .niv:hover:not(:disabled):not([data-on]) { background: rgba(127, 145, 175, .22); }
-  /* La rayita de reposo: se va en cuanto aparecen los nombres. */
-  .niv-luz { height: 2px; width: 34%; border-radius: 2px; background: transparent;
-            transition: opacity .12s; }
-  .niv[data-on] .niv-luz { background: var(--a); }
-  .tama:hover .niv-luz, .clasico:hover .niv-luz { opacity: 0; }
+  /* La pastilla del segmentado. Sólo existe desplegado: en reposo la rayita ya
+     dice cuál está puesto y una pastilla de 7 px sería una mancha. */
+  .niv::before { content: ""; position: absolute; inset: 1px 3px; border-radius: 999px;
+                 background: transparent; }
+  .tama:hover .niveles:not(.quieta) .niv[data-on]::before,
+  .clasico:hover .niveles:not(.quieta) .niv[data-on]::before {
+                 background: color-mix(in srgb, var(--c, var(--a)) 20%, transparent); }
+  .tama:hover .niveles:not(.quieta) .niv:hover:not(:disabled):not([data-on])::before,
+  .clasico:hover .niveles:not(.quieta) .niv:hover:not(:disabled):not([data-on])::before {
+                 background: rgba(127, 145, 175, .22); }
+  /* La rayita de reposo, en el color del modo: es lo único que se ve sin ratón
+     y por eso cada modo lleva el suyo — si no, izquierda y derecha se
+     distinguirían sólo por la posición. */
+  .niv-luz { position: relative; height: 2px; width: 34%; border-radius: 2px;
+             background: transparent; transition: opacity .12s; }
+  .niv[data-on] .niv-luz { background: var(--c, var(--a)); }
+  .tama:hover .niveles:not(.quieta) .niv-luz,
+  .clasico:hover .niveles:not(.quieta) .niv-luz { opacity: 0; }
   .niv-txt { position: absolute; inset: 0; display: flex; align-items: center;
-            justify-content: center; opacity: 0; transition: opacity .16s;
-            font: 700 7px/1 Consolas, "Cascadia Mono", monospace;
-            letter-spacing: .14em; text-transform: uppercase;
-            color: var(--faint); }
-  .tama:hover .niv-txt, .clasico:hover .niv-txt { opacity: 1; }
-  .niv[data-on] .niv-txt { color: var(--a); }
+             justify-content: center; opacity: 0; transition: opacity .16s;
+             font: 700 7px/1 Consolas, "Cascadia Mono", monospace;
+             letter-spacing: .14em; text-transform: uppercase;
+             color: var(--faint); }
+  .tama:hover .niveles:not(.quieta) .niv-txt,
+  .clasico:hover .niveles:not(.quieta) .niv-txt { opacity: 1; }
+  .niv[data-on] .niv-txt { color: var(--c, var(--a)); }
   .niv:disabled .niv-txt { opacity: 0; }
-  .tama:hover .niv:disabled .niv-txt, .clasico:hover .niv:disabled .niv-txt { opacity: .3; }
+  .tama:hover .niveles:not(.quieta) .niv:disabled .niv-txt,
+  .clasico:hover .niveles:not(.quieta) .niv:disabled .niv-txt { opacity: .3; }
 
   .mic-px { flex-shrink: 0; height: 30px; }
   .mic-px svg { height: 100%; width: auto; shape-rendering: crispEdges; display: block; }
