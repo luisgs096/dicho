@@ -125,17 +125,6 @@ const HUD_W: f64 = 360.0;
 /// es quien traduce el lienzo a escala: si no, todo el contenido crece o encoge
 /// en la misma proporción.
 const HUD_H: f64 = 104.0;
-/// La pantalla de cine de la actualización: cuadrada, y del doble de alto.
-///
-/// Una tira de 360×96 no deja poner nada en escena — no hay arriba ni abajo, y
-/// la carita ya ocupa casi todo. Los V-Pet de Digimon dibujaban en 16×16
-/// cuadrados justo por eso. Para el estreno de versión, y **sólo** para eso, la
-/// onda se convierte en pantalla cuadrada: así hay cielo para que caigan cosas,
-/// suelo para la sombra, y sitio para acercar la cámara.
-const CINE_W: f64 = 260.0;
-const CINE_H: f64 = 260.0;
-/// Qué tamaño toca ahora. Lo consulta `place_hud`, que es quien coloca.
-pub(crate) static MODO_CINE: AtomicBool = AtomicBool::new(false);
 
 /// Mientras arrastras el HUD nadie más lo mueve: el vigilante lo devolvería a
 /// su sitio a media maniobra.
@@ -171,13 +160,8 @@ fn place_hud(
         .flatten()
         .map(|m| m.scale_factor())
         .unwrap_or_else(|| hud.scale_factor().unwrap_or(1.0));
-    let (base_w, base_h) = if MODO_CINE.load(Ordering::SeqCst) {
-        (CINE_W, CINE_H)
-    } else {
-        (HUD_W, HUD_H)
-    };
-    let w = (base_w * escala) as u32;
-    let h = (base_h * escala) as u32;
+    let w = (HUD_W * escala) as u32;
+    let h = (HUD_H * escala) as u32;
     let _ = hud.set_size(tauri::PhysicalSize {
         width: w,
         height: h,
@@ -319,54 +303,43 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
 /// arranque con la versión nueva.
 ///
 /// No se enseña si tienes la onda apagada: quien la apagó no quiere verla, y
-/// menos por sorpresa nada más encender el ordenador.
+/// menos por sorpresa nada más encender el ordenador. El estilo ya no importa:
+/// la barra de carga y el destello con la versión son los mismos en los dos, y
+/// sólo cambia qué se revela al final —la cara o las cinco barritas—.
 pub(crate) fn celebrar_actualizacion(app: &AppHandle, version: &str) {
-    // Sólo con las caritas puestas: en el estilo clásico no hay bicho que
-    // evolucione, y una pantalla cuadrada con cinco barras no cuenta nada.
-    let (visible, tamagotchi) = app
+    let visible = app
         .try_state::<SettingsState>()
-        .and_then(|s| {
-            s.read()
-                .ok()
-                .map(|s| (s.hud_enabled, s.hud_style == crate::settings::HudStyle::Tamagotchi))
-        })
-        .unwrap_or((true, true));
-    if !visible || !tamagotchi {
+        .and_then(|s| s.read().ok().map(|s| s.hud_enabled))
+        .unwrap_or(true);
+    if !visible {
         return;
     }
     let Some(hud) = app.get_webview_window("hud") else {
         return;
     };
-    // La pantalla se vuelve cuadrada para la ocasión, y vuelve a su tira al
-    // acabar. Se coloca DESPUÉS de cambiar el tamaño: la posición guardada está
-    // en fracción del hueco libre, así que depende de lo que mida la ventana.
-    MODO_CINE.store(true, Ordering::SeqCst);
     place_hud(app, &hud, area_hud(app));
+    // Sale primero en reposo y arranca un respiro después. El primer tiempo del
+    // guion es la cápsula normal, y emitir a la vez que el show() se lo come el
+    // primer pintado: la barra aparecería ya a medio llenar.
+    let _ = hud.show();
+    std::thread::sleep(Duration::from_millis(120));
     emit_state(
         app,
         "actualizado",
         Some(serde_json::json!({ "version": version })),
     );
-    let _ = hud.show();
     diag(app, &format!("Estrenando la versión {version}"));
-    // La película dura 6 s y se para en el último cuadro; se le dejan 1,4 s de
-    // propina para que la sonrisa con el número se quede a la vista antes de
-    // recogerlo todo.
+    // 1,8 s de animación y medio segundo de propina para ver el resultado.
     let app = app.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(7400));
+        std::thread::sleep(Duration::from_millis(2300));
         if GRABANDO.load(Ordering::SeqCst) || COLOCANDO.load(Ordering::SeqCst) {
             return;
         }
-        MODO_CINE.store(false, Ordering::SeqCst);
         if hud_clavado(&app) {
             emit_state(&app, "idle", None);
-            recolocar_hud(&app);
         } else if let Some(hud) = app.get_webview_window("hud") {
             let _ = hud.hide();
-            // Se devuelve a su tira aunque esté escondida: si no, el próximo
-            // dictado la sacaría cuadrada.
-            recolocar_hud(&app);
         }
     });
 }

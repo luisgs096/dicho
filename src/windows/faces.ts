@@ -58,13 +58,21 @@ const PAL: Record<string, string> = {
 };
 
 /** Pinta un mapa de texto como rejilla de <rect> de 1×1. */
-export function spr(map: string[], ox = 0, oy = 0): string {
+export function spr(
+  map: string[],
+  ox = 0,
+  oy = 0,
+  /** Estilo por píxel, en coordenadas ya desplazadas. Lo usa el revelado del
+   *  estreno para repartir los retrasos; el resto de las caritas no lo pasan. */
+  estilo?: (x: number, y: number) => string,
+): string {
   let out = "";
   map.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
       const c = row[x];
-      if (PAL[c])
-        out += `<rect x="${x + ox}" y="${y + oy}" width="1" height="1" fill="${PAL[c]}"/>`;
+      if (!PAL[c]) continue;
+      const st = estilo ? ` style="${estilo(x + ox, y + oy)}"` : "";
+      out += `<rect x="${x + ox}" y="${y + oy}" width="1" height="1" fill="${PAL[c]}"${st}/>`;
     }
   });
   return out;
@@ -211,7 +219,6 @@ const ASPA = ["X...X", ".X.X.", "..X..", ".X.X.", "X...X"];
 // ─── piezas de la actualización ─────────────────────────────────────────────
 /** Marco de la barra de progreso. El relleno va aparte para poder animarlo, y
  *  en la película de la actualización **es la boca** del bicho. */
-const BARRA_MARCO = ["XXXXXXXXXXXX", "X..........X", "XXXXXXXXXXXX"];
 
 const CARRILLOS_MEDIO = [".XXXXXXXXX.", "X.........X", ".XXXXXXXXX."];
 const CARRILLOS_LLENO = [
@@ -581,96 +588,67 @@ export const CARITA_CANCELADO: Variant = {
     <g class="a-aspa">${spr(tint(ASPA, "w"), 35, 5)}</g>`,
 };
 
-// ─── la película de la actualización ────────────────────────────────────────
+// ─── el estreno de versión ──────────────────────────────────────────────────
 //
-// Una sola, contada entera, en vez de cinco cortas. El guion es de Luis, y la
-// referencia que lo cierra es el reactor de Tony Stark: los núcleos de paladio
-// se **gastan**, hay que abrir el pecho, sacar el usado —ennegrecido— y meter
-// uno limpio que vuelve a encender la luz.
+// Guion de Luis, en cinco tiempos y 1,8 s, todo DENTRO de la cápsula de
+// siempre. Antes era una película de 6 s en una ventana cuadrada de 260x260, y
+// se caía por su propio peso: al volverse cuadrada disparaba un resize, el
+// resize reescribía la variable CSS --k, y escribir una custom property en un
+// ancestro **recrea la animación desde cero** (el gotcha de CLAUDE.md). El
+// efecto se saboteaba solo.
 //
-//   1 · Sale la carita, contenta, de frente.
-//   2 · La cámara bascula a **vista cenital**: le miramos la cabeza desde arriba.
-//   3 · Se abren dos compuertas, una a cada lado, como la tapa de un cráneo, y
-//       debajo aparece el anillo del reactor — **apagado**, porque la pieza que
-//       lleva dentro ya no da más de sí.
-//   4 · Sale el disquete viejo, gastado, y se va por la izquierda.
-//   5 · Entra el nuevo, dorado, con su destello. Al asentarse, **el anillo se
-//       enciende**: ése es el momento de la película.
-//   6 · Las compuertas se cierran, y la luz se escapa un instante por la juntura.
-//   7 · La cámara vuelve al frente.
-//   8 · Cara de arranque: ojos en aspa y la lengua fuera. **La boca es la barra
-//       de carga** y se va llenando.
-//   9 · Sonrisa, y el número de la versión que acaba de entrar.
-//
-// Por qué funciona y las cinco de antes no: aquéllas eran un objeto entrando al
-// lado de una cara que cambiaba — dos cosas a la vez, sin relación entre ellas.
-// Ésta tiene **causa y efecto**, que es lo que convierte una animación en una
-// historia: le abren la cabeza, le cambian la pieza, se enciende, arranca, y
-// sonríe. Cada cuadro explica el siguiente.
-//
-// El basculado de la cámara es el truco viejo del aplastado: la vista de frente
-// se encoge a nada por el eje vertical mientras la cenital crece desde nada. No
-// se rota un solo píxel —rotar pixel-art lo destroza—, se cambia de plano.
-//
-// Se ve una vez y se queda quieta en el último cuadro (`forwards`). Es una
-// película, no un estado.
+//   1 · Reposo. La cápsula como siempre, para que lo de después se lea como
+//       una interrupción y no como el estado normal.
+//   2 · La cápsula se llena de izquierda a derecha, verde menta, a tirones.
+//       Mientras: los ojos giran y la boca pasa por tres gestos.
+//   3 · Al 100 % la barra se vuelve blanca de golpe y sale la versión en grande.
+//   4 · El blanco se funde con el fondo.
+//   5 · Vuelve el reposo: la cara se revela píxel a píxel.
 
-/** El anillo del reactor, debajo de las compuertas. Apagado mientras la pieza
- *  gastada sigue dentro; encendido en cuanto entra la nueva. */
-const REACTOR = `<circle cx="24" cy="24" r="9" fill="none" stroke="var(--faint)" stroke-width="1"/>
-  <circle class="p-anillo" cx="24" cy="24" r="9" fill="none" stroke="var(--a)" stroke-width="2"/>
-  <rect x="16" y="19" width="16" height="10" rx="1" fill="var(--lcd)"/>`;
+/** Ojos girando: un arco de celdas dando la vuelta a un aro de 3x3. Cuatro
+ *  cuadros son una vuelta.
+ *
+ *  **No es un espiral dibujado**, y no por pereza: ya se probó dos veces y las
+ *  dos salió mal. En OJO_ASPA está escrito que un remolino "a 5 px se leía como
+ *  una letra G", y en MAREO que "el espiral clásico a 3 px se convierte en una
+ *  mancha". Lo que sí lee como rotación a este tamaño es que el ojo se quede
+ *  quieto y lo que se mueva sea dónde está encendido. */
+const ARO = [
+  ["XXX", "..X", "..."],
+  ["..X", "..X", ".XX"],
+  ["...", "X..", "XXX"],
+  ["XX.", "X..", "X.."],
+];
+/** En contrafase, media vuelta de diferencia. Dos arcos girando a la vez y en
+ *  la misma posición se leen como un desplazamiento lateral, no como un giro:
+ *  es la misma lección del balancín de MAREO. */
+const OJOS_GIRO = ARO.map((_, i) => spr(ARO[i], LX, 6) + spr(ARO[(i + 2) % 4], RX, 6));
 
-/** Las dos compuertas. Se abren hacia fuera desde la línea del centro. */
-const COMPUERTAS = `<g class="p-izq">
-    <rect x="8" y="13" width="16" height="22" rx="3" fill="var(--shellA)" stroke="var(--faint)" stroke-width="1"/>
-    <rect x="12" y="23" width="8" height="1" fill="var(--faint)" opacity=".45"/>
-  </g>
-  <g class="p-der">
-    <rect x="24" y="13" width="16" height="22" rx="3" fill="var(--shellA)" stroke="var(--faint)" stroke-width="1"/>
-    <rect x="28" y="23" width="8" height="1" fill="var(--faint)" opacity=".45"/>
-  </g>
-  <g class="p-juntura"><rect x="23" y="13" width="2" height="22" fill="var(--a)"/></g>`;
+/** El barrido del revelado: 12 ms por diagonal, arrancando en el 80 % de 1,8 s.
+ *  Va por `x + y` en coordenadas absolutas y no por índice del sprite: por
+ *  índice, cada spr() empezaría en cero y los dos ojos y la boca aparecerían a
+ *  la vez, como tres manchas. En diagonal hay un solo frente de onda cruzando
+ *  la tira. Literales y no variables CSS, por el gotcha de siempre. */
+const REVELA_PASO = 0.012;
+const REVELA_INI = 1.44 - 20 * REVELA_PASO;
+const revelado = (x: number, y: number) =>
+  `animation-delay:${(REVELA_INI + (x + y) * REVELA_PASO).toFixed(3)}s`;
 
-/** El disquete nuevo: ventanilla metálica arriba y etiqueta abajo, los huecos
- *  en color del LCD para que se lean como relieve. */
-const DISCO = ["XXXXXX", "XooXXX", "XooXXX", "XXXXXX", "XoXoXX", "XXXXXX"];
-/** El gastado. **Macizo y en el color de la cara**, no en el tono tenue: tintado
- *  de gris claro y con los mismos huecos se leía como cuatro puntos sueltos en
- *  vez de como una pieza. Los dos mordiscos son la corrosión — la idea de los
- *  núcleos de paladio de Tony Stark, que salen del pecho carcomidos. */
-const DISCO_GASTADO = ["XXXXXX", "XXXXXX", "XoXXXX", "XXXXXX", "XXoXXX", "XXXXXX"];
-/** El destello que cruza el nuevo, en el color del LCD (o sea, un hueco). */
-const DESTELLO = ["..o", ".o.", "o.."];
-/** La lengua fuera, de arranque tonto. */
-const LENGUA = ["XXX", "XXX", ".X."];
+/** La cara de reposo. Se pinta con el pincel que le pasen —normal o con
+ *  retrasos— para no tener que dibujarla dos veces. */
+const CARA_REPOSO = (px: (m: string[], ox: number, oy: number) => string) =>
+  px(OJO_BRILLO, LX, 5) + px(OJO_BRILLO, RX, 5) + px(SONRISA, 18, 12);
 
 export const ACTUALIZADO: Variant = {
-  status: "",
-  scene: `<g class="p-frente">
-      <g transform="translate(0,16)">
-        <g class="p-ojos-ok">${flip([eyes(OJO, 5), eyes(OJO_LINEA, 7)], "1.1s")}</g>
-        <g class="p-ojos-x">${eyes(OJO_ASPA, 4)}</g>
-        <g class="p-boca-ok">${spr(SONRISOTA, 18, 11)}</g>
-        <g class="p-boca-carga">
-          ${spr(BARRA_MARCO, 16, 12)}
-          <rect class="p-relleno" x="17" y="13" width="10" height="1" fill="var(--m)"/>
-        </g>
-        <g class="p-lengua">${spr(tint(LENGUA, "p"), 21, 15)}</g>
-      </g>
+  // El número va en grande dentro del destello blanco, así que aquí la
+  // pantallita dice lo de siempre y entra fundiéndose con el micro.
+  status: "Dicho",
+  scene: `<g class="u-ini">${CARA_REPOSO(spr)}</g>
+    <g class="u-carga">
+      ${flip(OJOS_GIRO, ".36s")}
+      ${flip([spr(ZIGZAG, 18, 12), spr(BOCA_O, 20, 11), spr(SONRISA_LADO, 18, 12)], ".72s")}
     </g>
-
-    <g class="p-cenital">
-      ${REACTOR}
-      <g class="p-viejo">${spr(DISCO_GASTADO, 21, 21)}</g>
-      <g class="p-nuevo">${spr(tint(DISCO, "w"), 21, 21)}
-        <g class="p-brillo">${spr(DESTELLO, 22, 22)}</g>
-      </g>
-      ${COMPUERTAS}
-    </g>
-
-    <g class="p-chispa1">${spr(tint(CHISPITA, "w"), 9, 12)}</g>
-    <g class="p-chispa2">${spr(tint(CHISPITA, "m"), 36, 31)}</g>`,
+    <g class="u-fin">${CARA_REPOSO((m, ox, oy) => spr(m, ox, oy, revelado))}</g>`,
 };
 
 export const MAREO: Variant[] = [
@@ -799,23 +777,14 @@ export const FACE_CSS = `
             border: 1px solid var(--lcdBorder);
             box-shadow: inset 0 3px 10px rgba(10, 20, 40, .25);
             overflow: hidden; position: relative; color: var(--face);
+            /* Sin esto, el z-index:-1 de la barra del estreno se cuela por
+               detrás de la carcasa y la barra no se ve. Es lo primero que hay
+               que mirar si el tiempo 2 sale vacío. */
+            isolation: isolate;
             display: flex; align-items: center; gap: 6px;
             /* Los 8 de abajo son el hueco de la cinta de niveles. */
             padding: 0 12px 8px 12px;
             transition: background .25s; }
-  /* La carcasa cuadrada del estreno de version: la misma concha y el mismo LCD,
-     pero 240x240 en vez de 336x64. Sin microfono ni pantallita lateral — aqui
-     la escena es lo unico que hay, y el pie de foto va debajo. */
-  .tama.cine { width: 240px; height: 240px; border-radius: 28px; padding: 7px; }
-  .cine-screen { border-radius: 22px; flex-direction: column; gap: 0;
-                 padding: 8px 8px 4px; }
-  .scene-cine { flex: 1; width: 100%; min-height: 0; }
-  .scene-cine svg { width: 100%; height: 100%; shape-rendering: crispEdges;
-                    overflow: hidden; display: block; }
-  .cine-pie { flex-shrink: 0; padding-bottom: 2px;
-              font: 700 9px/1.3 Consolas, "Cascadia Mono", monospace;
-              letter-spacing: .08em; text-transform: uppercase;
-              color: var(--faint); }
   .screen::before { content: ""; position: absolute; inset: 0; pointer-events: none;
     background-image: linear-gradient(var(--grid) 1px, transparent 1px),
                       linear-gradient(90deg, var(--grid) 1px, transparent 1px);
@@ -1010,134 +979,73 @@ ${FLIP_CSS}
   @keyframes aspa { 0% { opacity: 0; } 12% { opacity: 1; } 24% { opacity: .35; }
                     36%, 100% { opacity: 1; } }
 
-  /* ── la película de la actualización: 6 s, nueve tiempos, una sola pasada ── */
-  /* Todo cuelga del mismo reloj de 6 s y se para en el último cuadro:
-       0-11 %   la carita de frente
-       11-18 %  la cámara bascula a cenital
-       18-26 %  se abren las compuertas (el reactor, apagado)
-       26-40 %  sale la pieza gastada por la izquierda
-       40-54 %  entra la nueva, dorada — y el anillo SE ENCIENDE
-       54-62 %  se cierran las compuertas, la luz se escapa por la juntura
-       62-69 %  la cámara vuelve al frente
-       69-90 %  arrancando: ojos en aspa, lengua fuera, la boca se llena
-       90-100 % sonrisa                                                      */
-  .p-frente, .p-cenital, .p-izq, .p-der, .p-juntura, .p-viejo, .p-nuevo,
-  .p-brillo, .p-anillo, .p-ojos-ok, .p-ojos-x, .p-boca-ok, .p-boca-carga,
-  .p-lengua, .p-relleno, .p-chispa1, .p-chispa2 {
-    animation-duration: 6s;
-    animation-timing-function: steps(1, end);
+  /* ── el estreno de versión ────────────────────────────────────────────────
+     Un solo reloj de 1,8 s y cada capa entra y sale por porcentajes de ese
+     mismo reloj. Las duraciones van literales y con longhands, nunca con el
+     atajo animation: el atajo reinicia animation-duration a 0s, y una duración
+     en var() se recrearía entera cada vez que algo escriba otra variable CSS.
+
+       0-10 %   reposo, para que lo siguiente se lea como interrupción
+       10-50 %  la barra cruza a tirones; ojos girando y tres bocas
+       50-64 %  destello blanco con la versión en grande
+       64-80 %  el blanco se funde con el fondo
+       80-100 % la cara se revela píxel a píxel                              */
+  .u-ini, .u-carga, .u-fin, .u-barra, .u-blanco, .u-entra {
+    animation-duration: 1.8s;
     animation-iteration-count: 1;
     animation-fill-mode: forwards;
   }
 
-  /* El basculado: la vista de frente se aplasta a nada y la cenital crece desde
-     nada. No se rota un píxel — rotar pixel-art lo destroza. */
-  .p-frente { transform-origin: 24px 24px; animation-name: p-frente; }
-  @keyframes p-frente {
-    0%, 11% { transform: scaleY(1); opacity: 1; }
-    13% { transform: scaleY(.55); opacity: 1; }
-    15% { transform: scaleY(.18); opacity: 1; }
-    17%, 62% { transform: scaleY(0); opacity: 0; }
-    64% { transform: scaleY(.18); opacity: 1; }
-    66% { transform: scaleY(.55); opacity: 1; }
-    68%, 100% { transform: scaleY(1); opacity: 1; }
+  .u-ini { animation-name: u-ini; animation-timing-function: steps(1, end); }
+  @keyframes u-ini { 0%, 10% { opacity: 1; } 11%, 100% { opacity: 0; } }
+
+  .u-carga { opacity: 0; animation-name: u-carga; animation-timing-function: steps(1, end); }
+  @keyframes u-carga { 0%, 9% { opacity: 0; } 10%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  /* Los dos flipbooks arrancan cuando arranca su tiempo, no cuando se monta la
+     escena: si no entran a media vuelta y la tercera boca se queda fuera. Un
+     ciclo de bocas y dos de ojos caben justos en los 720 ms. */
+  .u-carga .flip > g { animation-delay: .18s; }
+
+  /* La barra. Molde de .cinta —scaleX con el origen a la izquierda— pero la
+     escala la pone un keyframe y no una variable. A tirones y no lisa: un
+     relleno continuo se lee como decoración, a saltos se lee como trabajo.
+     El .55 de opacidad NO es decoración: menta maciza contra la cara da 3,8:1
+     en claro pero 1,45:1 en oscuro, donde la cara desaparecería. */
+  .u-barra { position: absolute; inset: 0; z-index: -1; background: var(--m);
+             opacity: .55; transform-origin: left center; transform: scaleX(0);
+             animation-name: u-barra; animation-timing-function: steps(1, end); }
+  @keyframes u-barra {
+    0%, 10% { transform: scaleX(0); }
+    16% { transform: scaleX(.14); }
+    22% { transform: scaleX(.22); }
+    29% { transform: scaleX(.48); }
+    36% { transform: scaleX(.55); }
+    43% { transform: scaleX(.84); }
+    50% { transform: scaleX(1); opacity: .55; }
+    52%, 100% { transform: scaleX(1); opacity: 0; }
   }
-  .p-cenital { transform-origin: 24px 24px; opacity: 0; animation-name: p-cenital; }
-  @keyframes p-cenital {
-    0%, 14% { transform: scaleY(0); opacity: 0; }
-    16% { transform: scaleY(.3); opacity: 1; }
-    18%, 61% { transform: scaleY(1); opacity: 1; }
-    63% { transform: scaleY(.4); opacity: 1; }
-    65%, 100% { transform: scaleY(0); opacity: 0; }
-  }
 
-  /* Las compuertas, hacia fuera y de vuelta. */
-  .p-izq { animation-name: p-izq; }
-  @keyframes p-izq { 0%, 18% { transform: translateX(0); }
-                     21% { transform: translateX(-5px); }
-                     24% { transform: translateX(-11px); }
-                     26%, 54% { transform: translateX(-16px); }
-                     57% { transform: translateX(-9px); }
-                     60%, 100% { transform: translateX(0); } }
-  .p-der { animation-name: p-der; }
-  @keyframes p-der { 0%, 18% { transform: translateX(0); }
-                     21% { transform: translateX(5px); }
-                     24% { transform: translateX(11px); }
-                     26%, 54% { transform: translateX(16px); }
-                     57% { transform: translateX(9px); }
-                     60%, 100% { transform: translateX(0); } }
-  /* La juntura sólo se ve al cerrarse: la luz del reactor escapándose. */
-  .p-juntura { opacity: 0; animation-name: p-juntura; }
-  @keyframes p-juntura { 0%, 59% { opacity: 0; }
-                         60% { opacity: 1; } 62% { opacity: .3; }
-                         63% { opacity: 1; } 65%, 100% { opacity: 0; } }
+  /* El destello, con el número dentro: así se funden juntos sin un segundo
+     keyframe. El color del texto va literal y no en var(--face) porque en tema
+     oscuro --face es casi blanco y desaparecería sobre el destello. */
+  .u-blanco { position: absolute; inset: 0; z-index: 1; display: flex;
+              align-items: center; justify-content: center;
+              background: #fff; color: #16223a; opacity: 0;
+              font: 700 24px/1 Consolas, "Cascadia Mono", monospace;
+              letter-spacing: .04em;
+              animation-name: u-blanco; animation-timing-function: linear; }
+  @keyframes u-blanco { 0%, 49% { opacity: 0; } 50%, 64% { opacity: 1; } 80%, 100% { opacity: 0; } }
 
-  /* EL MOMENTO: el anillo está muerto hasta que entra la pieza nueva. */
-  .p-anillo { opacity: 0; animation-name: p-anillo; }
-  @keyframes p-anillo { 0%, 49% { opacity: 0; }
-                        50% { opacity: 1; } 52% { opacity: .25; }
-                        53% { opacity: 1; } 55% { opacity: .5; }
-                        56%, 100% { opacity: 1; } }
+  /* El revelado: cada píxel se enciende con su propio retraso. Un fundido corto
+     y no un salto — a pelo con steps se lee como tartamudeo. */
+  .u-fin rect, .u-px { opacity: 0; animation-name: u-px; animation-duration: .09s;
+    animation-timing-function: linear; animation-iteration-count: 1;
+    animation-fill-mode: forwards; }
+  @keyframes u-px { from { opacity: 0; } to { opacity: 1; } }
 
-  /* La pieza gastada sale y se va por la izquierda. */
-  .p-viejo { animation-name: p-viejo; }
-  @keyframes p-viejo { 0%, 27% { transform: translate(0, 0); opacity: 1; }
-                       30% { transform: translate(0, -3px); }
-                       33% { transform: translate(-5px, -3px); }
-                       36% { transform: translate(-11px, -2px); }
-                       39% { transform: translate(-17px, 0); opacity: 1; }
-                       41%, 100% { transform: translate(-22px, 2px); opacity: 0; } }
-  /* Y la nueva entra por la derecha y se asienta. */
-  .p-nuevo { opacity: 0; animation-name: p-nuevo; }
-  @keyframes p-nuevo { 0%, 41% { transform: translate(20px, 2px); opacity: 0; }
-                       43% { transform: translate(14px, 0); opacity: 1; }
-                       45% { transform: translate(8px, -3px); }
-                       47% { transform: translate(3px, -3px); }
-                       49% { transform: translate(0, -2px); }
-                       50%, 100% { transform: translate(0, 0); opacity: 1; } }
-  /* El destello que la cruza: entra ya asentada, para que se lea "nueva". */
-  .p-brillo { opacity: 0; animation-name: p-brillo; }
-  @keyframes p-brillo { 0%, 50% { transform: translateX(0); opacity: 0; }
-                        51% { opacity: 1; }
-                        53% { transform: translateX(2px); }
-                        55% { transform: translateX(4px); }
-                        57% { transform: translateX(6px); opacity: 1; }
-                        58%, 100% { opacity: 0; } }
-
-  /* La cara de arranque: aspas y lengua mientras carga, sonrisa al final. */
-  .p-ojos-x { opacity: 0; animation-name: p-ojos-x; }
-  @keyframes p-ojos-x { 0%, 68% { opacity: 0; } 69%, 88% { opacity: 1; }
-                        89%, 100% { opacity: 0; } }
-  .p-ojos-ok { animation-name: p-ojos-ok; }
-  @keyframes p-ojos-ok { 0%, 68% { opacity: 1; } 69%, 88% { opacity: 0; }
-                         89%, 100% { opacity: 1; } }
-  .p-lengua { opacity: 0; animation-name: p-lengua; }
-  @keyframes p-lengua { 0%, 68% { opacity: 0; } 69%, 87% { opacity: 1; }
-                        88%, 100% { opacity: 0; } }
-  .p-boca-ok { animation-name: p-boca-ok; }
-  @keyframes p-boca-ok { 0%, 68% { opacity: 1; } 69%, 88% { opacity: 0; }
-                         89%, 100% { opacity: 1; } }
-  /* LA BOCA ES LA BARRA. Se llena a saltos, como una instalación de verdad —
-     un relleno continuo se lee como decoración; a tirones se lee como trabajo. */
-  .p-boca-carga { opacity: 0; animation-name: p-boca-carga; }
-  @keyframes p-boca-carga { 0%, 68% { opacity: 0; } 69%, 88% { opacity: 1; }
-                            89%, 100% { opacity: 0; } }
-  .p-relleno { transform-box: fill-box; transform-origin: left center;
-               animation-name: p-relleno; }
-  @keyframes p-relleno { 0%, 69% { transform: scaleX(0); }
-                         72% { transform: scaleX(.2); }
-                         76% { transform: scaleX(.3); }
-                         79% { transform: scaleX(.62); }
-                         82% { transform: scaleX(.68); }
-                         85% { transform: scaleX(.9); }
-                         87%, 100% { transform: scaleX(1); } }
-
-  /* Dos chispas para rematar la sonrisa. */
-  .p-chispa1, .p-chispa2 { opacity: 0; animation-name: p-chispa; }
-  .p-chispa2 { animation-delay: .12s; }
-  @keyframes p-chispa { 0%, 89% { opacity: 0; }
-                        91% { opacity: 1; } 94% { opacity: .3; }
-                        96% { opacity: 1; } 99%, 100% { opacity: 0; } }
+  /* Lo que vuelve fundiéndose al final: el micro, el texto y la cinta. */
+  .u-entra { opacity: 0; animation-name: u-entra; animation-timing-function: linear; }
+  @keyframes u-entra { 0%, 80% { opacity: 0; } 100% { opacity: 1; } }
 
   /* ── el mareo, sólo al zarandear la onda mientras la colocas ───────────── */
   /* Bamboleo: un píxel a cada lado. Con dos ya no parecía mareo sino temblor. */

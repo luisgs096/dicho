@@ -129,21 +129,30 @@ conocimiento. Y se commitea con el resto.
   corazón, aspa— y **todos son de ancho impar**: `eyes()` centra con
   `(3 - ancho) / 2`, así que un ancho par los dejaría a medio píxel.
   Exporta `CARITA_COMILONA`/`CARITA_ERUCTO`, los dos índices que el HUD encadena,
-  **`ACTUALIZADO`** (la película de estrenar versión, que es **el único sitio
-  con lienzo propio**: 48x48 en vez de la tira de 48x16, porque una secuencia
-  necesita cielo y suelo — la razón por la que los V-Pet de Digimon dibujaban en
-  cuadrado. Nueve tiempos en 6 s, una sola pasada y `forwards`: sonríe, la cámara
-  bascula a cenital, se abren dos compuertas, sale la pieza carcomida, entra la
-  dorada, **se enciende el anillo**, cierran, vuelve al frente, arranca con ojos
-  en aspa y la boca de barra de carga, y sonríe con el número de versión.
-  El basculado es **aplastado, no rotación**: la vista de frente se encoge a cero
-  en Y mientras la cenital crece desde cero — rotar pixel-art lo destroza.
-  Aprendizajes: la pieza vieja tiene que ir **maciza y en el color de la cara**,
-  porque tintada de gris claro y con huecos se leía como cuatro puntos sueltos; y
-  cinco animaciones cortas se leen peor que una larga con **causa y efecto** —
-  las cinco primeras eran un objeto entrando al lado de una cara que cambiaba, sin
-  relación entre ambas cosas. El backend pone la ventana cuadrada con `MODO_CINE`
-  y la devuelve a su tira al acabar)
+  **`ACTUALIZADO`** (el estreno de versión: un solo reloj CSS de **1,8 s**,
+  `forwards`, y todo **dentro de la cápsula normal**. Cinco tiempos: reposo →
+  la cápsula se llena de izquierda a derecha en verde menta mientras los ojos
+  giran y la boca pasa por tres gestos → destello blanco con el número de
+  versión en grande → el blanco se funde → la cara se revela **píxel a píxel**.
+  En el estilo clásico es igual pero al final se revelan las cinco barritas.
+  Tres cosas que costó aprender:
+  **(a)** la versión anterior era una película de 6 s en una ventana cuadrada de
+  260×260 y **se saboteaba sola** — al volverse cuadrada disparaba un `resize`,
+  el `resize` reescribía `--k`, y escribir una custom property en un ancestro
+  recrea la animación desde cero. Por eso desapareció el modo cine, y no sólo
+  por gusto.
+  **(b)** los "ojos en espiral" **no son un espiral**: es un arco recorriendo un
+  aro de 3×3 en un flipbook de 4 cuadros, en contrafase entre los dos ojos. El
+  espiral dibujado ya falló dos veces, y está escrito en `OJO_ASPA` ("a 5 px se
+  leía como una letra G") y en `MAREO` ("a 3 px se convierte en una mancha").
+  **(c)** el revelado va por diagonal `x+y` en coordenadas **absolutas**, no por
+  índice del sprite: por índice cada `spr()` reinicia en cero y los dos ojos y la
+  boca aparecerían a la vez, como tres manchas. Para eso `spr()` acepta un cuarto
+  parámetro opcional con el estilo por píxel.
+  Y dos detalles que rompen en silencio: `.screen` necesita `isolation: isolate`
+  o el `z-index:-1` de la barra se cuela detrás de la carcasa y **la barra no se
+  ve**; y el `.55` de opacidad de la barra no es decoración, es contraste —
+  menta maciza contra la cara da 1,45:1 en tema oscuro y la cara desaparece)
   y **`MAREO`**: las tres caritas que sólo salen al zarandear la onda mientras la
   colocas (mareada → aguantándose → vomita). Van **fuera de `V`** a propósito, que
   si no saldrían al azar en mitad de un dictado. Dos aprendizajes de dibujarlas:

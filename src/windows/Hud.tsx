@@ -416,6 +416,18 @@ function CintaNiveles(props: { nivel: PolishKind; hasKey: boolean; quieta: boole
   );
 }
 
+/** Las dos capas del estreno de versión: la barra que se llena y el destello
+ *  blanco con el número. Idénticas en los dos estilos, porque no dependen de qué
+ *  haya dibujado dentro de la cápsula — ahí está el 80 % del guion. */
+function CapasEstreno({ version }: { version: string }) {
+  return (
+    <>
+      <span className="u-barra" />
+      <span className="u-blanco">v{version}</span>
+    </>
+  );
+}
+
 function MicIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className}>
@@ -524,11 +536,6 @@ export default function Hud() {
       document.documentElement.style.setProperty(
         "--k",
         (window.innerHeight / 104).toFixed(3),
-      );
-      // La pantalla de cine mide 260 lógicos de alto; su escala va aparte.
-      document.documentElement.style.setProperty(
-        "--kc",
-        (window.innerHeight / 260).toFixed(3),
       );
       // Si el lienzo se desbordara, Windows le metería barras de scroll que
       // roban 15 px y ya no se van. No debería volver a pasar (overflow
@@ -804,7 +811,11 @@ export default function Hud() {
   // qué va el dictado, y para entonces no hay dictado ninguno.
   const mareada = mareo > 0 ? MAREO[mareo - 1] : null;
   const cancelada = rec.state === "cancelado" ? CARITA_CANCELADO : null;
-  // Una sola, y contada entera: ver `ACTUALIZADO` en faces.ts.
+  // El estreno ya no es una pantalla aparte: es una carita más que entra por
+  // el camino de siempre, con dos capas encima de la cápsula. Ver `ACTUALIZADO`
+  // en faces.ts.
+  const estrenando = rec.state === "actualizado";
+  const version = rec.state === "actualizado" ? rec.version : "";
   const estrenada = rec.state === "actualizado" ? ACTUALIZADO : null;
   // En error se reutiliza la carita de "señal perdida" con el mensaje real.
   const v =
@@ -887,8 +898,40 @@ export default function Hud() {
           <div
             className={`clasico relative flex h-[74px] w-[336px] items-center gap-3 overflow-hidden rounded-full border px-5 pb-2 shadow-2xl shadow-blue-900/20 backdrop-blur transition-colors ${
               naranja ? "classic-shake" : ""
-            } ${pill}`}
+            } ${pill} ${estrenando ? "isolate" : ""}`}
           >
+            {/* El estreno, en el estilo clásico: las mismas dos capas, y al
+                final se revelan las cinco barritas en vez de la cara. Mismo
+                frente de onda —1,44 a 1,68 s— y mismo keyframe. */}
+            {estrenando && (
+              <>
+                <CapasEstreno version={version} />
+                <span className="u-entra flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white dark:bg-sky-500">
+                  <MicIcon className="h-4 w-4" />
+                </span>
+                <div className="flex h-8 flex-1 items-center justify-center gap-2.5">
+                  {BAR_LAG.map((_, i) => (
+                    <span
+                      key={i}
+                      className="u-px w-2 rounded-full"
+                      style={{
+                        height: BAR_MIN,
+                        backgroundColor: dark ? "#38bdf8" : "#2563eb",
+                        animationDelay: `${(1.44 + i * 0.06).toFixed(2)}s`,
+                      }}
+                    />
+                  ))}
+                </div>
+                <span
+                  className={`u-entra shrink-0 text-[11px] font-medium ${
+                    dark ? "text-slate-400" : "text-slate-500"
+                  }`}
+                >
+                  Dicho
+                </span>
+              </>
+            )}
+
             {(rec.state === "recording" || rec.state === "processing") && (
               <>
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white dark:bg-sky-500">
@@ -977,44 +1020,14 @@ export default function Hud() {
               </p>
             )}
             {verNiveles && (
-              <CintaNiveles
-                nivel={nivel}
-                hasKey={hasKey}
-                quieta={rec.state === "recording" || rec.state === "processing"}
-              />
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── la pantalla de cine del estreno de versión ────────────────────────────
-  // Lienzo cuadrado y no la tira de siempre: la secuencia necesita cielo para
-  // que caigan cosas, suelo para la sombra y sitio para acercar la cámara. El
-  // backend hace la ventana cuadrada (`MODO_CINE`) justo antes de avisar.
-  if (estrenada) {
-    return (
-      <div
-        className="flex h-screen w-screen items-center justify-center select-none"
-        style={vars}
-      >
-        <style>{FACE_CSS + DRAG_CSS}</style>
-        <div style={{ transform: "scale(var(--kc, 1))" }}>
-          <div className="tama cine">
-            <div className="screen cine-screen">
-              <span className="scene-cine">
-                <svg
-                  viewBox="0 0 48 48"
-                  dangerouslySetInnerHTML={{ __html: estrenada.scene }}
+              <span className={estrenando ? "u-entra" : ""}>
+                <CintaNiveles
+                  nivel={nivel}
+                  hasKey={hasKey}
+                  quieta={rec.state === "recording" || rec.state === "processing"}
                 />
               </span>
-              {/* Lo que pidió Luis: cada vez que se actualiza, el número que
-                  acaba de entrar. Aparece con la sonrisa, al final. */}
-              <span className="cine-pie">
-                v{rec.state === "actualizado" ? rec.version : ""}
-              </span>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -1058,8 +1071,9 @@ export default function Hud() {
           className={`tama ${sad ? "sad" : ""} ${v.shake && !isError ? "shake" : ""} ${relevo ? "relevo" : ""}`}
         >
           <div className="screen" style={{ color: sad ? pal.w : pal.face }}>
+            {estrenando && <CapasEstreno version={version} />}
             <span
-              className="mic-px"
+              className={`mic-px ${estrenando ? "u-entra" : ""}`}
               dangerouslySetInnerHTML={{ __html: MIC_SVG }}
             />
             <span className="scene">
@@ -1071,17 +1085,19 @@ export default function Hud() {
               />
             </span>
             <span
-              className={`status ${rec.state === "done" || isError ? "texto" : ""}`}
+              className={`status ${rec.state === "done" || isError ? "texto" : ""} ${estrenando ? "u-entra" : ""}`}
             >
               {status}
             </span>
             {cinta}
             {verNiveles && (
-              <CintaNiveles
-                nivel={nivel}
-                hasKey={hasKey}
-                quieta={rec.state === "recording" || rec.state === "processing"}
-              />
+              <span className={estrenando ? "u-entra" : ""}>
+                <CintaNiveles
+                  nivel={nivel}
+                  hasKey={hasKey}
+                  quieta={rec.state === "recording" || rec.state === "processing"}
+                />
+              </span>
             )}
           </div>
         </div>
