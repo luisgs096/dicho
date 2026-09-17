@@ -10,6 +10,19 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.11.5 — 16 de septiembre de 2026
+
+- **El teclado del atajo enseña las dos teclas a la vez.** La de dictar en azul y la
+  de cancelar en naranja, siempre visibles: de un vistazo sabes cómo lo tienes
+  configurado, sin cambiar de pestaña para ver una u otra.
+- **Un solo teclado, el de portátil.** El extendido sobraba: nadie elige un atajo
+  mirando el bloque numérico.
+- **Dos idiomas, con un botón de ESP / ENG** en vez de una lista con nombres largos.
+  Lo único que cambia es lo que dice cada tecla —con ñ o sin ella— para que
+  encuentres la que buscas mirando tu teclado de verdad. El de España se fue: su
+  diferencia con el de Latinoamérica son cuatro teclas de puntuación, y ninguna
+  sirve como atajo.
+
 ## 0.11.4 — 16 de septiembre de 2026
 
 - **LABS ya no promete de más.** Decía que ninguno de los dos modos añade palabras

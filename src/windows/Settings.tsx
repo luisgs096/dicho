@@ -305,26 +305,26 @@ const K = (code: string, label: string, w?: number): KbKey => ({
   w,
 });
 
-/** Los idiomas de teclado que se pueden dibujar.
+/** Los dos idiomas de teclado que se pueden dibujar.
  *
  *  Es **sólo cosa de etiquetas**: rdev identifica las teclas por su posición
- *  física, no por lo que tengan impreso. La tecla a la derecha de la L es
- *  `SemiColon` en los tres idiomas; lo que cambia es que en español dice Ñ. El
- *  selector existe para que encuentres la tecla mirando tu teclado de verdad,
- *  no para cambiar nada por dentro. */
-type Idioma = "es-latam" | "es-es" | "us";
+ *  física, no por lo que lleven impreso. La tecla a la derecha de la L es
+ *  `SemiColon` en los dos; lo que cambia es que en español dice Ñ. El selector
+ *  existe para que encuentres la tecla mirando tu teclado de verdad, no para
+ *  cambiar nada por dentro — por eso el botón dice si hay ñ o no, que es la
+ *  diferencia que se ve. */
+type Idioma = "es" | "us";
 
-const IDIOMAS: { id: Idioma; nombre: string }[] = [
-  { id: "es-latam", nombre: "Español (Latinoamérica)" },
-  { id: "es-es", nombre: "Español (España)" },
-  { id: "us", nombre: "Inglés (US)" },
+const IDIOMAS: { id: Idioma; corto: string; nombre: string }[] = [
+  { id: "es", corto: "ESP", nombre: "Teclado en español, con ñ" },
+  { id: "us", corto: "ENG", nombre: "Teclado en inglés, sin ñ" },
 ];
 
 /** Qué lleva impreso cada tecla en cada idioma. Lo que no esté aquí se queda
  *  con la etiqueta del esqueleto, que es la del teclado US. */
 const IMPRESO: Record<Idioma, Record<string, string>> = {
   us: {},
-  "es-latam": {
+  es: {
     BackQuote: "|°",
     Minus: "'",
     Equal: "¿¡",
@@ -333,20 +333,6 @@ const IMPRESO: Record<Idioma, Record<string, string>> = {
     SemiColon: "Ñ",
     Quote: "{[",
     BackSlash: "}]",
-    Slash: "-_",
-    IntlBackslash: "<>",
-  },
-  "es-es": {
-    BackQuote: "ºª",
-    Minus: "'?",
-    Equal: "¡¿",
-    LeftBracket: "`^",
-    RightBracket: "+*",
-    SemiColon: "Ñ",
-    Quote: "´¨",
-    BackSlash: "ç",
-    Comma: ",;",
-    Dot: ".:",
     Slash: "-_",
     IntlBackslash: "<>",
   },
@@ -416,7 +402,11 @@ const MAIN_ROWS = (idioma: Idioma): KbKey[][] => {
 /** Fila de abajo, con las tres flechas al final — debajo del Mayús derecho,
  *  donde están de verdad. Antes iban las cuatro en línea con el resto y se
  *  aplastaban hasta no leerse: la fila sumaba 16 anchos contra los 14,8 de las
- *  de arriba, así que la ↑ y la ↓ desaparecían. */
+ *  de arriba, así que la ↑ y la ↓ desaparecían.
+ *
+ *  Sólo hay teclado de portátil. El extendido estaba y se quitó: nadie elige un
+ *  atajo mirando el bloque numérico, y mantener dos esqueletos era el doble de
+ *  sitio donde equivocarse con los anchos. */
 const BOTTOM_ROW_LAPTOP: KbKey[] = [
   K("ControlLeft", "Ctrl", 1.3),
   { code: null, label: "Fn" },
@@ -425,19 +415,6 @@ const BOTTOM_ROW_LAPTOP: KbKey[] = [
   K("Space", "Espacio", 5.9),
   K("AltGr", "AltGr", 1.1),
   K("ControlRight", "Ctrl", 1.3),
-  K("LeftArrow", "←"),
-  K("DownArrow", "↓"),
-  K("RightArrow", "→"),
-];
-
-const BOTTOM_ROW_EXTENDED: KbKey[] = [
-  K("ControlLeft", "Ctrl", 1.3),
-  K("MetaLeft", "Win", 1.1),
-  K("Alt", "Alt", 1.1),
-  K("Space", "Espacio", 5.9),
-  K("AltGr", "AltGr", 1.1),
-  K("MetaRight", "Win", 1.1),
-  K("ControlRight", "Ctrl", 1.2),
   K("LeftArrow", "←"),
   K("DownArrow", "↓"),
   K("RightArrow", "→"),
@@ -454,73 +431,92 @@ const MODIFIERS = new Set([
   "ShiftRight",
 ]);
 
+/** Para qué está elegida una tecla. Las dos se pintan **a la vez** y cada una
+ *  con su color, así que de un vistazo ves tu atajo y tu tecla de cancelar sin
+ *  tener que cambiar de pestaña: azul dicta, naranja cancela. */
+type Papel = "atajo" | "cancelar" | null;
+
+const PAPELES: Record<"atajo" | "cancelar", { clase: string; titulo: string }> =
+  {
+    atajo: {
+      clase:
+        "border-blue-700 bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/40",
+      titulo: "Parte de tu atajo para dictar",
+    },
+    cancelar: {
+      clase:
+        "border-amber-600 bg-amber-500 text-white shadow-sm ring-2 ring-amber-400/50",
+      titulo: "Tu tecla para cancelar a media grabación",
+    },
+  };
+
 function Cap(props: {
   k: KbKey;
-  selected: boolean;
-  /** Elegida para la OTRA cosa (el atajo si estás eligiendo el cancelar, o al
-   *  revés). Se pinta apagada para que se vea que esa tecla ya está ocupada. */
-  otra?: boolean;
+  papel: Papel;
   onToggle: (code: string) => void;
   className?: string;
 }) {
-  const { k, selected } = props;
+  const { k, papel } = props;
   if (k.hueco) {
     return <span style={{ flex: `${k.w ?? 1} ${k.w ?? 1} 0%` }} />;
   }
   const base =
     "flex items-center justify-center overflow-hidden rounded-md border text-[9px] font-medium leading-none transition-colors";
-  const style = k.code
-    ? selected
-      ? "border-blue-700 bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/40"
-      : "cursor-pointer border-slate-300 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-sky-400 dark:hover:text-sky-300"
-    : "border-slate-200 bg-slate-100 text-slate-300 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-600";
-  const ocupada =
-    props.otra && !selected
-      ? " border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500/60 dark:bg-amber-500/10 dark:text-amber-300"
-      : "";
+  const style = !k.code
+    ? "border-slate-200 bg-slate-100 text-slate-300 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-600"
+    : papel
+      ? `cursor-pointer ${PAPELES[papel].clase}`
+      : "cursor-pointer border-slate-300 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-sky-400 dark:hover:text-sky-300";
   return (
     <button
       type="button"
       disabled={!k.code}
-      title={k.code ? keyLabel(k.code) : "No capturable"}
+      title={
+        !k.code
+          ? "No capturable"
+          : papel
+            ? `${keyLabel(k.code)} — ${PAPELES[papel].titulo}`
+            : keyLabel(k.code)
+      }
       onClick={() => k.code && props.onToggle(k.code)}
       style={{ width: "100%", height: "100%" }}
-      className={`${base} ${style}${ocupada} ${props.className ?? ""}`}
+      className={`${base} ${style} ${props.className ?? ""}`}
     >
       <span className="truncate px-0.5">{k.label}</span>
     </button>
   );
 }
 
-/** El teclado gráfico. Sirve para dos cosas a la vez: elegir el atajo de dictado
- *  y elegir la tecla para cancelar. `destino` dice a cuál de las dos va lo que
- *  pulses, porque tener dos teclados en pantalla sería el doble de sitio para
- *  la misma cosa. */
+/** El teclado gráfico.
+ *
+ *  Sirve para dos cosas a la vez: elegir el atajo de dictado y elegir la tecla
+ *  para cancelar. Las dos se ven **siempre**, cada una con su color —azul dicta,
+ *  naranja cancela—, así que de un vistazo sabes cómo tienes configurado todo.
+ *  `destino` sólo decide a cuál de las dos va lo que pulses.
+ *
+ *  Un único esqueleto, el de portátil, y dos idiomas. El selector de idioma no
+ *  cambia nada por dentro: mueve lo que dice cada tecla para que la encuentres
+ *  mirando tu teclado de verdad. */
 export function KeyboardPicker(props: {
   selected: string[];
   cancelar: string | null;
   destino: "atajo" | "cancelar";
   onToggle: (code: string) => void;
 }) {
-  const [layout, setLayout] = useState<"laptop" | "extendido">("laptop");
-  const [idioma, setIdioma] = useState<Idioma>("es-latam");
-  const isSel = (code: string | null) =>
-    code !== null &&
-    (props.destino === "atajo"
-      ? props.selected.includes(code)
-      : props.cancelar === code);
-  /** La otra selección, en gris: así ves de un vistazo que no chocan. */
-  const isOtra = (code: string | null) =>
-    code !== null &&
-    (props.destino === "atajo"
-      ? props.cancelar === code
-      : props.selected.includes(code));
+  const [idioma, setIdioma] = useState<Idioma>("es");
+  const papelDe = (code: string | null): Papel =>
+    code === null
+      ? null
+      : props.selected.includes(code)
+        ? "atajo"
+        : props.cancelar === code
+          ? "cancelar"
+          : null;
   const cap = (k: KbKey, i: number, extra?: string) => (
     <Cap
       key={i}
       k={k}
-      selected={isSel(k.code)}
-      otra={isOtra(k.code)}
+      papel={papelDe(k.code)}
       onToggle={props.onToggle}
       className={extra}
     />
@@ -561,63 +557,39 @@ export function KeyboardPicker(props: {
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-3">
         <div className="inline-flex rounded-lg border border-slate-200 p-0.5 dark:border-slate-700">
-          {(["laptop", "extendido"] as const).map((l) => (
+          {IDIOMAS.map((i) => (
             <button
-              key={l}
-              onClick={() => setLayout(l)}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                layout === l
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              key={i.id}
+              onClick={() => setIdioma(i.id)}
+              title={i.nombre}
+              className={`rounded-md px-3 py-1 font-mono text-xs font-bold tracking-wider transition-colors ${
+                idioma === i.id
+                  ? "bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900"
+                  : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               }`}
             >
-              {l === "laptop" ? "Laptop" : "Teclado extendido"}
+              {i.corto}
             </button>
           ))}
         </div>
-        <select
-          value={idioma}
-          onChange={(e) => setIdioma(e.target.value as Idioma)}
-          title="Sólo cambia lo que dice cada tecla, para que la encuentres mirando tu teclado"
-          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-        >
-          {IDIOMAS.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.nombre}
-            </option>
-          ))}
-        </select>
+        {/* La leyenda: sin ella, dos colores en un teclado son dos colores. */}
+        <span className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+          <span className="h-2.5 w-2.5 rounded-sm bg-blue-600" />
+          dicta
+        </span>
+        <span className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+          <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" />
+          cancela
+        </span>
       </div>
 
       <div className="flex gap-2 rounded-xl bg-slate-100 p-2 dark:bg-slate-950/60">
-        {/* Bloque principal */}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           {MAIN_ROWS(idioma).map(fila)}
-          {fila(
-            layout === "laptop" ? BOTTOM_ROW_LAPTOP : BOTTOM_ROW_EXTENDED,
-            99,
-          )}
+          {fila(BOTTOM_ROW_LAPTOP, 99)}
         </div>
-
-        {layout === "extendido" && (
-          <>
-            {/* Bloque de navegación + flechas */}
-            <div className="w-[19%] shrink-0">
-              <div className="grid grid-cols-3 gap-1">
-                {[
-                  K("Insert", "Ins"),
-                  K("Home", "Inicio"),
-                  K("PageUp", "RePág"),
-                  K("Delete", "Supr"),
-                  K("End", "Fin"),
-                  K("PageDown", "AvPág"),
-                ].map((k, i) => cap(k, i))}
-              </div>
-            </div>
-          </>
-        )}
       </div>
     </div>
   );
