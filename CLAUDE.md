@@ -220,6 +220,11 @@ conocimiento. Y se commitea con el resto.
     pegado a la vagoneta, ya es un brazo. Y necesita el **entalle de muñeca**
     (la mano 2 px más ancha, el brazo estrechando detrás): sin él, mano y brazo
     son una sola barra.
+  - **Un hueco suelto dentro de un bloque macizo se lee como un ojo.** Medido
+    probándole un brillo a los ojos anchos: el píxel apagado los convertía en
+    gafas huecas, no en ojos con luz. A este tamaño el ojo gana siempre, así que
+    un detalle interior tiene que ser una **línea que cruce** —como la banda de
+    dientes— y nunca un punto aislado.
   - **Un saludo de un píxel no es un saludo.** Con los dos cuadros separados por
     1 px la mano no se lee agitándose, se lee temblando. Dos.
   - **Un brazo levantado es una vertical gruesa, no una diagonal.** Se
