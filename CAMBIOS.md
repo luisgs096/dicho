@@ -17,6 +17,10 @@ guiones. Nada más.
   ignoraba. Medido sobre tus últimos 400 dictados: 13 conservaban una palabra
   que el diccionario tenía que haber cambiado («Cloud Code» seguía saliendo
   «Cloud»). Ahora son 0.
+- **Y además Dicho ya oye tus palabras.** Tus términos viajan también al motor
+  de transcripción, así que escribe «Claude code» desde el principio en vez de
+  oír «Cloud Code» y corregirlo después. Con tope: la muestra que evita que te
+  traduzca nunca se recorta para hacerles sitio.
 - **Corregir un texto seleccionado ya no te cierra las conversaciones.** Para
   leer la selección se pulsaba Ctrl+C por ti, y en una terminal eso no copia:
   interrumpe. Ahora copias tú y Dicho sólo lee el portapapeles.
