@@ -83,12 +83,20 @@ pub fn has_session() -> bool {
 }
 
 fn credentials(app: &AppHandle) -> anyhow::Result<(String, String)> {
-    let state = app.state::<SettingsState>();
+    // `try_state` por lo mismo que en `status`: a esto se llega desde el
+    // frontend, y `state()` no devuelve un error cuando el estado aún no está
+    // — aborta el proceso. Hoy los ajustes se registran antes de que exista la
+    // primera ventana (ver `run()`), así que no debería pasar nunca; esto es el
+    // cinturón además del tirante, porque el precio de equivocarse es que la
+    // app no abra y no deje ni una línea en el log.
+    let Some(state) = app.try_state::<SettingsState>() else {
+        bail!("Los ajustes todavía no están listos");
+    };
     let s = state.read().unwrap();
     let id = s.google_client_id.trim().to_string();
     let secret = s.google_client_secret.trim().to_string();
     if id.is_empty() || secret.is_empty() {
-        bail!("Falta configurar el cliente OAuth de Google (pestaña Perfil)");
+        bail!("Falta configurar el cliente OAuth de Google (Ajustes → Cuenta de Google)");
     }
     Ok((id, secret))
 }

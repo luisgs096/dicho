@@ -854,7 +854,7 @@ fn procesar(
             let corrections_json = (!corrections.is_empty())
                 .then(|| serde_json::to_string(&corrections).ok())
                 .flatten();
-            let _ = store.add_history(crate::store::NuevoDictado {
+            let guardado = store.add_history(crate::store::NuevoDictado {
                 raw: &raw,
                 polished: &polished,
                 engine: engine_name,
@@ -864,6 +864,12 @@ fn procesar(
                 stt_ms,
                 polish_ms,
             });
+            // El historial es lo único que queda del dictado una vez pegado. Si
+            // no se pudo guardar hay que decirlo: en silencio, el texto está en
+            // pantalla y el usuario cree que también está guardado.
+            if let Err(e) = guardado {
+                diag(app, &format!("NO se pudo guardar en el historial: {e}"));
+            }
             log::info!(
                 "Dictado listo: {} ms grabación, {} ms STT, {} ms redacción [{}]",
                 held.as_millis(),

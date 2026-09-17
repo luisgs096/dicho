@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -638,6 +639,12 @@ export default function Settings() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [listas, setListas] = useState<ListasAnalisis | null>(null);
   const [search, setSearch] = useState("");
+  // El listener de `history-changed` se registra una vez y se quedaría con el
+  // `search` de ese instante; una referencia le deja leer el de ahora.
+  const busquedaRef = useRef("");
+  useEffect(() => {
+    busquedaRef.current = search;
+  }, [search]);
   const [onlyCorrected, setOnlyCorrected] = useState(false);
   const [dict, setDict] = useState<DictItem[]>([]);
   const [term, setTerm] = useState("");
@@ -658,6 +665,22 @@ export default function Settings() {
   // Lo que trajo la versión que corre ahora. Sale de CAMBIOS.md, que viaja
   // dentro del binario: se ve sin internet y no depende de GitHub.
   const novedades = cambioDe(versionActual);
+
+  // Esta ventana manda el objeto de ajustes ENTERO cada vez que guarda, así que
+  // tiene que enterarse de lo que cambie por fuera: el modo de redacción y el
+  // pin se tocan desde la onda, que es otra ventana. Sin esto, elegir "Editor"
+  // en la onda y luego marcar cualquier casilla aquí lo devolvía a "Estándar"
+  // sin avisar. El backend ya emitía el evento; faltaba escucharlo.
+  useEffect(() => {
+    const p = listen("settings-changed", () => {
+      invoke<AppSettings>("get_settings")
+        .then(setSettings)
+        .catch(() => {});
+    });
+    return () => {
+      p.then((un) => un());
+    };
+  }, []);
 
   useEffect(() => {
     invoke<ListasAnalisis>("listas_analisis")
@@ -701,7 +724,11 @@ export default function Settings() {
         setProgress(null);
       }
     });
-    const unHistory = listen("history-changed", () => refreshHistory(""));
+    // Con el término que haya en el buscador, no vacío: si no, escribir un
+    // filtro y dictar te devolvía la lista entera.
+    const unHistory = listen("history-changed", () =>
+      refreshHistory(busquedaRef.current),
+    );
     const unDict = listen("dict-changed", () => refreshDict());
     // El modo colocación también se apaga solo al cerrar esta ventana, así que
     // el botón se entera por el mismo evento que el HUD y no se queda diciendo
@@ -737,6 +764,16 @@ export default function Settings() {
       draft.some((k) => !currentHotkey.includes(k)));
   const toggleKey = (code: string) => {
     if (destinoTecla === "cancelar") {
+      // Una tecla del propio atajo no vale: la de cancelar se pulsa CON el
+      // atajo apretado, así que elegir una de sus teclas haría que cada dictado
+      // se cancelara solo nada más arrancar.
+      if (currentHotkey.includes(code)) {
+        setAvisoTecla(
+          "Esa tecla ya es parte del atajo: cada dictado se cancelaría solo.",
+        );
+        return;
+      }
+      setAvisoTecla(null);
       // Volver a pulsar la misma la quita: así se puede dejar sin tecla de
       // cancelar, que es una opción legítima.
       update({ cancelar: settings?.cancelar === code ? null : code });
@@ -789,6 +826,7 @@ export default function Settings() {
   const [destinoTecla, setDestinoTecla] = useState<"atajo" | "cancelar">(
     "atajo",
   );
+  const [avisoTecla, setAvisoTecla] = useState<string | null>(null);
 
   const googleLogin = () => {
     setGoogleBusy("login");
@@ -931,6 +969,11 @@ export default function Settings() {
                     destino={destinoTecla}
                     onToggle={toggleKey}
                   />
+                  {avisoTecla && (
+                    <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                      {avisoTecla}
+                    </p>
+                  )}
                   {choqueConWindows && (
                     <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
                       <span className="font-semibold">Ojo:</span>

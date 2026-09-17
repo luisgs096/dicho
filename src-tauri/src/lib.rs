@@ -48,9 +48,53 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Dónde viven la base y los ajustes del usuario.
+///
+/// Se calcula a mano, sin `AppHandle`, porque hace falta **antes** de que Tauri
+/// exista. Es la misma carpeta que devuelve `app_data_dir()`: en Windows,
+/// `%APPDATA%\<identificador>`, y el identificador sale de la propia
+/// configuración para que no haya dos sitios donde pueda cambiar. Dicho sólo
+/// corre en Windows (hook global de rdev, Win32 para el HUD, instalador NSIS).
+fn carpeta_datos(identificador: &str) -> std::path::PathBuf {
+    std::env::var_os("APPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join(identificador)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // La base y los ajustes se registran ANTES de construir la aplicación, y eso
+    // no es una preferencia de estilo: es la única forma de que no se caiga.
+    //
+    // La ventana de Ajustes nace visible, así que su webview empieza a cargar en
+    // cuanto Tauri la crea —antes de que corra el `setup`— y llama a comandos
+    // nada más montarse. Si el estado se registra dentro del `setup`, hay una
+    // ventana de unos milisegundos en la que esas llamadas llegan primero. Y
+    // `state()` no devuelve un error cuando el estado no está: **aborta el
+    // proceso**. El síntoma es de los peores posibles — la app se cierra sola,
+    // a veces sí y a veces no, y sin dejar una línea en el log porque muere
+    // antes de escribirla. Costó un backtrace con símbolos encontrarlo (16/09).
+    //
+    // Registrándolos en el Builder el problema desaparece de raíz: cuando existe
+    // la primera ventana, el estado ya lleva rato ahí.
+    let ctx = tauri::generate_context!();
+    let datos = carpeta_datos(&ctx.config().identifier);
+    let store = match store::Store::init_en(&datos) {
+        Ok(s) => Arc::new(s),
+        Err(e) => {
+            // Sin base no hay historial ni diccionario: seguir sería fingir que
+            // la app funciona. Se dice por qué y se para.
+            eprintln!("Dicho no pudo abrir su base de datos en {datos:?}: {e}");
+            std::process::exit(1);
+        }
+    };
+    let settings_state: settings::SettingsState =
+        Arc::new(RwLock::new(settings::cargar_de(&datos.join("settings.json"))));
+
     tauri::Builder::default()
+        .manage(store.clone())
+        .manage(settings_state.clone())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             focus_main(app);
         }))
@@ -61,25 +105,13 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
-        .setup(|app| {
+        .setup(move |app| {
             let _ = env_logger::Builder::from_env(
                 env_logger::Env::default().default_filter_or("info"),
             )
             .try_init();
             let handle = app.handle().clone();
 
-            // La base de datos, lo PRIMERO de todo. La ventana de Ajustes nace
-            // visible, así que su webview ya está cargando mientras esto corre y
-            // puede llamar a un comando antes de tiempo. Si eso pasa antes de
-            // este `manage`, Tauri no devuelve un error: revienta el proceso
-            // (`state() called before manage()`), y encima sin dejar rastro en
-            // el log porque muere antes de escribirlo.
-            let store = Arc::new(store::Store::init(&handle)?);
-            app.manage(store.clone());
-
-            let loaded = settings::load(&handle);
-            let settings_state: settings::SettingsState = Arc::new(RwLock::new(loaded));
-            app.manage(settings_state.clone());
 
             // HUD: nunca roba el foco. Que atrape o no los clics depende de si
             // el usuario quiere poder arrastrarlo (ver `aplicar_raton_hud`).
@@ -210,6 +242,6 @@ pub fn run() {
             commands::hud_nivel,
             commands::programar_relanzamiento,
         ])
-        .run(tauri::generate_context!())
+        .run(ctx)
         .expect("error while running tauri application");
 }

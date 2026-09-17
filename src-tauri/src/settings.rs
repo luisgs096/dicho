@@ -195,8 +195,18 @@ fn settings_path(app: &AppHandle) -> PathBuf {
         .join("settings.json")
 }
 
+/// Lee los ajustes de una ruta concreta. Igual que `Store::abrir`, existe para
+/// poder correr antes de que Tauri construya la aplicación.
+pub fn cargar_de(path: &std::path::Path) -> AppSettings {
+    leer(path)
+}
+
 pub fn load(app: &AppHandle) -> AppSettings {
     let path = settings_path(app);
+    leer(&path)
+}
+
+fn leer(path: &std::path::Path) -> AppSettings {
     match fs::read_to_string(&path) {
         Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|e| {
             log::warn!("settings.json inválido ({e}), usando defaults");
