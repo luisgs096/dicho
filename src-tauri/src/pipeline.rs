@@ -341,6 +341,7 @@ fn corregir_seleccion(
         }
     };
 
+    crate::escribano::desarmar();
     show_hud(app, hud_gen);
     emit_state(app, "corrigiendo", None);
     let t0 = Instant::now();
@@ -356,24 +357,37 @@ fn corregir_seleccion(
         Ok(corregido) => {
             // Igual que en el dictado: el diccionario manda sobre el modelo.
             let corregido = polish::aplicar_diccionario(&corregido, &ctx.dictionary);
-            let conservar = settings
-                .read()
-                .map(|s| s.copiar_al_portapapeles)
-                .unwrap_or(false);
-            if let Err(e) = crate::inject::inject_text(&corregido, conservar) {
-                diag(app, &format!("Corregir: no se pudo pegar ({e})"));
+            // **El resultado va al portapapeles, no se pega solo.**
+            //
+            // Pegar exige sintetizar un Ctrl+V, y sintetizar atajos es lo que le
+            // cerró al usuario las conversaciones de Claude Code cuando esto
+            // mandaba Ctrl+C para leer la selección. Un Ctrl+V no es tan
+            // destructivo como aquel Ctrl+C, pero es la misma apuesta: no se
+            // sabe qué significa esa combinación en la app que hay delante.
+            //
+            // Quien decide pegar es el usuario, desde la ventana de revisión.
+            if let Err(e) = crate::inject::copiar(&corregido) {
+                diag(app, &format!("Corregir: no se pudo copiar ({e})"));
                 emit_state(app, "error", Some(serde_json::json!({ "message": e.to_string() })));
                 hide_hud_later(app, hud_gen, 3200);
                 return;
             }
+            // Que el vigilante no tome nuestra propia salida por una copia del
+            // usuario: sin esto el escribano se rearmaría con lo que acaba de
+            // producir, en bucle.
+            crate::escribano::ya_visto(&corregido);
             diag(app, &format!(
                 "Corregido: {}→{} palabras en {} ms",
                 original.split_whitespace().count(),
                 corregido.split_whitespace().count(),
                 t0.elapsed().as_millis()
             ));
-            emit_state(app, "done", Some(serde_json::json!({ "text": corregido })));
-            hide_hud_later(app, hud_gen, 2400);
+            emit_state(
+                app,
+                "done",
+                Some(serde_json::json!({ "text": format!("Copiado · {corregido}") })),
+            );
+            hide_hud_later(app, hud_gen, 3600);
         }
         Err(e) => {
             // Lo importante: NO se pega nada. El texto del usuario se queda como
@@ -392,6 +406,48 @@ fn corregir_seleccion(
 ///
 /// No se enseña si tienes la onda apagada: quien la apagó no quiere verla, y
 /// menos por sorpresa nada más encender el ordenador. El estilo ya no importa:
+/// La onda se ofrece a corregir lo que el usuario acaba de copiar.
+///
+/// No usa la «generación» del HUD como el dictado porque no compite con él: si
+/// hay un dictado en marcha ni siquiera se llega aquí (lo filtra el vigilante),
+/// y si no lo hay, esto es lo único que está pasando en pantalla.
+pub(crate) fn armar_escribano(app: &AppHandle, texto: &str) {
+    let visible = app
+        .try_state::<SettingsState>()
+        .and_then(|s| s.read().ok().map(|s| s.hud_enabled))
+        .unwrap_or(true);
+    if !visible {
+        return;
+    }
+    let Some(hud) = app.get_webview_window("hud") else {
+        return;
+    };
+    crate::escribano::ARMADO.store(true, Ordering::SeqCst);
+    place_hud(app, &hud, area_hud(app));
+    let _ = hud.show();
+    let _ = hud.set_always_on_top(true);
+    emit_state(
+        app,
+        "escribano",
+        Some(serde_json::json!({
+            "palabras": texto.split_whitespace().count(),
+        })),
+    );
+    crate::escribano::desarmar_luego(app.clone());
+}
+
+/// Nadie pulsó: la onda vuelve a lo suyo.
+pub(crate) fn escribano_expirado(app: &AppHandle) {
+    if grabando() {
+        return;
+    }
+    if hud_clavado(app) {
+        emit_state(app, "idle", None);
+    } else if let Some(hud) = app.get_webview_window("hud") {
+        let _ = hud.hide();
+    }
+}
+
 /// la barra de carga y el destello con la versión son los mismos en los dos, y
 /// sólo cambia qué se revela al final —la cara o las cinco barritas—.
 pub(crate) fn celebrar_actualizacion(app: &AppHandle, version: &str) {

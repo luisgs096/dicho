@@ -3,6 +3,18 @@ use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 use std::thread;
 use std::time::Duration;
 
+/// Deja un texto en el portapapeles, sin tocar el teclado.
+///
+/// Es lo que usa la corrección al terminar: el usuario pega cuando quiera y con
+/// el atajo que use su app. Ver el comentario de `leer_seleccion` sobre por qué
+/// aquí no se sintetiza nada.
+pub fn copiar(texto: &str) -> anyhow::Result<()> {
+    arboard::Clipboard::new()
+        .context("No se pudo acceder al portapapeles")?
+        .set_text(texto.to_string())
+        .context("No se pudo copiar el texto")
+}
+
 /// Lee el texto que el usuario haya copiado.
 ///
 /// # Por qué NO sintetiza un Ctrl+C

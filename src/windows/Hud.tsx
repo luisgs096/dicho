@@ -528,7 +528,10 @@ export default function Hud() {
   // al cruzar el umbral— y cuando se suelta. Es lo que enciende el aro punteado
   // y la carita de la vagoneta.
   useEffect(() => {
-    const un = listen<boolean>("hud-arrastre", (e) => setRodando(e.payload));
+    const un = listen<boolean>("hud-arrastre", (e) => {
+      if (e.payload) arrastro.current = true;
+      setRodando(e.payload);
+    });
     return () => {
       un.then((f) => f());
     };
@@ -675,15 +678,28 @@ export default function Hud() {
   // resuelve el umbral de seis píxeles del backend (UMBRAL_ARRASTRE): por
   // debajo de eso el clic llega limpio y la ventana no se mueve. Hasta cruzarlo
   // no hay ni aro punteado ni vagoneta.
+  // ¿Llegó a arrastrarse? Lo dice el backend al cruzar el umbral. Sin esto no
+  // se puede distinguir un clic de un arrastre: la onda es a la vez el botón
+  // del escribano y su propia asa.
+  const arrastro = useRef(false);
   const agarrar = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
+    arrastro.current = false;
     e.preventDefault();
     setAgarrando(true);
     invoke("hud_arrastrar").catch(() => {});
   };
   useEffect(() => {
     if (!agarrando) return;
-    const soltar = () => setAgarrando(false);
+    const soltar = () => {
+      setAgarrando(false);
+      // Soltaste sin haberla movido: eso es un clic. Y sólo hace algo si el
+      // escribano está armado — el backend lo vuelve a comprobar, porque en la
+      // cápsula se hacen muchos clics que no son éste.
+      if (!arrastro.current && recRef.current.state === "escribano") {
+        invoke("hud_corregir").catch(() => {});
+      }
+    };
     window.addEventListener("pointerup", soltar);
     window.addEventListener("pointercancel", soltar);
     // Red de seguridad: si la ventana se mueve fuera del cursor y el
@@ -744,9 +760,13 @@ export default function Hud() {
   // Arrastrándola: va en la vagoneta. Pierde contra el mareo, que es lo que
   // pasa si además la zarandeas.
   const encarrito = rodando ? RODANDO : null;
-  // Modo lectura: corrigiendo un texto que ya existía. No hay micrófono que
-  // enseñar porque no se está escuchando nada.
-  const leyendo = rec.state === "corrigiendo";
+  // Modo escribano: acabas de copiar algo y la onda se ofrece a corregirlo.
+  // Es la misma carita que mientras corrige —pluma y pergamino— y eso es
+  // deliberado: el usuario ve «modo escribano» y lo que cambia es la leyenda,
+  // no el personaje.
+  const armado = rec.state === "escribano";
+  // Modo lectura: no hay micrófono que enseñar porque no se está escuchando.
+  const leyendo = rec.state === "corrigiendo" || armado;
   const corrigiendo = leyendo ? LEYENDO : null;
   // El estreno ya no es una pantalla aparte: es una carita más que entra por
   // el camino de siempre, con dos capas encima de la cápsula. Ver `ACTUALIZADO`
@@ -765,7 +785,9 @@ export default function Hud() {
   const sad =
     (isError && !mareada && !cancelada && !corrigiendo && !estrenada) || v.sad;
   const porLimite = rec.state === "processing" && rec.motivo === "limite";
-  const status = mareada
+  const status = armado
+    ? `Clic para corregir · ${rec.state === "escribano" ? rec.palabras : 0} palabras`
+    : mareada
     ? mareada.status
     : cancelada
     ? cancelada.status

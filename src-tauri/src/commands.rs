@@ -25,6 +25,13 @@ pub fn save_settings(
         .read()
         .map(|s| s.hud_posiciones.clone())
         .unwrap_or_default();
+    // Con el escribano encendido la onda **tiene que estar clavada**: el gesto
+    // es copiar y darle un clic, y una onda que se esconde a los tres segundos
+    // no se puede pulsar. Se fuerza aquí y no en la interfaz para que valga
+    // también si alguien edita el settings.json a mano.
+    if !new_settings.corregir_atajo.is_empty() {
+        new_settings.hud_pin = true;
+    }
     settings::save(&app, &new_settings).map_err(|e| e.to_string())?;
     aplicar_raton_hud(&app, new_settings.hud_arrastrable);
 
@@ -56,6 +63,20 @@ pub fn save_settings(
 #[tauri::command]
 pub fn model_status(app: AppHandle) -> models::ModelStatus {
     models::status(&app)
+}
+
+/// Clic en la onda cuando está en modo escribano: corrige lo copiado.
+///
+/// Se comprueba que esté armado de verdad. Sin eso, cualquier clic en la
+/// cápsula —y se hacen muchos, que también es el asa para arrastrarla— mandaría
+/// el texto a la API.
+#[tauri::command]
+pub fn hud_corregir(tx: State<'_, PipelineTx>) {
+    if !crate::escribano::ARMADO.load(Ordering::SeqCst) {
+        return;
+    }
+    let sender = tx.0.lock().unwrap().clone();
+    let _ = sender.send(pipeline::Cmd::Corregir);
 }
 
 #[tauri::command]
