@@ -38,9 +38,10 @@ conocimiento. Y se commitea con el resto.
   es el tamaño de su área de trabajo) y en **fracción del hueco libre**, no en
   píxeles. Así colocarlo en la 4K no lo mueve en el portátil, y el rincón
   elegido significa lo mismo en las dos.
-  `modo_colocar()` es el botón "Mover la onda flotante" de Ajustes: deja el HUD
-  a la vista y agarrable hasta que el usuario diga que ya, porque si no sólo se
-  podría mover durante los segundos que dura un dictado.
+  `modo_colocar()` es "Cambiarla de sitio", del menú de la propia onda (antes
+  estaba en Ajustes): deja el HUD a la vista y agarrable hasta que el usuario
+  diga que ya, porque si no sólo se podría mover durante los segundos que dura
+  un dictado.
 - `src-tauri/src/chunker.rs` — dónde partir el audio: corta en pausas (4 ventanas de
   100 ms bajo un umbral relativo al pico del hablante), nunca en seco. Con tests.
 - `src-tauri/src/overlay.rs` — Win32 (windows-sys): área de trabajo del monitor de
@@ -64,21 +65,30 @@ conocimiento. Y se commitea con el resto.
   lo que mide un buen resumen de un divague. Lo que sí los separa es que
   reordenar usa las palabras del hablante y contestar trae otras nuevas, así que
   se cuenta qué fracción de las palabras de 5+ letras ya estaba en el dictado.
-  Por debajo de la mitad, se descarta y cae al pulido por reglas.
+  **Por debajo de una cuarta parte** se descarta y cae al pulido por reglas. El
+  umbral era la mitad y se bajó midiendo: con el encargo de redactar, un buen
+  texto usa sinónimos, y tres dictados reales dieron 44 %, 61 % y 73 % de
+  palabras propias — al 50 % el primero se tiraba a la basura. Abajo hay sitio de
+  sobra: cuando el modelo contesta en vez de escribir, el solape real es 0-10 %.
+  Los conectores no cuentan (lista `ANDAMIO`): desde que el Editor tiene el
+  encargo de cambiar muletillas por conectores, castigarlos sería castigar justo
+  lo que se le pidió.
 - `src-tauri/src/hotkey.rs` — hook global rdev; lee `settings.hotkey` en cada evento →
   cambios de atajo aplican en vivo sin reiniciar. **Escape mientras grabas manda
   `Cmd::Cancel`**: se tira el audio y no se transcribe nada. Ojo con la trampa —
   al cancelar el atajo *sigue apretado*, así que hay una bandera
   `esperando_soltar`; sin ella `all_down` seguiría siendo cierto y arrancaría un
   dictado nuevo en el acto.
-- **La ventana del HUD mide 112 de alto, no 96** (desde la 0.9.8): debajo de la
-  cápsula va la cinta de niveles y arriba asoma el botón del menú, que al pasarle
-  el ratón crece y saca halo. **Ese número está en dos sitios y tienen que ir a la
-  par**: `HUD_H` en `pipeline.rs` y el divisor de `--k` en `Hud.tsx`, que traduce
-  el lienzo real a escala. Cambiar uno solo hace que todo el contenido crezca o
-  encoja en esa proporción.
+- **La ventana del HUD mide 104 de alto** (96 → 112 → 104). Arriba asoma el botón
+  del menú, que al pasarle el ratón crece y saca halo; el aire **no se reparte a
+  medias**: la cápsula va pegada abajo (`items-end` + `pb-2`), así que quedan 22 px
+  arriba y 8 abajo, y el halo se queda a 8,7 px del techo. **Ese número está en dos
+  sitios y tienen que ir a la par**: `HUD_H` en `pipeline.rs` y el divisor de `--k`
+  en `Hud.tsx`, que traduce el lienzo real a escala. Cambiar uno solo hace que todo
+  el contenido crezca o encoja en esa proporción.
 - **El menú vive en la onda, no en Ajustes** (`MenuOnda` en `Hud.tsx`). Un botón
-  de lápiz que aparece al pasar el ratón y despliega [clavar | mover]; si eliges
+  con un **+** que asoma por la esquina al pasar el ratón y despliega
+  [clavar | devolver | mover], en abanico horizontal; si eliges
   mover, los mismos botones pasan a ser [listo | devolver a su sitio]. Clavada
   (`settings.hud_pin`) la onda no se esconde nunca —`hide_hud_later` la deja en
   reposo en vez de ocultarla— y **atrapa el ratón sí o sí**, porque si no su
@@ -302,7 +312,8 @@ conocimiento. Y se commitea con el resto.
   script. Es la misma trampa que `2>&1` sobre ejecutables nativos en PowerShell 5.1.
 - En Bash, `cmd | tail` se traga el exit code: usar `set -o pipefail`.
 - **El `target/` guarda rutas absolutas: mover la carpeta del proyecto lo rompe.**
-  El proyecto vivía en `C:\dev\Mike` y ahora en `C:\dev\Proyectos Personales\Mike`;
+  El proyecto vivió un tiempo en `C:\dev\Proyectos Personales\Mike` y hoy está de
+  vuelta en `C:\dev\Mike`;
   los artefactos viejos seguían apuntando a la ruta vieja y el build moría con
   `failed to read plugin permissions: ... C:\dev\Mike\...` (os error 3), un
   mensaje que no menciona la mudanza por ningún lado. Se arregla con

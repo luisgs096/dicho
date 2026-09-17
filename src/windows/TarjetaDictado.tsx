@@ -54,14 +54,22 @@ const MODOS: Record<string, string> = {
  *  del usuario y de las listas, así que pueden traer paréntesis o signos. */
 const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** Bordes de palabra que entienden español.
+ *
+ *  El borde de palabra de JavaScript sólo cuenta como letra el ASCII, así que
+ *  "más bien" no casaba con su propio patrón y las muletillas con signos
+ *  —"¿sabes?", "¿no?"— no se contaban jamás. Aquí el borde es "no hay una
+ *  letra pegada", con las acentuadas y la eñe dentro. */
+const LETRA = "0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ";
+const conBordes = (t: string) => `(?<![${LETRA}])${escapar(t)}(?![${LETRA}])`;
+
 /** Cuántas veces aparece cada término, y el regex para resaltarlos. */
 function buscar(texto: string, terminos: string[]) {
   const presentes = terminos.filter((t) =>
-    new RegExp(`\\b${escapar(t)}\\b`, "iu").test(texto),
+    new RegExp(conBordes(t), "iu").test(texto),
   );
   const total = terminos.reduce(
-    (n, t) =>
-      n + (texto.match(new RegExp(`\\b${escapar(t)}\\b`, "giu"))?.length ?? 0),
+    (n, t) => n + (texto.match(new RegExp(conBordes(t), "giu"))?.length ?? 0),
     0,
   );
   return { presentes, total };
@@ -74,7 +82,10 @@ function tramos(
   terminos: string[],
 ): { t: string; marca: boolean }[] {
   if (terminos.length === 0) return [{ t: texto, marca: false }];
-  const re = new RegExp(`\\b(${terminos.map(escapar).join("|")})\\b`, "giu");
+  const re = new RegExp(
+    `(?<![${LETRA}])(${terminos.map(escapar).join("|")})(?![${LETRA}])`,
+    "giu",
+  );
   const out: { t: string; marca: boolean }[] = [];
   let i = 0;
   for (const m of texto.matchAll(re)) {
@@ -107,12 +118,22 @@ export function TarjetaDictado(props: {
     // documento", "pues bien"— no infla el número, porque aparece en los dos.
     const enCrudo = buscar(h.raw, listas.muletillas);
     const enFinal = buscar(h.polished, listas.muletillas);
-    const ang = buscar(h.polished, listas.anglicismos);
+    // Los anglicismos se buscan en los DOS textos: el chip cuenta los del final
+    // —que es el que te llevas— pero al resaltar sobre el crudo hay que conocer
+    // también los que sólo estaban ahí, o no se marcaría ninguno.
+    const angFinal = buscar(h.polished, listas.anglicismos);
+    const angCrudo = buscar(h.raw, listas.anglicismos);
     return {
       muletillas: Math.max(0, enCrudo.total - enFinal.total),
+      // Las que había, para que el número del chip cuadre con lo que se
+      // enciende al pasar el ratón: se resaltan todas las del crudo, no sólo
+      // las que se fueron.
+      muletillasCrudo: enCrudo.total,
       muletillasTerminos: enCrudo.presentes,
-      anglicismos: ang.total,
-      anglicismosTerminos: ang.presentes,
+      anglicismos: angFinal.total,
+      anglicismosTerminos: [
+        ...new Set([...angFinal.presentes, ...angCrudo.presentes]),
+      ],
       palabrasCrudo: h.raw.split(/\s+/).filter(Boolean).length,
       palabrasFinal: h.polished.split(/\s+/).filter(Boolean).length,
     };
@@ -120,13 +141,19 @@ export function TarjetaDictado(props: {
 
   // Cada indicador resalta sobre el texto donde se le ve. Las muletillas sólo
   // existen en el crudo; las correcciones, en el final.
-  const textoDe: Record<Indicador, "raw" | "polished"> = {
+  // Los tiempos no resaltan nada —no hay tramo de texto que sea "2,4 s"—, así
+  // que su chip no llama a onHover y no necesita entrada aquí.
+  const textoDe: Record<Exclude<Indicador, "tiempos">, "raw" | "polished"> = {
     correcciones: "polished",
     muletillas: "raw",
     anglicismos: verCrudo ? "raw" : "polished",
-    tiempos: verCrudo ? "raw" : "polished",
   };
-  const cual = resaltado ? textoDe[resaltado] : verCrudo ? "raw" : "polished";
+  const cual =
+    resaltado && resaltado !== "tiempos"
+      ? textoDe[resaltado]
+      : verCrudo
+        ? "raw"
+        : "polished";
   const texto = cual === "raw" ? h.raw : h.polished;
 
   const terminosResaltados =
@@ -249,8 +276,9 @@ export function TarjetaDictado(props: {
                 activo={resaltado === "muletillas"}
                 onHover={setResaltado}
               >
-                {analisis.muletillas} muletillas fuera ·{" "}
-                {analisis.palabrasCrudo} → {analisis.palabrasFinal} palabras
+                {analisis.muletillas} de {analisis.muletillasCrudo} muletillas
+                fuera · {analisis.palabrasCrudo} → {analisis.palabrasFinal}{" "}
+                palabras
               </Indicativo>
             )}
             {analisis && analisis.anglicismos > 0 && (

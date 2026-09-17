@@ -10,6 +10,90 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.11.5 — 16 de septiembre de 2026
+
+- **El teclado del atajo enseña las dos teclas a la vez.** La de dictar en azul y la
+  de cancelar en naranja, siempre visibles: de un vistazo sabes cómo lo tienes
+  configurado, sin cambiar de pestaña para ver una u otra.
+- **Un solo teclado, el de portátil.** El extendido sobraba: nadie elige un atajo
+  mirando el bloque numérico.
+- **Dos idiomas, con un botón de ESP / ENG** en vez de una lista con nombres largos.
+  Lo único que cambia es lo que dice cada tecla —con ñ o sin ella— para que
+  encuentres la que buscas mirando tu teclado de verdad. El de España se fue: su
+  diferencia con el de Latinoamérica son cuatro teclas de puntuación, y ninguna
+  sirve como atajo.
+
+## 0.11.4 — 16 de septiembre de 2026
+
+- **LABS ya no promete de más.** Decía que ninguno de los dos modos añade palabras
+  que no dijiste, y no es cierto: el Editor sí pone las suyas —los conectores, y el
+  remate de una frase que dejaste a medias—, porque sin eso no podría redactar. Lo
+  que no inventa son datos, cifras ni conclusiones, y eso es lo que ahora dice.
+- **El contador de muletillas cuadra con lo que resalta.** Contaba las que se fueron
+  pero encendía todas las que había: ahora dice las dos cifras.
+- **Los anglicismos se marcan también en el texto crudo.** Si estabas viendo el
+  crudo, los que sólo aparecían ahí no se resaltaban.
+- Si te quedas sin key de Groq, el selector de la onda se apaga solo en vez de
+  quedarse puesto y muerto.
+- El teclado ya sabe cómo se llama la tecla `< >` de los teclados españoles.
+- Si Windows no deja cambiar el arranque automático, ahora queda anotado en vez de
+  desaparecer en silencio.
+- Por dentro: la fusión del respaldo de Google va en una sola transacción (antes era
+  una escritura al disco por dictado), y el número de caritas sale del repertorio en
+  vez de estar escrito a mano en dos sitios.
+
+## 0.11.3 — 16 de septiembre de 2026
+
+- **Arreglado: Dicho se cerraba solo y a veces no volvía a abrir.** Era un fallo de
+  arranque, no de la actualización: la ventana de Ajustes empieza a cargar antes de
+  que la app termine de prepararse, y si le ganaba la carrera el proceso moría en
+  seco. Unas veces sí y otras no, y sin dejar rastro en el registro porque moría
+  antes de escribirlo. Ahora todo está listo antes de que exista la primera ventana.
+- **Los ajustes dejan de pisarse entre ventanas.** Si elegías Editor en la onda y
+  luego marcabas cualquier casilla en Ajustes, volvía a Estándar sin avisar. Pasaba
+  igual con la onda clavada.
+- **La onda clavada ya no se queda muerta.** Con ella clavada y el arrastre apagado,
+  guardar cualquier ajuste la volvía intocable: su propio menú dejaba de responder y
+  no había forma de desclavarla sin reiniciar.
+- **La tecla de cancelar ya no admite una del atajo.** Si elegías una, cada dictado se
+  cancelaba solo nada más empezar. Ahora te avisa y no te deja.
+- El contador de muletillas no veía las acentuadas: "más bien", "¿sabes?" y "¿no?" no
+  se contaban nunca.
+- Dictar con un filtro escrito en el Historial te devolvía la lista entera.
+- Si algún día no se puede guardar un dictado en el Historial, ahora se dice. Antes el
+  texto se pegaba igual y parecía que había quedado guardado.
+
+## 0.11.2 — 16 de septiembre de 2026
+
+- **Las flechas vuelven a su sitio: dentro del teclado.** En la 0.11.1 las saqué a
+  un bloque aparte a la derecha, y en un portátil no están ahí — la ↑ va al final
+  de la fila del Mayús derecho y las otras tres justo debajo. Ahora es así, en los
+  dos teclados.
+- De paso, el teclado entero cuadra: las teclas se colocan por posición y no
+  repartiéndose el hueco, así que todas las filas empiezan y acaban en la misma
+  columna y la ↑ queda exactamente encima de la ↓.
+
+## 0.11.1 — 16 de septiembre de 2026
+
+- **La tecla para cancelar ya se elige.** Antes era Escape y punto, y eso tenía un
+  problema gordo: como se pulsa con el atajo apretado, si dictas con Ctrl la
+  combinación acaba siendo **Ctrl+Esc, que es como Windows abre el menú Inicio**.
+  Se escoge en el mismo teclado del atajo, con un interruptor arriba.
+- **Dicho te avisa si tu combinación choca con Windows** y te dice cuál es y por
+  qué. Ni Dicho ni ninguna app puede ganarle al sistema esas teclas; lo único que
+  se puede hacer es elegir otra, y ahora se ve cuándo hace falta.
+- **El teclado gráfico habla tu idioma.** Español de Latinoamérica, de España o
+  inglés US: la Ñ sale donde te la esperas y aparece la tecla de más que llevan
+  los teclados de acá entre el Mayús y la Z. Es sólo lo que dice cada tecla — por
+  dentro se identifican por su posición.
+- **Y ya se ven las flechas.** Iban en línea con el resto de la última fila, que
+  sumaba más ancho del que había, y la de arriba y la de abajo se aplastaban hasta
+  desaparecer. Ahora van aparte en su T, como en el teclado de verdad.
+- **LABS se queda en un solo interruptor: habilitar el Editor.** Los otros dos
+  modos sobraban ahí — "Tal cual" es lo que hace Dicho solo cuando no hay key, y
+  elegir entre Estándar y Editor se hace en la onda, que es donde de verdad lo
+  decides: justo antes de hablar.
+
 ## 0.11.0 — 16 de septiembre de 2026
 
 - **El historial ahora cuenta qué pasó con cada dictado.** Cada tarjeta enseña en

@@ -83,27 +83,53 @@ pub fn has_session() -> bool {
 }
 
 fn credentials(app: &AppHandle) -> anyhow::Result<(String, String)> {
-    let state = app.state::<SettingsState>();
+    // `try_state` por lo mismo que en `status`: a esto se llega desde el
+    // frontend, y `state()` no devuelve un error cuando el estado aún no está
+    // — aborta el proceso. Hoy los ajustes se registran antes de que exista la
+    // primera ventana (ver `run()`), así que no debería pasar nunca; esto es el
+    // cinturón además del tirante, porque el precio de equivocarse es que la
+    // app no abra y no deje ni una línea en el log.
+    let Some(state) = app.try_state::<SettingsState>() else {
+        bail!("Los ajustes todavía no están listos");
+    };
     let s = state.read().unwrap();
     let id = s.google_client_id.trim().to_string();
     let secret = s.google_client_secret.trim().to_string();
     if id.is_empty() || secret.is_empty() {
-        bail!("Falta configurar el cliente OAuth de Google (pestaña Perfil)");
+        bail!("Falta configurar el cliente OAuth de Google (Ajustes → Cuenta de Google)");
     }
     Ok((id, secret))
 }
 
 pub fn status(app: &AppHandle) -> GoogleStatus {
-    let store = app.state::<Arc<Store>>();
     let configured = credentials(app).is_ok();
+    // `try_state` y no `state`: éste es de los poquísimos sitios a los que se
+    // puede llegar **antes** de que el arranque registre la base de datos, y
+    // `state` en ese caso no devuelve un error, revienta el proceso entero.
+    //
+    // Pasó de verdad y costó encontrarlo (16/09, la 0.11.2). La ventana de
+    // Ajustes nace visible, así que su webview carga en paralelo al arranque y
+    // llama a `google_status` nada más montarse. Normalmente llega tarde y no
+    // se nota; en el primer arranque después de actualizar, el relanzador y el
+    // instalador levantan dos instancias, el plugin de instancia única hace
+    // `focus_main` en la que sobrevive, ese `show()` acelera el webview y la
+    // llamada adelanta al registro. Resultado: la app no abría, y sin una sola
+    // línea en el log porque moría antes de escribir.
+    //
+    // Sin base de datos todavía, lo honesto es contestar lo que se sabe: si el
+    // cliente OAuth está configurado. El correo y la última sincronización
+    // salen en cuanto el frontend vuelva a preguntar.
+    let store = app.try_state::<Arc<Store>>();
     GoogleStatus {
         configured,
-        email: if has_session() {
-            store.meta_get(META_EMAIL)
-        } else {
-            None
+        email: match (&store, has_session()) {
+            (Some(s), true) => s.meta_get(META_EMAIL),
+            _ => None,
         },
-        last_sync_ms: store.meta_get(META_LAST_SYNC).and_then(|v| v.parse().ok()),
+        last_sync_ms: store
+            .as_ref()
+            .and_then(|s| s.meta_get(META_LAST_SYNC))
+            .and_then(|v| v.parse().ok()),
     }
 }
 

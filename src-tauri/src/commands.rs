@@ -27,16 +27,24 @@ pub fn save_settings(
         .unwrap_or_default();
     settings::save(&app, &new_settings).map_err(|e| e.to_string())?;
     aplicar_raton_hud(&app, new_settings.hud_arrastrable);
+
     // Solo release toca la entrada Run: un build dev registraría target/debug/mike.exe,
     // que al arrancar Windows abre consola y busca un dev server que no existe.
     if cfg!(debug_assertions) {
         log::info!("autostart: ignorado en build debug (no se toca el registro)");
     } else {
         let autolaunch = app.autolaunch();
-        if new_settings.autostart {
-            let _ = autolaunch.enable();
+        // Si el registro de Windows no deja tocarlo, la casilla se guardaría
+        // marcada y Dicho no arrancaría solo: el usuario creería que sí. No hay
+        // dónde enseñarlo desde aquí, pero al menos queda en el log en vez de
+        // desaparecer.
+        let r = if new_settings.autostart {
+            autolaunch.enable()
         } else {
-            let _ = autolaunch.disable();
+            autolaunch.disable()
+        };
+        if let Err(e) = r {
+            log::warn!("No se pudo cambiar el arranque automático: {e}");
         }
     }
     *state.write().unwrap() = new_settings;
@@ -165,9 +173,22 @@ pub async fn google_logout(app: AppHandle) -> Result<(), String> {
 /// clics de lo que hubiera debajo. Para poder arrastrarlo hay que dejar que los
 /// atrape, y es todo o nada: no hay forma de hacer transparente sólo una parte
 /// de la ventana. Por eso es un ajuste y no una decisión nuestra.
+/// Decide si el HUD atrapa el ratón o lo deja pasar.
+///
+/// La regla de que **clavada lo atrapa sí o sí** vive aquí dentro y no en cada
+/// llamada, que es de donde venía el fallo: cuatro sitios la decidían y dos se
+/// olvidaban del pin. Con la onda clavada y el arrastre apagado, guardar
+/// cualquier ajuste la convertía en cristal y su propio menú dejaba de recibir
+/// clics — no había forma de desclavarla sin reiniciar. Al reiniciar volvía a
+/// funcionar, porque el arranque sí sumaba el pin: la misma configuración se
+/// comportaba de dos maneras.
 pub fn aplicar_raton_hud(app: &AppHandle, arrastrable: bool) {
+    let clavada = app
+        .try_state::<SettingsState>()
+        .and_then(|s| s.read().ok().map(|s| s.hud_pin && s.hud_enabled))
+        .unwrap_or(false);
     if let Some(hud) = app.get_webview_window("hud") {
-        let _ = hud.set_ignore_cursor_events(!arrastrable);
+        let _ = hud.set_ignore_cursor_events(!(arrastrable || clavada));
     }
 }
 
@@ -272,6 +293,11 @@ pub fn hud_encima(app: AppHandle, on: bool) {
     }
     // Un respiro antes de irse: rozarla de pasada no debe hacerla desaparecer
     // de golpe, y da margen a volver si el cursor se salió sin querer.
+    //
+    // Las cuatro guardas de abajo son las mismas que mira `hide_hud_later`, y
+    // por la misma razón: durante esos 700 ms puede pasar cualquier cosa —que
+    // empieces a dictar, que la claves, que la muevas— y esconderla entonces
+    // sería quitarte de delante algo que sí querías ver.
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(700));
         if pipeline::RATON_ENCIMA.load(Ordering::SeqCst)

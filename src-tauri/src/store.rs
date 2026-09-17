@@ -64,8 +64,15 @@ fn db_path(app: &AppHandle) -> anyhow::Result<PathBuf> {
 }
 
 impl Store {
-    pub fn init(app: &AppHandle) -> anyhow::Result<Self> {
-        let conn = Connection::open(db_path(app)?)?;
+    /// Abre (o crea) la base en una ruta concreta.
+    ///
+    /// Recibe la ruta y no el `AppHandle` a propósito: esto tiene que poder
+    /// correr **antes** de que Tauri construya la aplicación. Ver el comentario
+    /// largo en `run()` — si el Store se registra dentro del `setup`, la ventana
+    /// puede pedirlo antes y el proceso aborta.
+    pub fn init_en(carpeta: &std::path::Path) -> anyhow::Result<Self> {
+        std::fs::create_dir_all(carpeta)?;
+        let conn = Connection::open(carpeta.join("mike.db"))?;
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -261,16 +268,22 @@ impl Store {
         &self,
         remote: &[(i64, String, String, String, i64, Option<String>)],
     ) -> anyhow::Result<usize> {
-        let conn = self.conn.lock().unwrap();
+        let mut conn = self.conn.lock().unwrap();
+        // Todo en una transacción: sin ella cada fila es un commit propio, o sea
+        // un fsync al disco por dictado. Con un respaldo de varios cientos eso
+        // son varios cientos de escrituras sincronizadas, y además una fusión a
+        // medias podía dejar la mitad de las filas dentro.
+        let tx = conn.transaction()?;
         let mut added = 0;
         for (ts, raw, polished, engine, duration_ms, corrections) in remote {
-            added += conn.execute(
+            added += tx.execute(
                 "INSERT INTO history (ts, raw, polished, engine, duration_ms, corrections)
                  SELECT ?1, ?2, ?3, ?4, ?5, ?6
                  WHERE NOT EXISTS (SELECT 1 FROM history WHERE ts = ?1 AND raw = ?2)",
                 rusqlite::params![ts, raw, polished, engine, duration_ms, corrections],
             )?;
         }
+        tx.commit()?;
         Ok(added)
     }
 

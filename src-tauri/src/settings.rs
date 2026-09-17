@@ -88,6 +88,13 @@ impl HudPos {
 pub struct AppSettings {
     /// Combinación push-to-talk: todas las teclas deben estar presionadas a la vez.
     pub hotkey: Vec<Key>,
+    /// Tecla para arrepentirse a media grabación: se tira el audio y no se
+    /// transcribe nada. Se pulsa **mientras** tienes el atajo apretado, así que
+    /// en la práctica forma combinación con él — y ahí está la trampa: con el
+    /// atajo en Control derecho, cancelar con Escape es `Ctrl+Esc`, que Windows
+    /// se queda para abrir el menú Inicio. Por eso es configurable y no fija.
+    /// `None` la desactiva.
+    pub cancelar: Option<Key>,
     pub engine: EngineKind,
     pub polish: PolishKind,
     /// "auto" o código ISO-639-1 ("es", "en", ...). Se ignora si `no_traducir`.
@@ -157,6 +164,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             hotkey: vec![Key::ControlLeft, Key::MetaLeft],
+            cancelar: Some(Key::Escape),
             engine: EngineKind::Parakeet,
             polish: PolishKind::Rules,
             language: "auto".into(),
@@ -187,8 +195,18 @@ fn settings_path(app: &AppHandle) -> PathBuf {
         .join("settings.json")
 }
 
+/// Lee los ajustes de una ruta concreta. Igual que `Store::abrir`, existe para
+/// poder correr antes de que Tauri construya la aplicación.
+pub fn cargar_de(path: &std::path::Path) -> AppSettings {
+    leer(path)
+}
+
 pub fn load(app: &AppHandle) -> AppSettings {
     let path = settings_path(app);
+    leer(&path)
+}
+
+fn leer(path: &std::path::Path) -> AppSettings {
     match fs::read_to_string(&path) {
         Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|e| {
             log::warn!("settings.json inválido ({e}), usando defaults");
