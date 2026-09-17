@@ -118,6 +118,19 @@ pub struct AppSettings {
     /// **cerradas** y no las abiertas a propósito: así una sección nueva nace
     /// desplegada sin tener que tocar los ajustes de quien ya tenía la app.
     pub secciones_plegadas: Vec<String>,
+    /// LABS: corregir la ortografía **mientras escribes con el teclado**.
+    ///
+    /// Apagado de fábrica y no por timidez. Encendido, Dicho mira cada tecla que
+    /// pulsas en cualquier app; aunque nada de eso salga del proceso, es una
+    /// decisión que tiene que tomar el usuario a propósito y no heredarla.
+    pub corregir_al_escribir: bool,
+    /// Apps donde la corrección al vuelo no actúa nunca.
+    ///
+    /// Arranca con [`crate::autotype::APPS_VETADAS`] —terminales y gestores de
+    /// contraseñas— y el usuario puede añadir las suyas. Es la única protección
+    /// real en apps que se dibujan su propia interfaz: ahí Windows no deja saber
+    /// si el campo con el foco es de contraseña.
+    pub apps_sin_correccion: Vec<String>,
     pub hud_enabled: bool,
     pub hud_style: HudStyle,
     /// El rincón donde el usuario dejó el HUD **en cada pantalla**, por
@@ -177,6 +190,11 @@ impl Default for AppSettings {
             no_traducir: true,
             copiar_al_portapapeles: false,
             secciones_plegadas: Vec::new(),
+            corregir_al_escribir: false,
+            apps_sin_correccion: crate::autotype::APPS_VETADAS
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             hud_enabled: true,
             hud_style: HudStyle::Tamagotchi,
             hud_posiciones: HashMap::new(),

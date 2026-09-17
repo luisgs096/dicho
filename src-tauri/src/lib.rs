@@ -1,9 +1,11 @@
 mod audio;
+mod autotype;
 mod chunker;
 mod commands;
 mod hotkey;
 mod inject;
 mod models;
+mod ortografia;
 mod overlay;
 mod pipeline;
 mod polish;
@@ -172,7 +174,7 @@ pub fn run() {
 
             let (tx, rx) = mpsc::channel();
             pipeline::spawn(handle.clone(), rx, settings_state.clone(), store.clone());
-            hotkey::spawn(tx.clone(), settings_state.clone());
+            hotkey::spawn(tx.clone(), settings_state.clone(), store.clone());
             app.manage(PipelineTx(Mutex::new(tx.clone())));
 
             // Primer arranque: descarga automática del modelo local con progreso.

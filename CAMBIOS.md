@@ -10,6 +10,21 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.13.0 — 17 de septiembre de 2026
+
+- **Corrige mientras escribes** (LABS, apagado hasta que lo enciendas). Al
+  terminar una palabra, si le falta la tilde, Dicho la pone: «tambien» pasa a
+  «también» e «informacion» a «información». Funciona en cualquier programa y
+  sin internet.
+- **Sólo pone tildes, nunca cambia una palabra por otra.** Y deja en paz todo lo
+  que es ambiguo —«hacia», «sabia», «cuando», «publico»—, donde la forma sin
+  tilde también es correcta y cuál toca depende de la frase.
+- **Tu diccionario personal manda sobre la lista interna**, así que las
+  correcciones que ya tenías puestas para dictar ahora también valen al escribir.
+- **Nada de lo que escribes se guarda, se manda a ningún sitio ni entra en el
+  historial.** Y hay una lista de programas donde no actúa nunca, editable, con
+  las terminales y los gestores de contraseñas ya puestos.
+
 ## 0.12.0 — 17 de septiembre de 2026
 
 - **Corrige lo que ya escribiste.** Selecciona un texto en cualquier app, pulsa el
