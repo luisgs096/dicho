@@ -68,12 +68,18 @@ pub fn run() {
             .try_init();
             let handle = app.handle().clone();
 
+            // La base de datos, lo PRIMERO de todo. La ventana de Ajustes nace
+            // visible, así que su webview ya está cargando mientras esto corre y
+            // puede llamar a un comando antes de tiempo. Si eso pasa antes de
+            // este `manage`, Tauri no devuelve un error: revienta el proceso
+            // (`state() called before manage()`), y encima sin dejar rastro en
+            // el log porque muere antes de escribirlo.
+            let store = Arc::new(store::Store::init(&handle)?);
+            app.manage(store.clone());
+
             let loaded = settings::load(&handle);
             let settings_state: settings::SettingsState = Arc::new(RwLock::new(loaded));
             app.manage(settings_state.clone());
-
-            let store = Arc::new(store::Store::init(&handle)?);
-            app.manage(store.clone());
 
             // HUD: nunca roba el foco. Que atrape o no los clics depende de si
             // el usuario quiere poder arrastrarlo (ver `aplicar_raton_hud`).
