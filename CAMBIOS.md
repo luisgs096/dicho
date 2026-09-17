@@ -10,6 +10,17 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.12.1 — 17 de septiembre de 2026
+
+- **Tu diccionario ya no es una sugerencia: se aplica siempre.** Viajaba dentro
+  de las instrucciones que se le dan a la IA y la IA podía ignorarlo — y lo
+  ignoraba. Medido sobre tus últimos 400 dictados: 13 conservaban una palabra
+  que el diccionario tenía que haber cambiado («Cloud Code» seguía saliendo
+  «Cloud»). Ahora son 0.
+- **Corregir un texto seleccionado ya no te cierra las conversaciones.** Para
+  leer la selección se pulsaba Ctrl+C por ti, y en una terminal eso no copia:
+  interrumpe. Ahora copias tú y Dicho sólo lee el portapapeles.
+
 ## 0.13.0 — 17 de septiembre de 2026
 
 - **Corrige mientras escribes** (LABS, apagado hasta que lo enciendas). Al
