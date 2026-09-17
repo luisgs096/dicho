@@ -873,6 +873,34 @@ const SERVILLETA = [
 ];
 
 /**
+ * Un par de brazos, ya colocados y con el derecho espejado.
+ *
+ * El izquierdo en x=8 y el derecho en x=31 **no es a ojo**: la cara se centra en
+ * x=22, el espejo de una columna `p` es `44-p`, y un sprite de 6 de ancho que
+ * ocupa 8-13 tiene su espejo ocupando 31-36. Espejar el origen en vez del tramo
+ * —el error fácil— deja un brazo tres píxeles más fuera que el otro, y a este
+ * tamaño eso se ve.
+ */
+const par = (izq: string[], der: string[]) =>
+  spr(izq, 8, 4) + spr(espejo(der), 31, 4);
+
+/**
+ * El escenario que comparten las cuatro escenas del arrastre: la vagoneta y los
+ * brazos, en su propio grupo para que boten como un carrito.
+ *
+ * Antes la vagoneta salía sólo en la primera y desaparecía en las tres del
+ * mareo, y eso rompía la historia: el bicho se subía a un carrito, se mareaba en
+ * el vacío y vomitaba en otro sitio. Lo que cambia entre las cuatro es **la cara
+ * y cómo se mueven los brazos**; el carrito se queda.
+ *
+ * La cara va en su propio grupo con su propia animación, así que el bamboleo del
+ * carrito y el mareo de la cara **no van sincronizados**. Es a propósito: son dos
+ * movimientos distintos —el riel y el estómago— y cuadrarlos los volvería uno.
+ */
+const escenario = (brazos: string) =>
+  `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${brazos}</g>`;
+
+/**
  * Arrastrando la onda: va montada en la vagoneta y lo está pasando bien.
  *
  * Es el **escalón cero** de la escalada del zarandeo. Arrastrándola con
@@ -893,16 +921,16 @@ export const RODANDO: Variant = {
   // El saludo va **en contrafase**: cuando uno abre, el otro cierra. Los dos a
   // la vez se leen como un dibujo que se estira; alternados se leen como dos
   // manos agitándose, que es lo que hace alguien en una montaña rusa.
-  scene: `<g class="a-vagon">${spr(VAGONETA, 9, 15)}
-    ${flip([eyes(OJO_ANCHO, 3), eyes(OJO_ANCHO, 4)], ".48s")}
-    ${spr(BOCAZA_DIENTES, 17, 9)}
-    ${flip(
-      [
-        spr(BRAZO_ABIERTO, 8, 4) + spr(espejo(BRAZO_RECTO), 31, 4),
-        spr(BRAZO_RECTO, 8, 4) + spr(espejo(BRAZO_ABIERTO), 31, 4),
-      ],
+  // Saludo **en contrafase**: cuando uno abre, el otro cierra. Los dos a la vez
+  // se leen como un dibujo que se estira; alternados, como dos manos agitándose.
+  scene: `${escenario(
+    flip(
+      [par(BRAZO_ABIERTO, BRAZO_RECTO), par(BRAZO_RECTO, BRAZO_ABIERTO)],
       ".3s",
-    )}</g>`,
+    ),
+  )}
+    <g class="a-vagon">${flip([eyes(OJO_ANCHO, 3), eyes(OJO_ANCHO, 4)], ".48s")}
+    ${spr(BOCAZA_DIENTES, 17, 9)}</g>`,
 };
 
 export const MAREO: Variant[] = [
@@ -912,7 +940,15 @@ export const MAREO: Variant[] = [
     // vueltas"; el espiral clásico a 3 px se convierte en una mancha. La cara
     // entera se bambolea un píxel a cada lado y dos chispas le giran encima.
     status: "Me mareas",
-    scene: `<g class="a-mareo">${flip(
+    // Los brazos suben y bajan **en fase**, como abanicándose. Aquí sí van a la
+    // vez y no en contrafase: abanicarse es un gesto simétrico, y alternarlos
+    // volvería a leerse como saludar, que es lo que hace la carita anterior.
+    scene: `${escenario(
+      flip(
+        [par(BRAZO_ABIERTO, BRAZO_ABIERTO), par(BRAZO_RECTO, BRAZO_RECTO)],
+        ".4s",
+      ),
+    )}<g class="a-mareo">${flip(
       [
         spr(OJO, LX, 5) + spr(OJO_MEDIO, RX, 7),
         spr(OJO_MEDIO, LX, 6) + spr(OJO_MEDIO, RX, 6),
@@ -931,7 +967,19 @@ export const MAREO: Variant[] = [
     // Los ojos pulsan de 3 a 5 px de ancho al doble de ritmo: es el esfuerzo
     // de no soltarlo. La gota de sudor, en la sien, remata la idea.
     status: "¡Aguanta!",
-    scene: `<g class="a-glup">${flip(
+    // La onda de medusa: la pose recorre los dos brazos con un cuadro de desfase,
+    // así que lo que se ve no es un sube-y-baja sino algo que **viaja** de un
+    // lado al otro. Tres cuadros es el mínimo para que una onda se lea como onda.
+    scene: `${escenario(
+      flip(
+        [
+          par(BRAZO_ABIERTO, BRAZO_RECTO),
+          par(BRAZO_RECTO, BRAZO_RECTO),
+          par(BRAZO_RECTO, BRAZO_ABIERTO),
+        ],
+        ".54s",
+      ),
+    )}<g class="a-glup">${flip(
       [eyes(OJO, 5), eyes(OJO_ANCHO, 5), eyes(OJO, 5), eyes(OJO_ANCHO, 5)],
       ".64s",
     )}${flip(
@@ -954,7 +1002,10 @@ export const MAREO: Variant[] = [
     // Los tamagotchi ponen el significado en el símbolo de al lado y no en la
     // cara: por eso el charco vive fuera, en el suelo, y no encima del bicho.
     status: "¡Blegh!",
-    scene: `<g class="a-arcada">${flip(
+    // Aquí los brazos **no se mueven**: te agarras. Un saludo mientras vomitas
+    // contaría dos cosas a la vez y no se leería ninguna.
+    scene: `${escenario(par(BRAZO_RECTO, BRAZO_RECTO))}
+      <g class="a-arcada">${flip(
       [
         eyes(OJO_ANCHO, 5),
         eyes(OJO_ARCO, 6),
