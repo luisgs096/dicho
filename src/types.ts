@@ -12,6 +12,8 @@ export interface AppSettings {
   hotkey: string[];
   /** Tecla para cancelar a media grabación. `null` la desactiva. */
   cancelar: string | null;
+  /** Atajo para corregir lo que tengas seleccionado. Vacío = apagado. */
+  corregir_atajo: string[];
   engine: EngineKind;
   polish: PolishKind;
   language: string;
@@ -66,6 +68,9 @@ export type RecordingState =
   | { state: "empty" }
   /** Te arrepentiste a media frase: el audio se tiró sin transcribir. */
   | { state: "cancelado" }
+  /** Corrigiendo un texto que ya estaba escrito: la onda se pone en modo
+   *  lectura —pluma y pergamino— porque no está escuchando nada. */
+  | { state: "corrigiendo" }
   /** Primer arranque tras actualizar: la carita lo celebra una vez. */
   | { state: "actualizado"; version: string }
   | { state: "error"; message: string };

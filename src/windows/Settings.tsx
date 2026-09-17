@@ -18,7 +18,7 @@ import type {
   ModelStatus,
   ListasAnalisis,
 } from "../types";
-import { keyLabel } from "../types";
+import { hotkeyLabel, keyLabel } from "../types";
 import Animaciones from "./Animaciones";
 import VistaPrevia from "./VistaPrevia";
 import { TarjetaDictado } from "./TarjetaDictado";
@@ -1187,6 +1187,67 @@ export default function Settings() {
                             reunión, o sea moverla al jueves, porque el
                             miércoles no puedo» → Movamos la reunión al jueves:
                             el miércoles no puedo.
+                          </span>
+                        </span>
+                      </label>
+
+                      {/* La segunda de LABS: corregir lo que YA escribiste. Va
+                          aquí y no en Ajustes porque comparte el mismo motor
+                          que el Editor y se prueba junto con él. */}
+                      <label
+                        className={`flex items-start gap-3 rounded-xl border p-3 transition-colors ${
+                          settings.corregir_atajo.length > 0
+                            ? "border-emerald-500 bg-white ring-2 ring-emerald-500/30 dark:border-emerald-400 dark:bg-slate-900 dark:ring-emerald-400/30"
+                            : "border-emerald-200/80 bg-white/50 dark:border-emerald-900/60 dark:bg-slate-900/40"
+                        } ${hasKey ? "" : "cursor-not-allowed opacity-50"}`}
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={!hasKey}
+                          checked={settings.corregir_atajo.length > 0}
+                          onChange={(e) =>
+                            update({
+                              corregir_atajo: e.target.checked
+                                ? ["MetaLeft", "ShiftLeft", "KeyC"]
+                                : [],
+                            })
+                          }
+                          className="mt-0.5 h-4 w-4 accent-emerald-600"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold">
+                              Corregir lo que ya escribiste
+                            </span>
+                            {settings.corregir_atajo.length > 0 && (
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                {hotkeyLabel(settings.corregir_atajo)}
+                              </span>
+                            )}
+                          </span>
+                          <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            Selecciona texto en cualquier programa, pulsa el atajo
+                            y Dicho te lo devuelve corregido con el mismo motor
+                            que usa al dictar. La onda se pone en modo lectura
+                            mientras lo hace: pluma y pergamino, sin micrófono.
+                          </span>
+                          <span className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2.2}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="mt-[3px] h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+                            >
+                              <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" />
+                            </svg>
+                            <span>
+                              Si no puede mejorarlo, <strong>no toca tu texto</strong>
+                              : lo deja como estaba y te avisa. Reemplazarlo por
+                              algo peor sería lo único imperdonable aquí.
+                            </span>
                           </span>
                         </span>
                       </label>

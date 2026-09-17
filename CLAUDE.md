@@ -38,10 +38,12 @@ conocimiento. Y se commitea con el resto.
   es el tamaño de su área de trabajo) y en **fracción del hueco libre**, no en
   píxeles. Así colocarlo en la 4K no lo mueve en el portátil, y el rincón
   elegido significa lo mismo en las dos.
-  `modo_colocar()` es "Cambiarla de sitio", del menú de la propia onda (antes
-  estaba en Ajustes): deja el HUD a la vista y agarrable hasta que el usuario
-  diga que ya, porque si no sólo se podría mover durante los segundos que dura
-  un dictado.
+  **El modo de colocación se borró el 17/09/2026** y con él `modo_colocar()`,
+  el comando `hud_colocar` y la bandera `COLOCANDO`. Existía porque la onda sólo
+  se arrastraba dándole permiso; desde que se arrastra siempre no decidía nada.
+  Lo que sí heredó su trabajo: `hide_hud_later` y el final del estreno ahora
+  miran `ARRASTRANDO`, que es lo que de verdad no se puede interrumpir — una
+  onda que se esconde mientras la llevas agarrada.
 - `src-tauri/src/chunker.rs` — dónde partir el audio: corta en pausas (4 ventanas de
   100 ms bajo un umbral relativo al pico del hablante), nunca en seco. Con tests.
 - `src-tauri/src/overlay.rs` — Win32 (windows-sys): área de trabajo del monitor de
@@ -86,10 +88,12 @@ conocimiento. Y se commitea con el resto.
   sitios y tienen que ir a la par**: `HUD_H` en `pipeline.rs` y el divisor de `--k`
   en `Hud.tsx`, que traduce el lienzo real a escala. Cambiar uno solo hace que todo
   el contenido crezca o encoja en esa proporción.
-- **El menú vive en la onda, no en Ajustes** (`MenuOnda` en `Hud.tsx`). Un botón
-  con un **+** que asoma por la esquina al pasar el ratón y despliega
-  [clavar | devolver | mover], en abanico horizontal; si eliges
-  mover, los mismos botones pasan a ser [listo | devolver a su sitio]. Clavada
+- **El menú vive en la onda, no en Ajustes** (`MenuOnda` en `Hud.tsx`). **Dos
+  botones y ya** —clavarla y devolverla a su sitio—, los dos a la vista en
+  cuanto le pasas el ratón por encima. Hubo un tercero (*cambiarla de sitio*) y
+  un **+** que los desplegaba en abanico, y los dos se fueron el 17/09/2026 por
+  el mismo motivo: la onda se arrastra sola, así que el modo sobraba y el
+  abanico escondía dos botones detrás de un clic de más. Clavada
   (`settings.hud_pin`) la onda no se esconde nunca —`hide_hud_later` la deja en
   reposo en vez de ocultarla— y **atrapa el ratón sí o sí**, porque si no su
   propio menú sería un dibujo. En reposo se vela a `hud_opacidad_reposo`.
@@ -189,8 +193,39 @@ conocimiento. Y se commitea con el resto.
   o el `z-index:-1` de la barra se cuela detrás de la carcasa y **la barra no se
   ve**; y el `.55` de opacidad de la barra no es decoración, es contraste —
   menta maciza contra la cara da 1,45:1 en tema oscuro y la cara desaparece)
-  y **`MAREO`**: las tres caritas que sólo salen al zarandear la onda mientras la
-  colocas (mareada → aguantándose → vomita). Van **fuera de `V`** a propósito, que
+  **`RODANDO`** (la montaña rusa: sale mientras arrastras la onda — manitas en
+  alto agitándose, bocaza abierta riendo y una vagoneta debajo) y **`MAREO`**,
+  que ahora son **cuatro** y no tres: al zarandearla sube de mareada →
+  aguantándose → vomita, y al acabar el vómito encadena sola con **limpiarse la
+  boca con el antebrazo** antes de fundir a una carita normal.
+
+  Cuatro lecciones de dibujar la montaña rusa, todas pagadas en el banco de
+  pruebas y todas del mismo tipo — **a 48×16 px el detalle no se lee, la
+  silueta sí**:
+  - **Los dientes van en una banda corrida.** Picados uno a uno (`XoXoXoXoX`) el
+    usuario los describió como *"muy creepy"*: a 11 px de ancho eso no es una
+    dentadura, es una boca de terror.
+  - **Una boca abierta no puede tener la silueta de una cerrada.** Se probó con
+    la forma de `SONRISOTA` —ancha arriba, en pico hacia abajo— y salía un
+    cuenco. En una boca cerrada el pico **es** la sonrisa; en una abierta el
+    pico pasa a ser el hueco de dentro, y un hueco triangular no se lee como
+    boca. Rectángulo con las esquinas comidas.
+  - **Un brazo levantado es una vertical gruesa, no una diagonal.** Se
+    descartaron tres: en diagonal larga salían dos corchetes, corta salían dos
+    piedrecitas, y la manita suelta sin brazo salían dos orejas. La diagonal a
+    esta escala no es una línea inclinada, es una escalera.
+  - **Un objeto suelto a la altura de la boca se lee como otra boca.** Le pasó
+    al antebrazo con el que se limpia: como sprite suelto parecía primero una
+    linterna y luego una segunda boca. Lo que lo arregló fue **anclarlo al borde
+    del lienzo** (`brazoLimpia()` rellena hasta x=48) — así es algo que *entra*,
+    y entonces el puño de delante dice en qué dirección.
+
+  Y una regla de proceso: **el carrito no puede ganarle sitio a la cara**. La
+  primera vagoneta era una caja de cinco filas y el conjunto se leía como una
+  carita encima de una mesa; tres filas dicen lo mismo y dejan el lienzo para el
+  bicho.
+
+  Las tres del mareo salen al zarandear la onda mientras la arrastras. Van **fuera de `V`** a propósito, que
   si no saldrían al azar en mitad de un dictado. Dos aprendizajes de dibujarlas:
   los cachetes sueltos a los lados se leen como **orejas** —hay que hinchar toda
   la parte baja de la cara de un trazo, y dejar la raya de la boca dentro para que
@@ -199,6 +234,11 @@ conocimiento. Y se commitea con el resto.
   El detector del zarandeo vive en Rust (`overlay::Meneo`, con 4 tests): durante
   el arrastre la ventana persigue al cursor, así que **visto desde el webview el
   ratón no se mueve ni un píxel**.
+  **De la limpiada no se sale con un corte**: el HUD pone la clase `fundido`, la
+  pantalla baja a opacidad 0 en 200 ms, se cambia la escena por debajo y vuelve
+  a subir. Pasar de vomitar a sonreír en un fotograma se veía como un fallo de
+  dibujo y no como que se le pasó — el mismo motivo por el que existe el
+  destello de `relevo` entre escalón y escalón.
   Se previsualiza con `npx esbuild src/windows/faces.ts --bundle --format=iife
   --global-name=FACES` + una página que pinte `FACES.V`.
 - `src/windows/Hud.tsx` — HUD con dos estilos conmutables desde Ajustes
@@ -339,6 +379,14 @@ conocimiento. Y se commitea con el resto.
   Se diagnostica en 10 s sin mirar nada a ojo:
   `el.getAnimations({subtree:true})[0].currentTime` dos veces seguidas — si no
   avanza o va hacia atrás, es esto.
+- **Ni un backtick dentro de `FACE_CSS`, ni siquiera en un comentario CSS.**
+  Es un template literal de JavaScript: un acento grave lo **cierra ahí mismo**,
+  y lo que sigue se parsea como código. El error no menciona CSS ni backticks —
+  sale un `TS2339: Property 'fundido' does not exist on type '"\n .tama {…'`,
+  o sea TypeScript intentando leer una propiedad sobre la cadena que acaba de
+  cerrar. Ya ha pasado **cuatro veces**, siempre por citar el nombre de una
+  clase entre acentos graves. Si hay que nombrar una clase en un comentario de
+  ahí dentro, se escribe a pelo.
 - **Redibujar React también los reinicia**: la escena entra por
   `dangerouslySetInnerHTML`, así que cada render reescribe el interior del `<svg>`
   y se lleva por delante los `<g>` que llevan las animaciones. Un componente que
@@ -433,6 +481,21 @@ conocimiento. Y se commitea con el resto.
   (`start "" /b mike.exe > salida.txt 2>&1` dentro de un `.cmd` que abra explorer).
   Si así vive, era la tubería. Al usuario no le pasa: al arrancar desde el menú o
   desde el Run key no hay tubería que cerrar.
+- **Arrastre libre = umbral obligatorio.** La onda se agarra por cualquier
+  punto y siempre, sin modo de edición. Lo que antes lo impedía está escrito en
+  el código que se borró: «era fácil desplazarla sin querer al ir a pulsar su
+  menú». La cura no es un modo, es un **umbral de seis píxeles**
+  (`UMBRAL_ARRASTRE` en `overlay.rs`): por debajo de eso la ventana no se mueve,
+  así que un clic sigue siendo un clic y llega limpio al toggle de niveles o a
+  los botones del menú. Dos cosas cuelgan de ese umbral y conviene no romperlas:
+  - `arrastrar_con_cursor` **devuelve `None` si nunca se cruzó**. Sin eso, cada
+    clic en la cápsula reescribiría `hud_posiciones` y guardaría los ajustes
+    enteros — un `settings-changed` por clic.
+  - Al cruzarlo se reposiciona el origen (`c0 = c`); si no, la onda pega un
+    salto de seis píxeles justo al empezar a moverse.
+  Y el webview se entera por el evento **`hud-arrastre`** (true al cruzar, false
+  al soltar), no por el `pointerdown`: es lo que enciende el aro punteado y la
+  carita de la montaña rusa, y por eso no salen al hacer un clic normal.
 - **El HUD atrapa el ratón o lo deja pasar, pero no a medias.** Nació siendo un
   cristal (`set_ignore_cursor_events(true)` → `WS_EX_TRANSPARENT`) para no comerse
   los clics de lo que hubiera debajo, y eso es justo lo que impedía arrastrarlo.

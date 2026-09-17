@@ -220,7 +220,27 @@ pub fn assert_topmost(_hwnd: isize) {}
 ///
 /// Corre en su propio hilo: bloquea mientras dure el gesto.
 #[cfg(windows)]
-pub fn arrastrar_con_cursor(hwnd: isize, mut al_menear: impl FnMut()) -> Option<WorkArea> {
+/// Cuánto tiene que viajar el ratón antes de que la onda se despegue.
+///
+/// Existe desde que la onda se arrastra **siempre**, sin modo de colocación. Sin
+/// umbral, el `pointerdown` la pegaba al cursor en el acto: ir a pulsar su
+/// propio menú o el toggle de niveles la movía sin querer, que es justo el
+/// motivo por el que antes el arrastre estaba bajo llave.
+///
+/// Seis píxeles es lo que separa un clic de un arrastre. Por debajo no se toca
+/// la ventana, así que el clic llega limpio a lo que haya dentro.
+const UMBRAL_ARRASTRE: i32 = 6;
+
+/// Pega la ventana al cursor hasta que se suelte el botón.
+///
+/// `al_arrancar` se llama **una sola vez**, al cruzar el umbral: es lo que le
+/// dice al HUD que ya va montado de verdad (el aro punteado y la carita de la
+/// montaña rusa). `al_menear` salta en cada vaivén.
+pub fn arrastrar_con_cursor(
+    hwnd: isize,
+    mut al_arrancar: impl FnMut(),
+    mut al_menear: impl FnMut(),
+) -> Option<WorkArea> {
     use windows_sys::Win32::Foundation::POINT;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
         GetAsyncKeyState, VK_LBUTTON, VK_RBUTTON,
@@ -237,6 +257,9 @@ pub fn arrastrar_con_cursor(hwnd: isize, mut al_menear: impl FnMut()) -> Option<
         let mut pt = POINT { x: 0, y: 0 };
         (GetCursorPos(&mut pt) != 0).then_some(pt)
     };
+    // Fuera del bloque porque se consulta al final: un clic que no cruzó el
+    // umbral no deja posición nueva.
+    let mut suelta = false;
     unsafe {
         // Con los botones invertidos (zurdos), el botón "principal" que el
         // webview reporta como primario es el físico derecho.
@@ -247,7 +270,7 @@ pub fn arrastrar_con_cursor(hwnd: isize, mut al_menear: impl FnMut()) -> Option<
         };
         let apretado = || (GetAsyncKeyState(boton as i32) as u16) & 0x8000 != 0;
 
-        let c0 = cursor()?;
+        let mut c0 = cursor()?;
         let (wx, wy, _, _) = window_rect(hwnd)?;
         // Detección del meneo, para la carita mareada. Va aquí y no en el
         // webview porque durante el arrastre la ventana persigue al cursor:
@@ -261,6 +284,20 @@ pub fn arrastrar_con_cursor(hwnd: isize, mut al_menear: impl FnMut()) -> Option<
                 break;
             }
             if let Some(c) = cursor() {
+                if !suelta {
+                    if (c.x - c0.x).abs() < UMBRAL_ARRASTRE
+                        && (c.y - c0.y).abs() < UMBRAL_ARRASTRE
+                    {
+                        std::thread::sleep(std::time::Duration::from_millis(8));
+                        continue;
+                    }
+                    // Se recoloca el origen: sin esto la onda pegaría un salto
+                    // de seis píxeles justo al empezar a moverse.
+                    c0 = c;
+                    meneo = Meneo::nuevo(c.x);
+                    suelta = true;
+                    al_arrancar();
+                }
                 if meneo.empuja(c.x, arranque.elapsed().as_millis()) {
                     al_menear();
                 }
@@ -277,11 +314,20 @@ pub fn arrastrar_con_cursor(hwnd: isize, mut al_menear: impl FnMut()) -> Option<
             std::thread::sleep(std::time::Duration::from_millis(8));
         }
     }
+    // Un clic no es un arrastre. Sin esta salida, pulsar la onda para cualquier
+    // cosa reescribiría `hud_posiciones` y guardaría los ajustes enteros.
+    if !suelta {
+        return None;
+    }
     window_rect(hwnd)
 }
 
 #[cfg(not(windows))]
-pub fn arrastrar_con_cursor(_hwnd: isize, _al_menear: impl FnMut()) -> Option<WorkArea> {
+pub fn arrastrar_con_cursor(
+    _hwnd: isize,
+    _al_arrancar: impl FnMut(),
+    _al_menear: impl FnMut(),
+) -> Option<WorkArea> {
     None
 }
 

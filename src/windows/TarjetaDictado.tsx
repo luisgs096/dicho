@@ -110,6 +110,8 @@ export function TarjetaDictado(props: {
   const [verCrudo, setVerCrudo] = useState(false);
   const [resaltado, setResaltado] = useState<Indicador | null>(null);
   const [copiado, setCopiado] = useState(false);
+  /** El pulido no tocó nada: crudo y final son el mismo texto. */
+  const sinCambios = h.raw.trim() === h.polished.trim();
 
   const analisis = useMemo(() => {
     if (!listas) return null;
@@ -185,21 +187,31 @@ export function TarjetaDictado(props: {
         </p>
         {/* Crudo/final arriba a la derecha, fuera del panel: es lo que estás
             leyendo, no un detalle escondido. */}
+        {/* Cuando el pulido no cambió nada, el interruptor no tiene qué
+            enseñar: dejarlo vivo parece que está roto —pulsas y no pasa nada—
+            cuando lo que pasa es que los dos textos son el mismo. Se apaga y lo
+            dice, que además es un dato útil: significa que ese modo no tocó tu
+            dictado. */}
         <button
           type="button"
+          disabled={sinCambios}
           onClick={() => setVerCrudo((v) => !v)}
           title={
-            verCrudo
-              ? "Estás viendo lo que salió de la voz, sin redactar"
-              : "Ver lo que salió de la voz, antes de redactar"
+            sinCambios
+              ? "Este dictado salió igual que lo dijiste: el pulido no cambió nada"
+              : verCrudo
+                ? "Estás viendo lo que salió de la voz, sin redactar"
+                : "Ver lo que salió de la voz, antes de redactar"
           }
           className={`shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide transition-colors ${
-            cual === "raw"
-              ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
-              : "text-slate-400 hover:bg-slate-200 dark:text-slate-500 dark:hover:bg-slate-700"
+            sinCambios
+              ? "cursor-default text-slate-300 dark:text-slate-600"
+              : cual === "raw"
+                ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+                : "text-slate-400 hover:bg-slate-200 dark:text-slate-500 dark:hover:bg-slate-700"
           }`}
         >
-          {cual === "raw" ? "CRUDO" : "FINAL"}
+          {sinCambios ? "SIN CAMBIOS" : cual === "raw" ? "CRUDO" : "FINAL"}
         </button>
       </div>
 

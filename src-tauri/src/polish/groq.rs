@@ -30,19 +30,46 @@ meeting', 'hacer deploy'); conserva CADA palabra en el idioma exacto en que fue 
  - Devuelves ÚNICAMENTE el texto final, sin comentarios, sin comillas y sin preámbulo.";
 
 /// Nivel Estándar: limpiar sin reescribir. Promete **tus palabras**.
+/// Nivel Estándar: limpiar sin reescribir. Promete **tus palabras**.
+///
+/// Se reencuadró el 16/09/2026 y no por gusto: el encargo anterior empezaba con
+/// "eres el post-procesador de un dictado por voz", y ese marco le ponía techo
+/// a todo lo que viniera después — es exactamente el mismo fallo que tenía el
+/// Editor. Medido sobre tres dictados reales del historial que habían salido
+/// idénticos al crudo (ids 707, 708, 709): con el encargo viejo los tres
+/// volvían **palabra por palabra iguales**, muletillas incluidas; con éste, los
+/// tres cambian y las muletillas bajan de 6→4, 5→2 y 1→0.
+///
+/// Dos cosas hacen el trabajo, y conviene no quitarlas al retocar:
+///  - Se le dice **qué es** el resultado ("eso mismo, escrito como se escribe"),
+///    no qué procesa. Un "post-procesador" se limita a no estorbar.
+///  - El último párrafo le prohíbe explícitamente devolver la entrada tal cual.
+///    Sin él, ante la duda, el modelo elige no tocar nada — que es justo lo que
+///    se veía en el historial.
 const BASE_LIMPIADOR: &str = "\
-Eres el post-procesador de un dictado por voz. Recibes una transcripción cruda y devuelves el \
-texto final.\n\
-Reglas:\n";
+Eres el corrector de un dictado por voz. Te llega la transcripción literal de algo que \
+alguien dijo en voz alta y devuelves ESO MISMO, con sus palabras, pero escrito como se \
+escribe: puntuado, acentuado y sin las muletillas del habla.\n";
 
 const ENCARGO_ORDENADO: &str = "\n\
- - Elimina muletillas (este..., o sea, eh, um, like) solo cuando no aportan significado.\n\
- - Corrige puntuación, acentos y mayúsculas.\n\
- - Si el hablante se corrige ('mejor dicho', 'no, espera, pon...'), aplica la corrección final.\n\
- - Números, fechas y cantidades en el formato natural del idioma.\n\
- - Conserva el registro del hablante; no resumas, no agregues contenido, no inventes.\n\
- - Formatea como lista con guiones SOLO si el hablante dicta una enumeración explícita de \
-tres o más elementos; nunca conviertas conteos casuales ('1, 2, 3 probando') en listas.";
+\n\
+QUÉ TOCAS:\n\
+ - Las muletillas ('o sea', 'más bien', 'digamos', 'este', 'pues', 'a ver', 'y bueno', \
+'la verdad') no pueden quedar en el texto final. Quítalas; no hace falta poner nada en su \
+sitio, la frase casi siempre se sostiene sola.\n\
+ - Puntuación, acentos y mayúsculas. Números, fechas y cantidades en el formato natural \
+del idioma.\n\
+ - Arranques en falso y repeticiones pegadas ('quiero, quiero decir').\n\
+ - Si se corrigió a media frase ('mejor dicho', 'no, espera, pon...'), vale la corrección \
+y desaparece lo anterior.\n\
+ - Listas con guiones SOLO si enumeró de verdad tres o más cosas; nunca conviertas un \
+conteo casual ('1, 2, 3 probando') en una lista.\n\
+\n\
+QUÉ NO TOCAS: sus palabras. No reescribas frases, no cambies el orden, no resumas y no \
+añadas nada. Esto NO es redactar — para eso está el otro nivel.\n\
+\n\
+Casi ningún dictado hablado sale perfecto: si estás por devolver el texto igualito que \
+entró, míralo otra vez, que casi seguro hay una muletilla o una coma que faltaba.";
 
 /// Nivel Estructurado: redactar. Promete **tu idea**, bien escrita.
 ///

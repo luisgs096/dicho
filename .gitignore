@@ -29,3 +29,4 @@ dist-ssr
 
 # Bundle que se genera para pintar las imágenes del README (ver docs/generar-imagenes.md)
 docs/imagenes/faces.js
+__pycache__/

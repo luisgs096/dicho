@@ -33,6 +33,9 @@ pub enum Cmd {
     Cancel,
     /// El modelo terminó de descargarse; se cargará al dictar.
     ModelReady,
+    /// Corregir lo que el usuario tenga seleccionado, sin dictar nada. Es el
+    /// mismo motor de redacción del dictado aplicado a texto que ya existía.
+    Corregir,
 }
 
 /// Frases que los modelos STT "alucinan" sobre audio casi mudo: vienen de
@@ -130,9 +133,6 @@ const HUD_H: f64 = 104.0;
 /// Mientras arrastras el HUD nadie más lo mueve: el vigilante lo devolvería a
 /// su sitio a media maniobra.
 pub(crate) static ARRASTRANDO: AtomicBool = AtomicBool::new(false);
-/// Modo "colócalo donde quieras" desde Ajustes: el HUD se queda a la vista
-/// hasta que el usuario diga que ya, así que nadie puede ocultarlo.
-pub(crate) static COLOCANDO: AtomicBool = AtomicBool::new(false);
 /// Hay un dictado en curso. La consulta el menú de la onda: desclavarla a media
 /// frase no puede esconderla y dejarte dictando a ciegas.
 pub(crate) static GRABANDO: AtomicBool = AtomicBool::new(false);
@@ -285,7 +285,8 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
     let gen = gen.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(delay_ms));
-        if gen.load(Ordering::SeqCst) == expected && !COLOCANDO.load(Ordering::SeqCst) {
+        // Ni a media colocación: mientras la tengas agarrada no se va.
+        if gen.load(Ordering::SeqCst) == expected && !ARRASTRANDO.load(Ordering::SeqCst) {
             if let Some(hud) = app.get_webview_window("hud") {
                 // Clavada se queda: sólo vuelve a reposo, que es su cara de
                 // "aquí estoy, sin molestar". Y con el ratón encima tampoco se
@@ -298,6 +299,90 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
             }
         }
     });
+}
+
+/// Corrige el texto que el usuario tenga seleccionado, con el mismo motor que
+/// redacta los dictados.
+///
+/// Es LABS y se nota en una cosa: aquí el texto de partida **ya existe**, así
+/// que equivocarse cuesta más que en un dictado. Por eso, si el pulido falla o
+/// lo descarta una guarda, **no se pega nada**: se deja lo que el usuario
+/// escribió y se le dice. Sustituir su texto por una versión peor sería el peor
+/// resultado posible.
+fn corregir_seleccion(
+    app: &AppHandle,
+    settings: &SettingsState,
+    store: &std::sync::Arc<crate::store::Store>,
+    hud_gen: &Arc<AtomicU64>,
+) {
+    let (modo, language) = {
+        let s = settings.read().unwrap();
+        (s.polish, s.language.clone())
+    };
+    // Sin IA no hay nada que ofrecer: el pulido por reglas apenas cambia texto
+    // ya escrito, y hacer el numerito de copiar y pegar para nada confunde.
+    if modo == PolishKind::Rules {
+        emit_state(app, "error", Some(serde_json::json!({
+            "message": "Enciende el modo Editor en LABS para corregir texto escrito"
+        })));
+        hide_hud_later(app, hud_gen, 3200);
+        return;
+    }
+
+    let original = match crate::inject::leer_seleccion() {
+        Ok(Some(t)) => t,
+        Ok(None) => {
+            diag(app, "Corregir: no había nada seleccionado");
+            return;
+        }
+        Err(e) => {
+            diag(app, &format!("Corregir: no se pudo leer la selección ({e})"));
+            return;
+        }
+    };
+
+    show_hud(app, hud_gen);
+    emit_state(app, "corrigiendo", None);
+    let t0 = Instant::now();
+    let ctx = PolishCtx {
+        language,
+        dictionary: store.dict_pairs(),
+    };
+    let nivel = match modo {
+        PolishKind::GroqEstructurado => polish::groq::Nivel::Estructurado,
+        _ => polish::groq::Nivel::Ordenado,
+    };
+    match polish::groq::polish(&original, &ctx, nivel) {
+        Ok(corregido) => {
+            let conservar = settings
+                .read()
+                .map(|s| s.copiar_al_portapapeles)
+                .unwrap_or(false);
+            if let Err(e) = crate::inject::inject_text(&corregido, conservar) {
+                diag(app, &format!("Corregir: no se pudo pegar ({e})"));
+                emit_state(app, "error", Some(serde_json::json!({ "message": e.to_string() })));
+                hide_hud_later(app, hud_gen, 3200);
+                return;
+            }
+            diag(app, &format!(
+                "Corregido: {}→{} palabras en {} ms",
+                original.split_whitespace().count(),
+                corregido.split_whitespace().count(),
+                t0.elapsed().as_millis()
+            ));
+            emit_state(app, "done", Some(serde_json::json!({ "text": corregido })));
+            hide_hud_later(app, hud_gen, 2400);
+        }
+        Err(e) => {
+            // Lo importante: NO se pega nada. El texto del usuario se queda como
+            // estaba, que es mejor que reemplazarlo por algo peor.
+            diag(app, &format!("Corregir: descartado ({e}), no se toca el texto"));
+            emit_state(app, "error", Some(serde_json::json!({
+                "message": "No pude mejorarlo; te dejé tu texto como estaba"
+            })));
+            hide_hud_later(app, hud_gen, 3200);
+        }
+    }
 }
 
 /// Saca la onda a celebrar que acabas de actualizar. Una sola vez, al primer
@@ -334,7 +419,7 @@ pub(crate) fn celebrar_actualizacion(app: &AppHandle, version: &str) {
     let app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(2300));
-        if GRABANDO.load(Ordering::SeqCst) || COLOCANDO.load(Ordering::SeqCst) {
+        if GRABANDO.load(Ordering::SeqCst) || ARRASTRANDO.load(Ordering::SeqCst) {
             return;
         }
         if hud_clavado(&app) {
@@ -357,50 +442,6 @@ pub(crate) fn recolocar_hud(app: &AppHandle) {
 /// agarrable hasta que el usuario diga que ya.
 ///
 /// Sin esto sólo se podría mover durante los pocos segundos que dura un
-/// dictado, que es justo cuando el usuario está ocupado hablando.
-pub(crate) fn modo_colocar(app: &AppHandle, on: bool) {
-    // Apagar lo que ya estaba apagado no puede esconder un HUD que esté en
-    // mitad de un dictado; encender dos veces no puede dejar dos vigilantes.
-    if COLOCANDO.swap(on, Ordering::SeqCst) == on {
-        return;
-    }
-    let Some(hud) = app.get_webview_window("hud") else {
-        return;
-    };
-    let _ = app.emit("hud-colocar", on);
-    if !on {
-        // Al salir, el ratón vuelve a lo que diga Ajustes: durante la
-        // colocación el HUD atrapa clics aunque el usuario lo quiera cristal.
-        let arrastrable = app
-            .try_state::<SettingsState>()
-            .and_then(|s| s.read().ok().map(|s| s.hud_arrastrable))
-            .unwrap_or(true);
-        crate::commands::aplicar_raton_hud(app, arrastrable);
-        if hud_clavado(app) {
-            emit_state(app, "idle", None);
-        } else {
-            let _ = hud.hide();
-        }
-        return;
-    }
-    place_hud(app, &hud, area_hud(app));
-    emit_state(app, "idle", None);
-    let _ = hud.show();
-    let _ = hud.set_always_on_top(true);
-    let hwnd = overlay::hwnd_of(&hud).unwrap_or(0);
-    overlay::assert_topmost(hwnd);
-    // Vigilante propio mientras dure la colocación: el de show_hud se apaga a
-    // los 20 s, y aquí el usuario puede tardar lo que quiera en decidir.
-    std::thread::spawn(move || {
-        while COLOCANDO.load(Ordering::SeqCst) {
-            std::thread::sleep(Duration::from_millis(400));
-            if !ARRASTRANDO.load(Ordering::SeqCst) {
-                overlay::assert_topmost(hwnd);
-            }
-        }
-    });
-}
-
 // ─── dictado en curso ───────────────────────────────────────────────────────
 
 /// Un trozo de audio mandado a transcribir mientras el usuario sigue hablando.
@@ -1032,6 +1073,15 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                 }
                 Some(Cmd::ModelReady) => {
                     log::info!("Modelo local disponible; se cargará al dictar");
+                }
+                Some(Cmd::Corregir) => {
+                    // No se puede corregir en mitad de un dictado: el atajo de
+                    // corregir y el de dictar podrían solaparse, y pegar dos
+                    // textos a la vez es peor que no hacer nada.
+                    if recorder.is_some() {
+                        continue;
+                    }
+                    corregir_seleccion(&app, &settings, &store, &hud_gen);
                 }
                 Some(Cmd::Stop) | Some(Cmd::Cancel) => {}
                 Some(Cmd::Start) => {

@@ -95,6 +95,11 @@ pub struct AppSettings {
     /// se queda para abrir el menú Inicio. Por eso es configurable y no fija.
     /// `None` la desactiva.
     pub cancelar: Option<Key>,
+    /// Atajo para corregir el texto que tengas **seleccionado**, sin dictar.
+    /// Vacío = apagado. Por defecto `Win + Mayús + C`: Windows no se queda esa
+    /// combinación y casi ninguna app la usa, pero es configurable por lo de
+    /// siempre — cualquier atajo choca con algo en algún sitio.
+    pub corregir_atajo: Vec<Key>,
     pub engine: EngineKind,
     pub polish: PolishKind,
     /// "auto" o código ISO-639-1 ("es", "en", ...). Se ignora si `no_traducir`.
@@ -165,6 +170,7 @@ impl Default for AppSettings {
         Self {
             hotkey: vec![Key::ControlLeft, Key::MetaLeft],
             cancelar: Some(Key::Escape),
+            corregir_atajo: vec![Key::MetaLeft, Key::ShiftLeft, Key::KeyC],
             engine: EngineKind::Parakeet,
             polish: PolishKind::Rules,
             language: "auto".into(),
@@ -201,10 +207,6 @@ pub fn cargar_de(path: &std::path::Path) -> AppSettings {
     leer(path)
 }
 
-pub fn load(app: &AppHandle) -> AppSettings {
-    let path = settings_path(app);
-    leer(&path)
-}
 
 fn leer(path: &std::path::Path) -> AppSettings {
     match fs::read_to_string(&path) {

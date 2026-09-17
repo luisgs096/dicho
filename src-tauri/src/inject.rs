@@ -3,6 +3,44 @@ use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 use std::thread;
 use std::time::Duration;
 
+/// Lee lo que el usuario tenga **seleccionado** en la app que esté usando.
+///
+/// No hay forma de preguntarle a Windows "qué hay seleccionado": hay que pedir
+/// una copia y mirar el portapapeles, que es lo que hace cualquier herramienta
+/// de este tipo. Por eso se respalda antes y se devuelve después — si no, usar
+/// la corrección te borraría lo que tuvieras copiado.
+///
+/// Devuelve `None` si no había nada seleccionado. Se distingue comparando con
+/// lo que ya había: si tras el Ctrl+C el portapapeles no cambió, es que no se
+/// copió nada. No es infalible —seleccionar exactamente lo mismo que ya tenías
+/// copiado daría un falso negativo— pero el precio de equivocarse es no hacer
+/// nada, que es el lado seguro.
+pub fn leer_seleccion() -> anyhow::Result<Option<String>> {
+    let mut clipboard =
+        arboard::Clipboard::new().context("No se pudo acceder al portapapeles")?;
+    let previo = clipboard.get_text().ok();
+
+    let mut enigo =
+        Enigo::new(&Settings::default()).context("No se pudo inicializar el inyector")?;
+    enigo.key(Key::Control, Direction::Press)?;
+    enigo.key(Key::Unicode('c'), Direction::Click)?;
+    enigo.key(Key::Control, Direction::Release)?;
+    // La app de destino copia de forma asíncrona; leer antes devuelve lo viejo.
+    thread::sleep(Duration::from_millis(160));
+
+    let ahora = clipboard.get_text().ok();
+    let seleccion = match (&previo, &ahora) {
+        (_, None) => None,
+        (Some(a), Some(b)) if a == b => None,
+        (_, Some(b)) if b.trim().is_empty() => None,
+        (_, Some(b)) => Some(b.clone()),
+    };
+    if let Some(viejo) = previo {
+        let _ = clipboard.set_text(viejo);
+    }
+    Ok(seleccion)
+}
+
 /// Inserta texto en la app activa: respalda el portapapeles, coloca el texto,
 /// simula Ctrl+V y restaura el contenido original. Maneja Unicode completo
 /// (acentos, ñ, emoji) sin depender del layout de teclado.

@@ -1,9 +1,6 @@
-use anyhow::Context;
 use rusqlite::Connection;
 use serde::Serialize;
-use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager};
 
 pub struct Store {
     conn: Mutex<Connection>,
@@ -54,14 +51,6 @@ pub struct DictItem {
     pub replacement: Option<String>,
 }
 
-fn db_path(app: &AppHandle) -> anyhow::Result<PathBuf> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .context("app_data_dir no disponible")?;
-    std::fs::create_dir_all(&dir)?;
-    Ok(dir.join("mike.db"))
-}
 
 impl Store {
     /// Abre (o crea) la base en una ruta concreta.

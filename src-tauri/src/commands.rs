@@ -211,9 +211,19 @@ pub fn hud_arrastrar(app: AppHandle, state: State<'_, SettingsState>) {
         // las tres caritas del mareo va. La escalada vive en el webview porque
         // es presentación pura, y así aquí no hay estado que reiniciar.
         let app_meneo = app.clone();
-        let fin = crate::overlay::arrastrar_con_cursor(hwnd, move || {
-            let _ = app_meneo.emit("hud-meneo", ());
-        });
+        let app_arranque = app.clone();
+        let fin = crate::overlay::arrastrar_con_cursor(
+            hwnd,
+            // Sólo al cruzar el umbral: un clic en el menú no es un arrastre y
+            // no tiene que sacar ni el aro punteado ni la montaña rusa.
+            move || {
+                let _ = app_arranque.emit("hud-arrastre", true);
+            },
+            move || {
+                let _ = app_meneo.emit("hud-meneo", ());
+            },
+        );
+        let _ = app.emit("hud-arrastre", false);
         pipeline::ARRASTRANDO.store(false, Ordering::SeqCst);
 
         // Dónde quedó, medido contra la pantalla en la que quedó: se puede
@@ -245,18 +255,6 @@ pub fn hud_arrastrar(app: AppHandle, state: State<'_, SettingsState>) {
             ),
         );
     });
-}
-
-/// Enciende o apaga el modo "colócalo donde quieras" desde Ajustes.
-#[tauri::command]
-pub fn hud_colocar(app: AppHandle, on: bool) {
-    // Mientras se coloca, el HUD atrapa el ratón aunque el usuario lo tenga
-    // configurado como cristal: si no, no habría forma de agarrarlo. Al
-    // apagarlo, `modo_colocar` lo devuelve a como esté en Ajustes.
-    if on {
-        aplicar_raton_hud(&app, true);
-    }
-    pipeline::modo_colocar(&app, on);
 }
 
 /// Cambia el nivel de redacción desde la cinta de la onda.
@@ -303,7 +301,6 @@ pub fn hud_encima(app: AppHandle, on: bool) {
         if pipeline::RATON_ENCIMA.load(Ordering::SeqCst)
             || pipeline::grabando()
             || pipeline::hud_clavado(&app)
-            || pipeline::COLOCANDO.load(Ordering::SeqCst)
         {
             return;
         }

@@ -32,6 +32,7 @@ export const PALETA_CLARA = {
   lcd: "#d7e1f0", lcdBorder: "#bfcde2", grid: "rgba(51,65,92,.07)",
   shellA: "#cdd7e6", shellB: "#aab9d0",
   warnLcd: "#f7e3cd", warnBorder: "#ecc9a0",
+  pergamino: "#efe4c8", pergaminoBorde: "#d8c49a", tinta: "#4a3a22",
 };
 export const PALETA_OSCURA = {
   a: "#38bdf8", m: "#2dd4b4", p: "#f472b6", w: "#fb923c", s: "#7dd3fc",
@@ -39,6 +40,9 @@ export const PALETA_OSCURA = {
   lcd: "#0a1322", lcdBorder: "#223052", grid: "rgba(219,230,246,.05)",
   shellA: "#263450", shellB: "#16223a",
   warnLcd: "#2b1d0e", warnBorder: "#4a3520",
+  // En oscuro el pergamino no puede ser papel blanco: cegaría al lado del resto
+  // de la onda. Es cuero viejo con la tinta clara, al revés que en claro.
+  pergamino: "#2a2114", pergaminoBorde: "#4c3d24", tinta: "#e8d9b5",
 };
 
 /** Paleta como variables CSS, lista para el `style` de un contenedor. */
@@ -588,6 +592,80 @@ export const CARITA_CANCELADO: Variant = {
     <g class="a-aspa">${spr(tint(ASPA, "w"), 35, 5)}</g>`,
 };
 
+// ─── modo lectura: corregir lo que escribiste ───────────────────────────────
+//
+// No es un dictado, así que no puede parecerlo. Cuando Dicho corrige un texto
+// que ya estaba escrito cambia de oficio y se le nota: se va el micrófono, el
+// LCD se tiñe de pergamino y saca una pluma de ave.
+//
+// La pluma va en tres cuadros y no en dos. Con dos parecía un limpiaparabrisas;
+// con tres —baja, escribe, sube— se lee que está trazando. La misma lección del
+// aro de los ojos: a este tamaño lo que cuenta la historia es el movimiento, no
+// el detalle del dibujo.
+
+/** Pluma de ave: barbas anchas arriba, cañón en diagonal y punta abajo a la
+ *  izquierda, que es donde toca el papel. Nueve de alto para que la silueta se
+ *  lea como pluma y no como palo. */
+const PLUMA = [
+  "....X....",
+  "...XXX...",
+  "..XXXXX..",
+  "..XX.XX..",
+  ".XX.X.XX.",
+  ".X..X..X.",
+  ".XX.X.XX.",
+  ".X..X..X.",
+  "..X.X.X..",
+  "....X....",
+  "....X....",
+  "...X.....",
+];
+
+/** Lentes de media luna, de bibliotecario: sólo la montura —transparentes— y
+ *  puestas bajas, cortando el ojo por la mitad. Nada que ver con los LENTES
+ *  oscuros de la carita del DJ, que son cristales macizos y tapan el ojo
+ *  entero: aquí el ojo tiene que verse por encima, que es lo que hace que se
+ *  lea "está leyendo" y no "se los puso para la foto".
+ *
+ *  El borde de arriba lleva `o` —color del fondo— justo donde cruza cada ojo.
+ *  Sin eso, montura y ojo son del mismo color y están pegados: se funden en un
+ *  borrón que parece un cubo con tapa. El hueco es lo que hace que la montura
+ *  se lea POR DELANTE del ojo. Es el mismo truco del destello de OJO_BRILLO. */
+const LENTES_LECTURA = [
+  "XXoooXXXXXXXXXoooXX",
+  "X.....X.....X.....X",
+  "X.....X.....X.....X",
+  ".XXXXX.......XXXXX.",
+];
+
+/** El renglón que va dejando la pluma. Crece en los tres cuadros. */
+const RENGLON = ["XXXXXXXXXXX"];
+
+
+
+/**
+ * La carita mientras corrige un texto que ya estaba escrito.
+ *
+ * Un solo `Variant`, como `CARITA_CANCELADO`: no entra en el sorteo de las 26
+ * porque no es un estado del dictado — es otro oficio.
+ */
+export const LEYENDO: Variant = {
+  status: "Corrigiendo…",
+  // Los ojos van a media asta y parpadean: leyendo, no escuchando. Ninguna
+  // carita de la casa tiene los ojos quietos, y ésta tampoco.
+  // El ojo va entero y parpadea —ninguna carita de la casa los tiene quietos— y
+  // los lentes le cruzan por la mitad: media luna, como se leen de cerca.
+  scene: `${blink(eyes(OJO, 5), eyes(OJO_LINEA, 7), "4s")}${spr(LENTES_LECTURA, 13, 6)}${spr(RAYA, 20, 13)}
+    ${flip(
+      [
+        spr(PLUMA, 30, 2) + spr(["XXX"], 31, 15),
+        spr(PLUMA, 33, 3) + spr(["XXXXXX"], 31, 15),
+        spr(PLUMA, 36, 2) + spr(RENGLON, 31, 15),
+      ],
+      ".54s",
+    )}`,
+};
+
 // ─── el estreno de versión ──────────────────────────────────────────────────
 //
 // Guion de Luis, en cinco tiempos y 1,8 s, todo DENTRO de la cápsula de
@@ -649,6 +727,104 @@ export const ACTUALIZADO: Variant = {
       ${flip([spr(ZIGZAG, 18, 12), spr(BOCA_O, 20, 11), spr(SONRISA_LADO, 18, 12)], ".72s")}
     </g>
     <g class="u-fin">${CARA_REPOSO((m, ox, oy) => spr(m, ox, oy, revelado))}</g>`,
+};
+
+/**
+ * Boca abierta de risa, con los dientes en **una sola banda corrida**.
+ *
+ * Los dientes picados uno a uno (XoXoXoXoX) fue el primer intento y hubo que
+ * tirarlo: a 11 px de ancho no se leen como dentadura, se leen como una boca
+ * de terror. Una banda entera de fondo bajo el labio de arriba es como lo
+ * resuelven los sprites de 8 bits de toda la vida, y además cuesta menos.
+ *
+ * La silueta tampoco puede ir en pico. Probada con la forma de SONRISOTA
+ * —ancha arriba y estrechando hacia abajo— salía un cuenco: en una boca
+ * cerrada ese pico **es** la sonrisa, pero en una abierta el pico pasa a ser el
+ * hueco de dentro, y un hueco triangular no se lee como boca. Rectángulo con
+ * las cuatro esquinas comidas.
+ */
+const BOCAZA_DIENTES = [
+  "XXXXXXXXXXX",
+  "XoooooooooX",
+  "XXXXXXXXXXX",
+  "XXXXXXXXXXX",
+  ".XXXXXXXXX.",
+];
+
+/**
+ * Brazo en alto: la manita arriba y el antebrazo bajando **recto**, pegado a
+ * la cara.
+ *
+ * Es el cuarto intento y el banco descartó los otros tres, que es justo lo que
+ * no se ve en el resultado: en diagonal larga salían dos corchetes, corto
+ * salían dos piedrecitas, y la mano suelta sin brazo salían dos orejas. A esta
+ * escala una vertical gruesa al lado de la cabeza es lo único que se lee como
+ * brazo levantado — la diagonal se convierte en escalera y la escalera no es
+ * una forma, es ruido.
+ */
+const BRAZO = ["XXX", "XXX", ".XX", ".XX", ".XX"];
+
+/** El mismo sprite del revés, para el otro brazo. */
+const espejo = (m: string[]) => m.map((r) => [...r].reverse().join(""));
+
+/**
+ * La vagoneta, a ras de suelo: los costados asomando, el borde y las ruedas.
+ *
+ * Empezó siendo una caja de cinco filas y había que elegir entre el carrito y
+ * la cara: con la caja puesta, la cara quedaba aplastada contra ella y el
+ * conjunto se leía como una carita encima de una mesa. Tres filas bastan para
+ * decir "va montada en algo" y dejan el lienzo para el bicho, que es lo que
+ * hay que mirar.
+ */
+const VAGONETA = [
+  "X.........................X",
+  "XXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  "...XXX...............XXX...",
+];
+
+/**
+ * El brazo con el que se limpia la boca, entrando desde el borde derecho: la
+ * mano por delante, más gorda, y el antebrazo detrás **hasta salirse del
+ * lienzo**.
+ *
+ * Que llegue al borde es lo que lo salva, y costó dos intentos descubrirlo. Un
+ * sprite de brazo suelto a la altura de la boca no se lee como brazo: la
+ * primera versión (barra con escalón) parecía una linterna y la segunda (barra
+ * redondeada) parecía una segunda boca. Anclado al borde ya no hay ambigüedad —
+ * es algo que **entra**, y entonces la mano de delante dice en qué dirección.
+ *
+ * @param x dónde queda la mano; el antebrazo rellena solo hasta el borde.
+ */
+const brazoLimpia = (x: number) =>
+  // El puño sobresale **dos filas** por arriba y por abajo del antebrazo. Con
+  // una sola no se distinguía del brazo y el conjunto se leía como un estante.
+  spr([".XXX.", "XXXXX", "XXXXX", ".XXX."], x, 10) +
+  spr(Array(2).fill("X".repeat(48 - x - 5)), x + 5, 11);
+
+/**
+ * Arrastrando la onda: va montada en la vagoneta y lo está pasando bien.
+ *
+ * Es el **escalón cero** de la escalada del zarandeo. Arrastrándola con
+ * suavidad se queda aquí; moviéndola mucho entra el mareo, que cuenta el resto
+ * de la historia sin cambiar de escenario — sigue en el mismo carrito.
+ *
+ * Fuera de `V` como el mareo: no es un estado del dictado y no puede salir en
+ * el sorteo de las 26.
+ */
+export const RODANDO: Variant = {
+  status: "¡Yujuuu!",
+  // Los brazos van a x=10 y x=32: espejo exacto sobre el centro de la cara
+  // (x=22), que si no uno queda más fuera que el otro y se nota.
+  scene: `<g class="a-vagon">${spr(VAGONETA, 9, 15)}
+    ${flip([eyes(OJO_ANCHO, 4), eyes(OJO_ANCHO, 5)], ".48s")}
+    ${spr(BOCAZA_DIENTES, 17, 9)}
+    ${flip(
+      [
+        spr(BRAZO, 10, 3) + spr(espejo(BRAZO), 32, 4),
+        spr(BRAZO, 10, 4) + spr(espejo(BRAZO), 32, 3),
+      ],
+      ".3s",
+    )}</g>`,
 };
 
 export const MAREO: Variant[] = [
@@ -726,6 +902,33 @@ export const MAREO: Variant[] = [
       <g class="a-escurre">${spr(tint(ESCURRE, "m"), 25, 14)}</g>
       <g class="a-charco1">${spr(tint(CHARCO_CHICO, "m"), 31, 15)}</g>
       <g class="a-charco2">${spr(tint(CHARCO, "m"), 30, 15)}</g>`,
+  },
+  {
+    // 4 · Se limpia y se le pasa. No es un escalón más del zarandeo —a éste no
+    // se llega meneando, se llega **después** del vómito— pero vive en la misma
+    // lista porque es el final de la misma historia, y así el HUD sigue
+    // teniendo un solo índice que mover.
+    //
+    // El antebrazo cruza la boca entero en tres tiempos: llega por la
+    // izquierda con la boca aún sucia, la tapa, y sale por la derecha dejándola
+    // limpia. Los ojos van apretados durante la pasada y se abren al final: es
+    // lo que convierte el gesto en "ya está" en vez de en un brazo que pasa.
+    //
+    // De aquí **no se corta a la carita de siempre**: el HUD funde la pantalla
+    // (`.fundido`) y cambia por debajo. Un corte seco después de vomitar se
+    // veía como un fallo de dibujo, no como que se le pasó.
+    status: "Ya, ya…",
+    scene: `${flip(
+      [
+        eyes(OJO_LINEA, 7) +
+          spr(BOCA_CHICA, 21, 12) +
+          spr(tint(["XXX"], "m"), 24, 14) +
+          brazoLimpia(31),
+        eyes(OJO_LINEA, 7) + spr(BOCA_CHICA, 21, 12) + brazoLimpia(15),
+        eyes(OJO_ARCO, 6) + spr(RAYA, 20, 12) + brazoLimpia(31),
+      ],
+      ".9s",
+    )}`,
   },
 ];
 
@@ -848,7 +1051,12 @@ export const FACE_CSS = `
 
   .mic-px { flex-shrink: 0; height: 30px; }
   .mic-px svg { height: 100%; width: auto; shape-rendering: crispEdges; display: block; }
-  .scene { flex: 1; height: 50px; min-width: 0; }
+  .scene { flex: 1; height: 50px; min-width: 0; transition: opacity .2s ease-in-out; }
+  /* Salir del mareo no es cambiar de carita: es fundir y volver. El HUD pone
+     la clase fundido, espera a que la pantalla llegue a cero, cambia la escena por
+     debajo y lo quita. Sin esto el bicho pasaba de vomitar a sonreír en un
+     fotograma y se leía como un fallo de dibujo. */
+  .tama.fundido .scene { opacity: 0; }
   .scene svg { width: 100%; height: 100%; shape-rendering: crispEdges; overflow: visible; display: block; }
   .status { flex-shrink: 0; max-width: 88px; text-align: right;
             font: 700 8.5px/1.3 Consolas, "Cascadia Mono", monospace;
@@ -862,6 +1070,16 @@ export const FACE_CSS = `
            background: var(--a); opacity: .75; }
   .cinta.alto { background: var(--w); opacity: 1; }
   .tama.sad .screen { background: var(--warnLcd); border-color: var(--warnBorder); color: var(--w); }
+  /* Pergamino: el mismo truco que la carita triste, pero para el modo lectura. El LCD se
+     tiñe de papel viejo y la carita se dibuja en tinta. Que el fondo cambie es
+     medio efecto — el otro medio es que desaparezca el micrófono. */
+  .tama.leyendo .screen { background: var(--pergamino); border-color: var(--pergaminoBorde); color: var(--tinta);
+                          /* El hueco de los sprites se pinta con --lcd. En modo
+                             lectura el fondo es papel, así que --lcd tiene que
+                             serlo también o los huecos saldrían azules encima
+                             del pergamino. */
+                          --lcd: var(--pergamino); }
+  .tama.leyendo .status { color: var(--tinta); opacity: .75; }
   .tama.sad .status { color: var(--w); }
   .tama.shake { animation: shake .5s steps(1, end); }
   @keyframes shake { 0% { transform: translateX(0); } 12% { transform: translateX(-4px); }
@@ -1049,6 +1267,10 @@ ${FLIP_CSS}
 
   /* ── el mareo, sólo al zarandear la onda mientras la colocas ───────────── */
   /* Bamboleo: un píxel a cada lado. Con dos ya no parecía mareo sino temblor. */
+  @keyframes vagoneta { 0% { transform: translateY(0); }
+                        25% { transform: translate(1px, -1px); }
+                        50% { transform: translateY(0); }
+                        75% { transform: translate(-1px, 1px); } }
   @keyframes mareo { 0% { transform: translateX(-1px); } 25% { transform: translateX(0); }
                      50% { transform: translateX(1px); } 75% { transform: translateX(0); } }
   /* Las chispas dan la vuelta por las cuatro esquinas de un cuadrado de 4 px:
@@ -1132,6 +1354,9 @@ ${FLIP_CSS}
   .a-dj { animation: dj .8s steps(1, end) infinite; }
   .a-niega { animation: niega .36s steps(1, end) infinite; }
   .a-aspa { opacity: 0; animation: aspa 1.44s steps(1, end) infinite; }
+  /* El carrito sobre el riel: sube y baja un píxel en diagonal, que es lo que
+     lee como "va rodando" sin mover la cara de sitio. */
+  .a-vagon { animation: vagoneta .48s steps(1, end) infinite; }
   .a-mareo { animation: mareo .32s steps(1, end) infinite; }
   .a-orb1 { animation: orbita 1.28s steps(1, end) infinite; }
   /* Media vuelta por detrás: se leen como una sola chispa dando vueltas. */

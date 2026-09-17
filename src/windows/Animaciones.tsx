@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { ESTADOS, FACE_CSS, MAREO, MIC_SVG, V, cssVars, type Variant } from "./faces";
+import {
+  ESTADOS,
+  FACE_CSS,
+  MAREO,
+  MIC_SVG,
+  RODANDO,
+  V,
+  cssVars,
+  type Variant,
+} from "./faces";
 
 /** Se cuenta sola: añadir una carita a faces.ts actualiza este número. */
 const TOTAL = Object.values(V).reduce((n, l) => n + l.length, 0);
@@ -137,15 +146,16 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
 
           <section className="mb-1 border-t border-dashed border-slate-300 pt-6 dark:border-slate-700">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-              El mareo
+              La montaña rusa
             </h3>
             <p className="mb-3 max-w-xl text-xs text-slate-500 dark:text-slate-400">
-              No salen dictando. Ve a Inicio, pulsa «Seleccionar posición en
-              pantalla» y zarandea la onda con el ratón: cada sacudida sube un
-              escalón y se va poniendo peor.
+              No salen dictando: salen al <b>arrastrar la onda</b>. Llevándola
+              con calma se queda en la primera, montada en su carrito. Si la
+              zarandeas, cada sacudida sube un escalón y se va poniendo peor —
+              hasta que vomita, se limpia con el antebrazo y se le pasa.
             </p>
             <div className="flex flex-col gap-2.5">
-              {MAREO.map((v, i) => (
+              {[RODANDO, ...MAREO].map((v, i) => (
                 <div
                   key={i}
                   className="flex items-center gap-3"
