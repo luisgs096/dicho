@@ -131,6 +131,7 @@ export const KEY_LABELS: Record<string, string> = {
   LeftBracket: "[",
   RightBracket: "]",
   BackSlash: "\\",
+  IntlBackslash: "< >",
   SemiColon: ";",
   Quote: "'",
   Comma: ",",

@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { ESTADOS, FACE_CSS, MIC_SVG, V, cssVars, type FaceState } from "./faces";
+import {
+  ESTADOS,
+  FACE_CSS,
+  MIC_SVG,
+  V,
+  cssVars,
+  type FaceState,
+} from "./faces";
+
+/** Cuántas caritas hay de verdad. Estaba escrito a mano en dos sitios, así que
+ *  añadir una dejaba mintiendo a los dos. */
+const CUANTAS_CARITAS = Object.values(V).reduce((n, v) => n + v.length, 0);
 import type { AppSettings } from "../types";
 
 type Estilo = AppSettings["hud_style"];
@@ -106,7 +117,10 @@ export default function VistaPrevia(props: {
       className={`tama ${variante.sad ? "sad" : ""} ${variante.shake ? "shake" : ""}`}
     >
       <div className="screen">
-        <span className="mic-px" dangerouslySetInnerHTML={{ __html: MIC_SVG }} />
+        <span
+          className="mic-px"
+          dangerouslySetInnerHTML={{ __html: MIC_SVG }}
+        />
         <span className="scene">
           <svg
             viewBox="0 2 48 16"
@@ -260,7 +274,7 @@ export default function VistaPrevia(props: {
         {tarjeta(
           "tamagotchi",
           "Caritas tamagotchi",
-          "26 caritas distintas, 5 por estado, elegidas al azar. Dos se mueven con el volumen real de tu voz.",
+          `${CUANTAS_CARITAS} caritas distintas, 5 por estado, elegidas al azar. Dos se mueven con el volumen real de tu voz.`,
           tamagotchi,
           props.onVerCaritas && (
             <button
@@ -271,7 +285,7 @@ export default function VistaPrevia(props: {
               }}
               className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
             >
-              Ver las 26 caritas
+              Ver las {CUANTAS_CARITAS} caritas
             </button>
           ),
         )}

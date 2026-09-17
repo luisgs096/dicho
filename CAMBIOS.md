@@ -10,6 +10,25 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.11.4 — 16 de septiembre de 2026
+
+- **LABS ya no promete de más.** Decía que ninguno de los dos modos añade palabras
+  que no dijiste, y no es cierto: el Editor sí pone las suyas —los conectores, y el
+  remate de una frase que dejaste a medias—, porque sin eso no podría redactar. Lo
+  que no inventa son datos, cifras ni conclusiones, y eso es lo que ahora dice.
+- **El contador de muletillas cuadra con lo que resalta.** Contaba las que se fueron
+  pero encendía todas las que había: ahora dice las dos cifras.
+- **Los anglicismos se marcan también en el texto crudo.** Si estabas viendo el
+  crudo, los que sólo aparecían ahí no se resaltaban.
+- Si te quedas sin key de Groq, el selector de la onda se apaga solo en vez de
+  quedarse puesto y muerto.
+- El teclado ya sabe cómo se llama la tecla `< >` de los teclados españoles.
+- Si Windows no deja cambiar el arranque automático, ahora queda anotado en vez de
+  desaparecer en silencio.
+- Por dentro: la fusión del respaldo de Google va en una sola transacción (antes era
+  una escritura al disco por dictado), y el número de caritas sale del repertorio en
+  vez de estar escrito a mano en dos sitios.
+
 ## 0.11.3 — 16 de septiembre de 2026
 
 - **Arreglado: Dicho se cerraba solo y a veces no volvía a abrir.** Era un fallo de

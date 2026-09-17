@@ -118,8 +118,9 @@ const HUD_W: f64 = 360.0;
 /// Fue 96, luego 112 —cuando la cinta de niveles colgaba por debajo— y ahora
 /// 104: desde `befdf50` la cinta vive **dentro** del LCD, así que los 19 px de
 /// abajo se quedaron vacíos y sólo servían para atrapar clics donde no hay nada
-/// dibujado. Con 104 quedan 15 arriba y 15 abajo: de sobra para el halo, que
-/// medido necesita unos 8,7.
+/// dibujado. El aire **no se reparte a medias**: la cápsula va pegada abajo
+/// (`items-end` + `pb-2` en Hud.tsx), así que quedan 22 px arriba —donde vive el
+/// menú— y 8 abajo. Medido: el halo del botón se queda a 8,7 px del techo.
 ///
 /// **Si cambia este número hay que cambiar el divisor de `--k` en Hud.tsx**, que
 /// es quien traduce el lienzo a escala: si no, todo el contenido crece o encoge

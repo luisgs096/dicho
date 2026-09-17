@@ -34,10 +34,17 @@ pub fn save_settings(
         log::info!("autostart: ignorado en build debug (no se toca el registro)");
     } else {
         let autolaunch = app.autolaunch();
-        if new_settings.autostart {
-            let _ = autolaunch.enable();
+        // Si el registro de Windows no deja tocarlo, la casilla se guardaría
+        // marcada y Dicho no arrancaría solo: el usuario creería que sí. No hay
+        // dónde enseñarlo desde aquí, pero al menos queda en el log en vez de
+        // desaparecer.
+        let r = if new_settings.autostart {
+            autolaunch.enable()
         } else {
-            let _ = autolaunch.disable();
+            autolaunch.disable()
+        };
+        if let Err(e) = r {
+            log::warn!("No se pudo cambiar el arranque automático: {e}");
         }
     }
     *state.write().unwrap() = new_settings;
@@ -286,6 +293,11 @@ pub fn hud_encima(app: AppHandle, on: bool) {
     }
     // Un respiro antes de irse: rozarla de pasada no debe hacerla desaparecer
     // de golpe, y da margen a volver si el cursor se salió sin querer.
+    //
+    // Las cuatro guardas de abajo son las mismas que mira `hide_hud_later`, y
+    // por la misma razón: durante esos 700 ms puede pasar cualquier cosa —que
+    // empieces a dictar, que la claves, que la muevas— y esconderla entonces
+    // sería quitarte de delante algo que sí querías ver.
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(700));
         if pipeline::RATON_ENCIMA.load(Ordering::SeqCst)

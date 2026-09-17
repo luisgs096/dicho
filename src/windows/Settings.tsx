@@ -1056,8 +1056,8 @@ export default function Settings() {
                               Todo lo demás se hace sobre la onda misma
                             </p>
                             <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                              Pásale el ratón por encima y aparece un botón de
-                              lápiz a la derecha. Ahí puedes{" "}
+                              Pásale el ratón por encima y aparece un botón con
+                              un + arriba a la derecha. Ahí puedes{" "}
                               <strong>clavarla</strong> para que se quede
                               siempre a la vista, o{" "}
                               <strong>cambiarla de sitio</strong> —y entonces
@@ -1152,7 +1152,7 @@ export default function Settings() {
                         <input
                           type="checkbox"
                           disabled={!hasKey}
-                          checked={settings.hud_niveles}
+                          checked={settings.hud_niveles && hasKey}
                           onChange={(e) =>
                             update(
                               e.target.checked
@@ -1202,9 +1202,12 @@ export default function Settings() {
                               <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" />
                             </svg>
                             <span>
-                              Ninguno de los dos añade información que no
-                              dijiste: ni datos, ni cifras, ni conclusiones. Si
-                              el modelo se pasa, Dicho lo descarta solo.
+                              Ninguno de los dos inventa información: ni datos,
+                              ni cifras, ni fechas, ni conclusiones que no
+                              dijiste. El Editor sí pone palabras suyas —los
+                              conectores, y el remate de una frase que dejaste a
+                              medias—, porque sin eso no podría redactar. Si se
+                              pasa de ahí, Dicho lo descarta solo.
                             </span>
                           </span>
                           <span className="mt-1.5 block rounded-lg bg-slate-50 px-2 py-1 font-mono text-[10px] leading-relaxed text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">

@@ -118,12 +118,22 @@ export function TarjetaDictado(props: {
     // documento", "pues bien"— no infla el número, porque aparece en los dos.
     const enCrudo = buscar(h.raw, listas.muletillas);
     const enFinal = buscar(h.polished, listas.muletillas);
-    const ang = buscar(h.polished, listas.anglicismos);
+    // Los anglicismos se buscan en los DOS textos: el chip cuenta los del final
+    // —que es el que te llevas— pero al resaltar sobre el crudo hay que conocer
+    // también los que sólo estaban ahí, o no se marcaría ninguno.
+    const angFinal = buscar(h.polished, listas.anglicismos);
+    const angCrudo = buscar(h.raw, listas.anglicismos);
     return {
       muletillas: Math.max(0, enCrudo.total - enFinal.total),
+      // Las que había, para que el número del chip cuadre con lo que se
+      // enciende al pasar el ratón: se resaltan todas las del crudo, no sólo
+      // las que se fueron.
+      muletillasCrudo: enCrudo.total,
       muletillasTerminos: enCrudo.presentes,
-      anglicismos: ang.total,
-      anglicismosTerminos: ang.presentes,
+      anglicismos: angFinal.total,
+      anglicismosTerminos: [
+        ...new Set([...angFinal.presentes, ...angCrudo.presentes]),
+      ],
       palabrasCrudo: h.raw.split(/\s+/).filter(Boolean).length,
       palabrasFinal: h.polished.split(/\s+/).filter(Boolean).length,
     };
@@ -266,8 +276,9 @@ export function TarjetaDictado(props: {
                 activo={resaltado === "muletillas"}
                 onHover={setResaltado}
               >
-                {analisis.muletillas} muletillas fuera ·{" "}
-                {analisis.palabrasCrudo} → {analisis.palabrasFinal} palabras
+                {analisis.muletillas} de {analisis.muletillasCrudo} muletillas
+                fuera · {analisis.palabrasCrudo} → {analisis.palabrasFinal}{" "}
+                palabras
               </Indicativo>
             )}
             {analisis && analisis.anglicismos > 0 && (
