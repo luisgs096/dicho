@@ -768,6 +768,91 @@ Select-String -Path "$env:APPDATA\dev.mike.app\dicho.log" -Pattern "DESBORDE|pan
 interrumpe, y simular el atajo hace que Dicho **pegue texto de verdad** en la ventana
 enfocada. Mirar antes la hora de la última línea de `dicho.log`.
 
+## Relevo en curso — 17 de septiembre de 2026, madrugada
+
+> **Esta sección es temporal.** Existe porque el trabajo quedó a medias y la
+> sesión que lo llevaba podía morirse por límites de uso. **Bórrala en cuanto
+> los dos puntos de abajo estén cerrados**, y lo que haya que conservar se va a
+> su sitio: los gotchas a «Convenciones y gotchas», la arquitectura al «Mapa del
+> código» y el estado al `## Checkpoint`.
+
+Rama: **`luis/corregir-escrito`**, empujada. Seis commits de contenido + los que
+se hayan añadido después. `main` **no se ha tocado** y sigue necesitando la
+autorización explícita de Luis (ver `/rama`).
+
+### 1 · La 0.12.0 se estaba publicando
+
+Se lanzó `.\publicar.ps1 -Version 0.12.0` desprendido (el patrón del `.cmd` por
+`explorer.exe`), con log y centinela en
+`C:\Users\luisg\.claude\jobs\e1e41277\tmp\` (`publicar.log`, `publicar.fin`).
+**Esa carpeta es temporal**: si ya no está, el estado real se consulta así.
+
+```powershell
+gh release view v0.12.0 --repo luisgs096/dicho --json tagName,assets
+```
+
+- **Si la release existe**: hacer las cuatro comprobaciones de «Publicar y
+  actualizar» (que `latest.json` se sirva desde `releases/latest/download/`, que
+  vaya sin BOM, que su `signature` sea idéntica al `.sig` local y que el SHA256
+  del `.exe` publicado coincida con el firmado) y **commitear el cambio de
+  versión**, que `publicar.ps1` deja sin commitear a propósito. El número ya está
+  subido en `package.json`, `tauri.conf.json` y `Cargo.toml`.
+- **Si no existe**: leer el log antes de recompilar. Un build completo son ~40
+  minutos, así que averiguar el motivo sale más barato que repetirlo. Si el fallo
+  fue al crear el Release y el instalador ya estaba firmado, **no hay que
+  recompilar**: se crea a mano con los artefactos de `target/release/bundle/nsis`.
+
+### 2 · La corrección al vuelo, a medio construir
+
+Es la otra mitad de lo que Luis pidió para LABS: que al escribir con el teclado
+se corrija solo. La mitad hecha —corregir un texto **seleccionado** con el atajo—
+ya está publicada; ésta es la de escribir al vuelo.
+
+**Ya escrito y guardado en el repo, todavía sin declarar en `lib.rs`** (cargo
+ignora un `.rs` que no esté en un `mod`, así que no rompen la compilación):
+
+| Archivo | Qué lleva |
+|---|---|
+| `src-tauri/src/ortografia.rs` | La tabla de correcciones y sus tests. **Su invariante es lo importante**: sólo puede poner tildes, nunca cambiar una letra. Hay un test que lo comprueba entrada por entrada, y otro que verifica que los ambiguos —«hacia», «sabia», «seria», «cuando», «titulo», «publico»— se quedan sin tocar, porque en todos ellos la forma sin tilde también es palabra. |
+| `src-tauri/src/autotype.rs` | El seguidor de la palabra en curso y el hilo que teclea. Usa `rdev::Keyboard` + `KeyboardState::add()`, que traduce teclas a texto con el layout real (acentos y ñ incluidos). |
+
+**Lo que falta, por orden:**
+
+1. **Tres helpers Win32 en `overlay.rs`**, que es lo que `autotype.rs` da por
+   hecho y todavía no existe:
+   - `ventana_al_frente() -> isize` (`GetForegroundWindow`)
+   - el nombre del ejecutable en primer plano, en minúsculas
+     (`GetWindowThreadProcessId` → `OpenProcess` → `QueryFullProcessImageNameW`)
+   - la detección de campo de contraseña: `GetGUIThreadInfo` para el control con
+     foco y `EM_GETPASSWORDCHAR` por **`SendMessageTimeout`** con un plazo corto.
+     Nunca `SendMessage` a secas: va a la ventana de otro proceso y puede colgar
+     el hilo si esa app no contesta.
+2. **Engancharlo en `hotkey.rs`**, dentro del `rdev::listen` que ya existe.
+   Ojo: el hook es de baja latencia y lo que corra dentro bloquea el teclado de
+   todo el sistema, así que ahí sólo se decide — teclear lo hace el hilo de
+   `autotype.rs`.
+3. **Dos ajustes**: `corregir_al_escribir: bool` (apagado por defecto) y
+   `apps_sin_correccion: Vec<String>` (con `APPS_VETADAS` de semilla). Los cuatro
+   sitios de siempre: struct y default en `settings.rs`, tipo en `types.ts` y el
+   `update({...})` de la interfaz.
+4. **El interruptor en LABS** más el editor de la lista de apps.
+
+**Lo que hay que decirle a Luis antes de darlo por bueno**, y ya se le avisó una
+vez: Windows sólo deja saber si estás en un campo de contraseña cuando es un
+control **nativo**. En Chrome, Edge o cualquier app Electron eso no se puede
+consultar — el sistema ve una sola superficie de dibujo. O sea que **en el
+navegador no hay detección de contraseñas**, y la única protección real es la
+lista de apps. Lo que sí protege por construcción es la invariante de la tabla:
+una contraseña no es una palabra castellana sin tilde, así que no está ahí.
+
+### 3 · Lo que quedó decidido y no hace falta volver a preguntar
+
+- La carita de la montaña rusa y la servilleta están **aprobadas y commiteadas**.
+  La página de revisión sigue viva:
+  https://claude.ai/code/artifact/b0e0b3ae-3bc8-44ff-867b-b57034d58abe
+- El saludo va **en contrafase** (lo eligió Luis).
+- La servilleta sale de una toalla de pixel art que mandó él como referencia.
+
 ## Publicar y actualizar
 
 El ciclo completo está probado en vivo, no sólo en frío. Medido en la 0.4.0 → 0.5.0:
