@@ -935,8 +935,15 @@ export const MAREO: Variant[] = [
         spr(BOSTEZO, 19, 10),
         spr(BOSTEZO, 19, 10),
         spr(BOSTEZO, 19, 10),
-        // El último cuadro: boca chica y la manita limpiándosela.
-        spr(BOCA_CHICA, 21, 12) + spr(MANO, 25, 12),
+        // El último cuadro: la boca ya chica, y nada más.
+        //
+        // Aquí hubo una manita limpiándosela y **se leía como una segunda
+        // boca**: `MANO` y `BOCA_CHICA` son el mismo sprite —un bloque de
+        // 3×2— y estaban a una sola columna de distancia. Dos bloques
+        // idénticos separados por un píxel no son una cara limpiándose, son
+        // dos bocas. Se quita y ya está: de limpiarse se encarga el cuadro
+        // siguiente, que es una escena entera dedicada a eso.
+        spr(BOCA_CHICA, 21, 12),
       ],
       "1.4s",
     )}</g>
