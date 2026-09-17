@@ -15,6 +15,21 @@ pub fn copiar(texto: &str) -> anyhow::Result<()> {
         .context("No se pudo copiar el texto")
 }
 
+/// Pega lo que haya en el portapapeles en la ventana que tenga el foco.
+///
+/// Sintetiza un Ctrl+V, que es justo lo que el resto del módulo evita. Aquí se
+/// permite porque el usuario acaba de pulsar un botón que dice «Sustituir»: la
+/// intención es explícita y es suya. Quien llama se encarga de no hacerlo en las
+/// apps vetadas.
+pub fn pegar() -> anyhow::Result<()> {
+    let mut enigo =
+        Enigo::new(&Settings::default()).context("No se pudo inicializar el inyector")?;
+    enigo.key(Key::Control, Direction::Press)?;
+    enigo.key(Key::Unicode('v'), Direction::Click)?;
+    enigo.key(Key::Control, Direction::Release)?;
+    Ok(())
+}
+
 /// Lee el texto que el usuario haya copiado.
 ///
 /// # Por qué NO sintetiza un Ctrl+C

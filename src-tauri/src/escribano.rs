@@ -27,7 +27,7 @@
 //! compartida: no se nota, y evita montar una ventana fantasma sólo para esto.
 
 use crate::settings::SettingsState;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use tauri::AppHandle;
@@ -49,6 +49,20 @@ static VISTO: OnceLock<Mutex<String>> = OnceLock::new();
 
 /// El escribano está armado y esperando un clic.
 pub static ARMADO: AtomicBool = AtomicBool::new(false);
+
+/// La ventana que tenía el foco cuando el usuario copió.
+///
+/// Se apunta **antes** de abrir la revisión, porque abrirla se lleva el foco: sin
+/// esto, «Sustituir» pegaría dentro de la propia ventana de revisión.
+static FOCO: AtomicIsize = AtomicIsize::new(0);
+
+pub fn recordar_foco() {
+    FOCO.store(crate::overlay::ventana_al_frente(), Ordering::SeqCst);
+}
+
+pub fn foco_anterior() -> isize {
+    FOCO.load(Ordering::SeqCst)
+}
 
 fn visto() -> &'static Mutex<String> {
     VISTO.get_or_init(|| Mutex::new(String::new()))
@@ -100,7 +114,9 @@ pub fn vigilar(app: AppHandle, settings: SettingsState) {
                 }
                 *v = texto.clone();
             }
-            // Copió algo nuevo: la onda se ofrece.
+            // Copió algo nuevo: la onda se ofrece. Y se apunta dónde estaba,
+            // que es donde habrá que devolver el texto si pulsa «Sustituir».
+            recordar_foco();
             crate::pipeline::armar_escribano(&app, &texto);
         }
     });

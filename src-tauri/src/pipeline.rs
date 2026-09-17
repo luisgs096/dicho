@@ -376,6 +376,15 @@ fn corregir_seleccion(
             // usuario: sin esto el escribano se rearmaría con lo que acaba de
             // producir, en bucle.
             crate::escribano::ya_visto(&corregido);
+            // Y se abre la revisión: el usuario ve qué cambió y decide.
+            if let Some(v) = app.get_webview_window("revision") {
+                let _ = v.emit(
+                    "revision",
+                    serde_json::json!({ "original": original, "corregido": corregido }),
+                );
+                let _ = v.show();
+                let _ = v.set_focus();
+            }
             diag(app, &format!(
                 "Corregido: {}→{} palabras en {} ms",
                 original.split_whitespace().count(),

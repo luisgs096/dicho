@@ -65,6 +65,40 @@ pub fn model_status(app: AppHandle) -> models::ModelStatus {
     models::status(&app)
 }
 
+/// «Sustituir»: devuelve el foco a donde estabas y pega encima de tu selección.
+///
+/// Aquí **sí** se sintetiza un Ctrl+V, y es la única excepción a la regla de no
+/// sintetizar atajos — porque el usuario acaba de pulsar un botón que dice
+/// exactamente eso. Aun así respeta la lista de apps vetadas: en una terminal
+/// Ctrl+V no siempre pega, así que ahí se le dice que pegue él.
+#[tauri::command]
+pub fn escribano_sustituir(app: AppHandle, state: State<'_, SettingsState>) -> Result<(), String> {
+    let vetadas = state
+        .read()
+        .map(|s| s.apps_sin_correccion.clone())
+        .unwrap_or_default();
+
+    let hwnd = crate::escribano::foco_anterior();
+    if !crate::overlay::devolver_foco(hwnd) {
+        return Err("No pude volver a la ventana donde estabas. El texto sigue copiado: pégalo tú.".into());
+    }
+    // El foco tarda un poco en asentarse; pegar antes lo manda al vacío.
+    std::thread::sleep(std::time::Duration::from_millis(120));
+
+    if let Some(exe) = crate::overlay::proceso_al_frente() {
+        if vetadas.iter().any(|v| v.to_lowercase() == exe) {
+            return Err(format!(
+                "En {exe} no pego yo: ahí Ctrl+V no siempre es pegar. El texto está copiado."
+            ));
+        }
+    }
+    crate::inject::pegar().map_err(|e| e.to_string())?;
+    if let Some(v) = app.get_webview_window("revision") {
+        let _ = v.hide();
+    }
+    Ok(())
+}
+
 /// Clic en la onda cuando está en modo escribano: corrige lo copiado.
 ///
 /// Se comprueba que esté armado de verdad. Sin eso, cualquier clic en la

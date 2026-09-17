@@ -200,6 +200,43 @@ pub fn proceso_al_frente() -> Option<String> {
     None
 }
 
+/// Devuelve el foco a una ventana concreta.
+///
+/// Windows **no deja** que cualquier proceso robe el primer plano: si no eres tú
+/// quien tiene el foco, `SetForegroundWindow` se ignora en silencio y devuelve
+/// éxito. El rodeo conocido es simular una pulsación de ALT justo antes, que es
+/// lo que hace creer al sistema que hay intención del usuario detrás.
+///
+/// Aquí sí la hay —acaba de pulsar «Sustituir»— pero al sistema eso no le
+/// consta, así que el rodeo hace falta igual.
+#[cfg(windows)]
+pub fn devolver_foco(hwnd: isize) -> bool {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+        keybd_event, KEYEVENTF_KEYUP, VK_MENU,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{IsWindow, SetForegroundWindow};
+
+    if hwnd == 0 {
+        return false;
+    }
+    unsafe {
+        let h = hwnd as *mut core::ffi::c_void;
+        // La ventana pudo cerrarse mientras el usuario leía la corrección.
+        if IsWindow(h) == 0 {
+            return false;
+        }
+        keybd_event(VK_MENU as u8, 0, 0, 0);
+        let ok = SetForegroundWindow(h) != 0;
+        keybd_event(VK_MENU as u8, 0, KEYEVENTF_KEYUP, 0);
+        ok
+    }
+}
+
+#[cfg(not(windows))]
+pub fn devolver_foco(_hwnd: isize) -> bool {
+    false
+}
+
 /// ¿El control que tiene el foco es un campo de contraseña?
 ///
 /// **Sólo lo sabe cuando el control es nativo de Windows.** Un `EDIT` con el
