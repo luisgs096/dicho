@@ -10,6 +10,27 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.11.3 — 16 de septiembre de 2026
+
+- **Arreglado: Dicho se cerraba solo y a veces no volvía a abrir.** Era un fallo de
+  arranque, no de la actualización: la ventana de Ajustes empieza a cargar antes de
+  que la app termine de prepararse, y si le ganaba la carrera el proceso moría en
+  seco. Unas veces sí y otras no, y sin dejar rastro en el registro porque moría
+  antes de escribirlo. Ahora todo está listo antes de que exista la primera ventana.
+- **Los ajustes dejan de pisarse entre ventanas.** Si elegías Editor en la onda y
+  luego marcabas cualquier casilla en Ajustes, volvía a Estándar sin avisar. Pasaba
+  igual con la onda clavada.
+- **La onda clavada ya no se queda muerta.** Con ella clavada y el arrastre apagado,
+  guardar cualquier ajuste la volvía intocable: su propio menú dejaba de responder y
+  no había forma de desclavarla sin reiniciar.
+- **La tecla de cancelar ya no admite una del atajo.** Si elegías una, cada dictado se
+  cancelaba solo nada más empezar. Ahora te avisa y no te deja.
+- El contador de muletillas no veía las acentuadas: "más bien", "¿sabes?" y "¿no?" no
+  se contaban nunca.
+- Dictar con un filtro escrito en el Historial te devolvía la lista entera.
+- Si algún día no se puede guardar un dictado en el Historial, ahora se dice. Antes el
+  texto se pegaba igual y parecía que había quedado guardado.
+
 ## 0.11.2 — 16 de septiembre de 2026
 
 - **Las flechas vuelven a su sitio: dentro del teclado.** En la 0.11.1 las saqué a
