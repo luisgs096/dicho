@@ -210,6 +210,18 @@ conocimiento. Y se commitea con el resto.
     cuenco. En una boca cerrada el pico **es** la sonrisa; en una abierta el
     pico pasa a ser el hueco de dentro, y un hueco triangular no se lee como
     boca. Rectángulo con las esquinas comidas.
+  - **Y va hueca por dentro.** Es la que más costó ver: con la banda de dientes
+    encima de una mancha maciza seguía siendo una cajita. El hueco *es* la boca
+    abierta, y la banda sólo pasa a leerse como dentadura cuando hay algo
+    detrás. No es una excepción al estilo — `BOSTEZO`, `CUENCA` y `MARCO` ya se
+    dibujan huecos.
+  - **Un brazo levantado tiene que llegar a algún sitio.** De cinco filas
+    flotando arriba seguía siendo un corchete en la esquina; de once, naciendo
+    pegado a la vagoneta, ya es un brazo. Y necesita el **entalle de muñeca**
+    (la mano 2 px más ancha, el brazo estrechando detrás): sin él, mano y brazo
+    son una sola barra.
+  - **Un saludo de un píxel no es un saludo.** Con los dos cuadros separados por
+    1 px la mano no se lee agitándose, se lee temblando. Dos.
   - **Un brazo levantado es una vertical gruesa, no una diagonal.** Se
     descartaron tres: en diagonal larga salían dos corchetes, corta salían dos
     piedrecitas, y la manita suelta sin brazo salían dos orejas. La diagonal a

@@ -740,29 +740,56 @@ export const ACTUALIZADO: Variant = {
  * La silueta tampoco puede ir en pico. Probada con la forma de SONRISOTA
  * —ancha arriba y estrechando hacia abajo— salía un cuenco: en una boca
  * cerrada ese pico **es** la sonrisa, pero en una abierta el pico pasa a ser el
- * hueco de dentro, y un hueco triangular no se lee como boca. Rectángulo con
- * las cuatro esquinas comidas.
+ * hueco de dentro, y un hueco triangular no se lee como boca.
+ *
+ * Y lo que faltaba, que es lo que la arreglaba de verdad: **el interior va
+ * hueco**. Con una banda de dientes encima de una mancha maciza sigue siendo
+ * una cajita; el hueco de dentro *es* la boca abierta, y la banda pasa a ser
+ * dentadura porque hay algo detrás. No es salirse del estilo — BOSTEZO, CUENCA
+ * y MARCO ya se dibujan huecos.
+ *
+ * Detalles que no son adorno: la banda de dientes ocupa **dos filas** (con una
+ * sola no tiene grosor) y las paredes también, porque el resto de la carita
+ * está dibujada con trazo grueso y una pared de 1 px se ve endeble al lado.
  */
 const BOCAZA_DIENTES = [
   "XXXXXXXXXXX",
-  "XoooooooooX",
   "XXXXXXXXXXX",
-  "XXXXXXXXXXX",
-  ".XXXXXXXXX.",
+  "XX.......XX",
+  "XX.......XX",
+  ".XX.....XX.",
+  "..XXXXXXX..",
 ];
 
 /**
  * Brazo en alto: la manita arriba y el antebrazo bajando **recto**, pegado a
  * la cara.
  *
- * Es el cuarto intento y el banco descartó los otros tres, que es justo lo que
- * no se ve en el resultado: en diagonal larga salían dos corchetes, corto
- * salían dos piedrecitas, y la mano suelta sin brazo salían dos orejas. A esta
- * escala una vertical gruesa al lado de la cabeza es lo único que se lee como
- * brazo levantado — la diagonal se convierte en escalera y la escalera no es
- * una forma, es ruido.
+ * Se descartaron tres formas antes: en diagonal larga salían dos corchetes,
+ * corta salían dos piedrecitas, y la manita suelta sin brazo salían dos orejas.
+ * A esta escala una vertical gruesa es lo único que se lee como brazo — la
+ * diagonal no es una línea inclinada, es una escalera, y una escalera no es una
+ * forma sino ruido.
+ *
+ * Pero vertical no bastaba. De cinco filas seguía leyéndose como un corchete en
+ * la esquina, y lo que lo cambió fueron dos cosas más: que sea **largo y toque
+ * la vagoneta** —un brazo que no llega a ningún cuerpo es un adorno flotando— y
+ * el **entalle de muñeca**, la mano 2 px más ancha con el brazo estrechando
+ * detrás. Sin el entalle, mano y brazo son una sola barra.
  */
-const BRAZO = ["XXX", "XXX", ".XX", ".XX", ".XX"];
+const BRAZO = [
+  "XXXX",
+  "XXXX",
+  ".XX.",
+  ".XX.",
+  ".XX.",
+  ".XX.",
+  ".XX.",
+  ".XX.",
+  ".XX.",
+  ".XX.",
+  ".XX.",
+];
 
 /** El mismo sprite del revés, para el otro brazo. */
 const espejo = (m: string[]) => m.map((r) => [...r].reverse().join(""));
@@ -795,11 +822,21 @@ const VAGONETA = [
  *
  * @param x dónde queda la mano; el antebrazo rellena solo hasta el borde.
  */
-const brazoLimpia = (x: number) =>
-  // El puño sobresale **dos filas** por arriba y por abajo del antebrazo. Con
-  // una sola no se distinguía del brazo y el conjunto se leía como un estante.
-  spr([".XXX.", "XXXXX", "XXXXX", ".XXX."], x, 10) +
-  spr(Array(2).fill("X".repeat(48 - x - 5)), x + 5, 11);
+const brazoLimpia = (x: number) => {
+  const largo = 48 - x - 5;
+  return (
+    // El puño, dos filas más alto que el brazo por arriba y por abajo.
+    spr([".XXX.", "XXXXX", "XXXXX", ".XXX."], x, 10) +
+    // El antebrazo. La fila de arriba se salta dos píxeles justo detrás del
+    // puño: ése es el entalle de la muñeca, y sin él puño y brazo se leen como
+    // una sola barra.
+    spr(["..".padEnd(largo, "X")], x + 5, 11) +
+    spr(["X".repeat(largo)], x + 5, 12) +
+    // El codo, doblando hacia abajo contra el borde. Es lo único que separa un
+    // brazo cruzando la cara de un bigote puesto encima.
+    spr(["XX", "XX", "XX"], 46, 13)
+  );
+};
 
 /**
  * Arrastrando la onda: va montada en la vagoneta y lo está pasando bien.
@@ -813,15 +850,22 @@ const brazoLimpia = (x: number) =>
  */
 export const RODANDO: Variant = {
   status: "¡Yujuuu!",
-  // Los brazos van a x=10 y x=32: espejo exacto sobre el centro de la cara
-  // (x=22), que si no uno queda más fuera que el otro y se nota.
+  // Los brazos: el izquierdo en x=9 y el derecho en x=32. **No es a ojo**: la
+  // cara se centra en x=22, así que el espejo de una columna p es 44-p, y un
+  // sprite de 4 de ancho que empieza en 9 tiene su espejo empezando en 32.
+  // Puesto en 35 —que es el error fácil, espejar el origen en vez del tramo—
+  // el brazo derecho queda tres píxeles más fuera que el izquierdo.
+  //
+  // El saludo va de **dos** píxeles y no de uno. Con uno la diferencia entre los
+  // dos cuadros era tan chica que no se leía como agitar la mano, se leía como
+  // que el dibujo tiembla.
   scene: `<g class="a-vagon">${spr(VAGONETA, 9, 15)}
-    ${flip([eyes(OJO_ANCHO, 4), eyes(OJO_ANCHO, 5)], ".48s")}
+    ${flip([eyes(OJO_ANCHO, 3), eyes(OJO_ANCHO, 4)], ".48s")}
     ${spr(BOCAZA_DIENTES, 17, 9)}
     ${flip(
       [
-        spr(BRAZO, 10, 3) + spr(espejo(BRAZO), 32, 4),
-        spr(BRAZO, 10, 4) + spr(espejo(BRAZO), 32, 3),
+        spr(BRAZO, 9, 3) + spr(espejo(BRAZO), 32, 5),
+        spr(BRAZO, 9, 5) + spr(espejo(BRAZO), 32, 3),
       ],
       ".3s",
     )}</g>`,
