@@ -18,6 +18,65 @@ pub const PRIME_SPANGLISH: &str = "Ayer tuve un meeting con el team para revisar
      The client wants a demo first, así que hay que preparar el pitch. Le dije okay, let's do it, \
      pero necesito el feedback del PM antes del viernes.";
 
+
+/// Cuántos caracteres puede ocupar el prompt entero.
+///
+/// Whisper corta el `prompt` a **224 tokens** y, como es texto natural en
+/// español, un token anda por los tres caracteres. 600 deja margen de sobra por
+/// debajo del corte, y el margen importa: **lo que se pierde al cortar es el
+/// principio**, o sea la muestra de spanglish, que es exactamente lo que evita
+/// que Whisper te traduzca. Un prompt demasiado largo no da un error — da
+/// traducciones, y el día que pase nadie lo va a atribuir a esto.
+const TOPE_PROMPT: usize = 600;
+
+/// El oído de Whisper: la muestra de estilo más los términos del usuario.
+///
+/// # Por qué el diccionario también va aquí
+///
+/// Hasta ahora el diccionario sólo actuaba **después**, arreglando lo que
+/// Whisper ya había oído mal. Eso deja el texto crudo con la falta puesta y
+/// obliga a acertar la grafía exacta del error. Metiendo los términos en el
+/// prompt, Whisper los escribe bien **de entrada**: es corregir el oído en vez
+/// de la transcripción.
+///
+/// # Por qué van al final y no al principio
+///
+/// El `prompt` no es una instrucción, es «lo que se dijo justo antes». Lo último
+/// pesa más, igual que en una conversación. La muestra de spanglish abre —marca
+/// el registro— y los términos cierran, que es donde se agarran.
+///
+/// # La guarda
+///
+/// La muestra de spanglish **nunca se recorta**. Si los términos no caben, se
+/// quedan fuera los que sobren; jamás al revés. Sacrificar la muestra para meter
+/// una palabra más sería cambiar un fallo de ortografía por uno de idioma.
+pub fn prime_con_terminos(terminos: &[String]) -> String {
+    // Una frase, no una lista: el prompt se trata como habla anterior, y una
+    // enumeración suelta se parece menos a alguien hablando.
+    const CIERRE: &str = " Hablamos de ";
+    // El punto final cuenta, y el cierre también: si no se reservan desde el
+    // principio, el último término cabe por los pelos y el remate se pasa.
+    let mut usado = PRIME_SPANGLISH.chars().count() + CIERRE.chars().count() + 1;
+    let mut caben: Vec<&str> = Vec::new();
+    for t in terminos {
+        let t = t.trim();
+        if t.is_empty() {
+            continue;
+        }
+        // Del segundo en adelante, cada término trae su ", " delante.
+        let coste = t.chars().count() + if caben.is_empty() { 0 } else { 2 };
+        if usado + coste > TOPE_PROMPT {
+            break;
+        }
+        usado += coste;
+        caben.push(t);
+    }
+    if caben.is_empty() {
+        return PRIME_SPANGLISH.to_string();
+    }
+    format!("{PRIME_SPANGLISH}{CIERRE}{}.", caben.join(", "))
+}
+
 pub fn get_api_key() -> anyhow::Result<String> {
     keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
         .context("No se pudo abrir el almacén de credenciales")?
@@ -133,5 +192,61 @@ impl Stt for GroqStt {
 
     fn name(&self) -> &'static str {
         "groq"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn terminos(n: usize) -> Vec<String> {
+        (0..n).map(|i| format!("Terminolargo{i}")).collect()
+    }
+
+    /// La guarda de la que cuelga todo: por muchos términos que tenga el
+    /// usuario, la muestra de spanglish sale entera. Es lo que evita que
+    /// Whisper traduzca, y perderla costaría mucho más de lo que aporta una
+    /// palabra bien escrita.
+    #[test]
+    fn la_muestra_de_spanglish_nunca_se_recorta() {
+        for n in [0, 1, 5, 50, 500] {
+            let p = prime_con_terminos(&terminos(n));
+            assert!(
+                p.starts_with(PRIME_SPANGLISH),
+                "con {n} términos se perdió la muestra"
+            );
+        }
+    }
+
+    /// Y nunca se pasa del presupuesto: lo que se corta al pasarse es el
+    /// principio, o sea la muestra.
+    #[test]
+    fn nunca_se_pasa_del_tope() {
+        for n in [0, 1, 5, 50, 500] {
+            let p = prime_con_terminos(&terminos(n));
+            assert!(
+                p.chars().count() <= TOPE_PROMPT,
+                "con {n} términos el prompt mide {}",
+                p.chars().count()
+            );
+        }
+    }
+
+    #[test]
+    fn los_terminos_entran_en_una_frase() {
+        let p = prime_con_terminos(&["Claude code".into(), "Groq".into()]);
+        assert!(p.contains("Hablamos de Claude code, Groq."), "{p}");
+    }
+
+    #[test]
+    fn sin_terminos_queda_la_muestra_tal_cual() {
+        assert_eq!(prime_con_terminos(&[]), PRIME_SPANGLISH);
+    }
+
+    /// Un diccionario con entradas vacías no puede colar comas sueltas.
+    #[test]
+    fn las_entradas_vacias_se_ignoran() {
+        let p = prime_con_terminos(&["".into(), "   ".into(), "Dicho".into()]);
+        assert!(p.contains("Hablamos de Dicho."), "{p}");
     }
 }
