@@ -777,18 +777,41 @@ const BOCAZA_DIENTES = [
  * el **entalle de muñeca**, la mano 2 px más ancha con el brazo estrechando
  * detrás. Sin el entalle, mano y brazo son una sola barra.
  */
-const BRAZO = [
-  "XXXX",
-  "XXXX",
-  ".XX.",
-  ".XX.",
-  ".XX.",
-  ".XX.",
-  ".XX.",
-  ".XX.",
-  ".XX.",
-  ".XX.",
-  ".XX.",
+const BRAZO_RECTO = [
+  "..XXXX",
+  "..XXXX",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+];
+
+/**
+ * El mismo brazo, abierto: **el hombro no se mueve** —sigue en las columnas 3 y
+ * 4, apoyado en la vagoneta— y lo que viaja es la mano, dos columnas hacia
+ * fuera, con el antebrazo inclinándose para alcanzarla.
+ *
+ * Que el hombro esté clavado es lo que convierte esto en un saludo. La versión
+ * anterior subía y bajaba el brazo entero dos píxeles y eso no es agitar la
+ * mano: es el brazo dando botes, que es lo que hace un dibujo que tiembla.
+ */
+const BRAZO_ABIERTO = [
+  "XXXX..",
+  "XXXX..",
+  ".XX...",
+  ".XX...",
+  "..XX..",
+  "..XX..",
+  "..XX..",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+  "...XX.",
 ];
 
 /** El mismo sprite del revés, para el otro brazo. */
@@ -810,33 +833,44 @@ const VAGONETA = [
 ];
 
 /**
- * El brazo con el que se limpia la boca, entrando desde el borde derecho: la
- * mano por delante, más gorda, y el antebrazo detrás **hasta salirse del
- * lienzo**.
+ * La servilleta con la que se limpia la boca.
  *
- * Que llegue al borde es lo que lo salva, y costó dos intentos descubrirlo. Un
- * sprite de brazo suelto a la altura de la boca no se lee como brazo: la
- * primera versión (barra con escalón) parecía una linterna y la segunda (barra
- * redondeada) parecía una segunda boca. Anclado al borde ya no hay ambigüedad —
- * es algo que **entra**, y entonces la mano de delante dice en qué dirección.
+ * Traducida de una toalla de pixel art que eligió el usuario como referencia.
+ * De aquella sobreviven tres cosas y el resto no cabe: la silueta de tela, **las
+ * dos bandas que la cruzan** y el fleco de abajo. El contorno oscuro de la
+ * referencia no se puede traducir — en el aparato todo lo encendido es del mismo
+ * color, así que aquí el contorno *es* la silueta.
  *
- * @param x dónde queda la mano; el antebrazo rellena solo hasta el borde.
+ * Las bandas van huecas, y no es una licencia: es la misma regla que arregló la
+ * bocaza. Un detalle dentro de un bloque macizo tiene que ser una **línea que
+ * cruza**; un hueco suelto se lee como un ojo y convierte la tela en una cara.
+ *
+ * Nueve de ancho a propósito. Con once tapaba el ojo derecho al cruzar, y una
+ * servilleta que borra media cara no se lee como que se está limpiando la boca.
+ *
+ * El borde de abajo va **liso**. Con fleco —dos filas de puntas escalonadas—
+ * parecía que la servilleta tenía patitas, y encima la referencia que eligió el
+ * usuario no lleva: es una toalla de borde limpio. Lo asimétrico, que es lo que
+ * hace que el espejo se note y la tela ondee, se lo da el doblez en diagonal de
+ * la esquina de arriba, igual que en la referencia.
+ *
+ * Antes de esto el gesto lo hacía un antebrazo desnudo, y era mucho más difícil
+ * de dibujar: como sprite suelto a la altura de la boca parecía primero una
+ * linterna y luego una segunda boca, y sólo funcionaba anclándolo al borde del
+ * lienzo. La servilleta no necesita ese truco porque **es un objeto**, no un
+ * trozo de cuerpo que tiene que venir de algún sitio.
  */
-const brazoLimpia = (x: number) => {
-  const largo = 48 - x - 5;
-  return (
-    // El puño, dos filas más alto que el brazo por arriba y por abajo.
-    spr([".XXX.", "XXXXX", "XXXXX", ".XXX."], x, 10) +
-    // El antebrazo. La fila de arriba se salta dos píxeles justo detrás del
-    // puño: ése es el entalle de la muñeca, y sin él puño y brazo se leen como
-    // una sola barra.
-    spr(["..".padEnd(largo, "X")], x + 5, 11) +
-    spr(["X".repeat(largo)], x + 5, 12) +
-    // El codo, doblando hacia abajo contra el borde. Es lo único que separa un
-    // brazo cruzando la cara de un bigote puesto encima.
-    spr(["XX", "XX", "XX"], 46, 13)
-  );
-};
+const SERVILLETA = [
+  "...XXXXXX",
+  ".XXXXXXXX",
+  "XXXXXXXXX",
+  "XoooooooX",
+  "XXXXXXXXX",
+  "XXXXXXXXX",
+  "XoooooooX",
+  "XXXXXXXXX",
+  ".XXXXXXX.",
+];
 
 /**
  * Arrastrando la onda: va montada en la vagoneta y lo está pasando bien.
@@ -850,22 +884,22 @@ const brazoLimpia = (x: number) => {
  */
 export const RODANDO: Variant = {
   status: "¡Yujuuu!",
-  // Los brazos: el izquierdo en x=9 y el derecho en x=32. **No es a ojo**: la
+  // Los brazos: el izquierdo en x=8 y el derecho en x=31. **No es a ojo**: la
   // cara se centra en x=22, así que el espejo de una columna p es 44-p, y un
-  // sprite de 4 de ancho que empieza en 9 tiene su espejo empezando en 32.
-  // Puesto en 35 —que es el error fácil, espejar el origen en vez del tramo—
-  // el brazo derecho queda tres píxeles más fuera que el izquierdo.
+  // sprite de 6 de ancho que ocupa 8-13 tiene su espejo ocupando 31-36. Espejar
+  // el origen en vez del tramo —el error fácil— deja un brazo más fuera que el
+  // otro, y a este tamaño tres píxeles se ven.
   //
-  // El saludo va de **dos** píxeles y no de uno. Con uno la diferencia entre los
-  // dos cuadros era tan chica que no se leía como agitar la mano, se leía como
-  // que el dibujo tiembla.
+  // El saludo va **en contrafase**: cuando uno abre, el otro cierra. Los dos a
+  // la vez se leen como un dibujo que se estira; alternados se leen como dos
+  // manos agitándose, que es lo que hace alguien en una montaña rusa.
   scene: `<g class="a-vagon">${spr(VAGONETA, 9, 15)}
     ${flip([eyes(OJO_ANCHO, 3), eyes(OJO_ANCHO, 4)], ".48s")}
     ${spr(BOCAZA_DIENTES, 17, 9)}
     ${flip(
       [
-        spr(BRAZO, 9, 3) + spr(espejo(BRAZO), 32, 5),
-        spr(BRAZO, 9, 5) + spr(espejo(BRAZO), 32, 3),
+        spr(BRAZO_ABIERTO, 8, 4) + spr(espejo(BRAZO_RECTO), 31, 4),
+        spr(BRAZO_RECTO, 8, 4) + spr(espejo(BRAZO_ABIERTO), 31, 4),
       ],
       ".3s",
     )}</g>`,
@@ -960,10 +994,11 @@ export const MAREO: Variant[] = [
     // lista porque es el final de la misma historia, y así el HUD sigue
     // teniendo un solo índice que mover.
     //
-    // El antebrazo cruza la boca entero en tres tiempos: llega por la
-    // izquierda con la boca aún sucia, la tapa, y sale por la derecha dejándola
-    // limpia. Los ojos van apretados durante la pasada y se abren al final: es
-    // lo que convierte el gesto en "ya está" en vez de en un brazo que pasa.
+    // La servilleta cruza la boca en tres tiempos: llega por la derecha con la
+    // boca aún sucia, la tapa y le quita la mancha, y sale por la izquierda
+    // llevándosela puesta. Los ojos van apretados durante la pasada y se abren
+    // al final: es lo que convierte el gesto en "ya está" en vez de en un
+    // trapo que pasa.
     //
     // De aquí **no se corta a la carita de siempre**: el HUD funde la pantalla
     // (`.fundido`) y cambia por debajo. Un corte seco después de vomitar se
@@ -974,9 +1009,20 @@ export const MAREO: Variant[] = [
         eyes(OJO_LINEA, 7) +
           spr(BOCA_CHICA, 21, 12) +
           spr(tint(["XXX"], "m"), 24, 14) +
-          brazoLimpia(31),
-        eyes(OJO_LINEA, 7) + spr(BOCA_CHICA, 21, 12) + brazoLimpia(15),
-        eyes(OJO_ARCO, 6) + spr(RAYA, 20, 12) + brazoLimpia(31),
+          spr(SERVILLETA, 35, 8),
+        // Al cruzar va en espejo: el fleco es lo único asimétrico del sprite, y
+        // ese cambio de un cuadro a otro es lo que la hace ondear como tela en
+        // vez de deslizarse como un ladrillo.
+        eyes(OJO_LINEA, 7) +
+          spr(espejo(SERVILLETA), 18, 8) +
+          spr(tint(["XX"], "m"), 19, 9),
+        // Sale con la mancha puesta y la cara ya limpia. La mancha va **encima**
+        // de la servilleta y no entre las bandas: metida dentro volvía a ser un
+        // hueco suelto, o sea otro ojo.
+        eyes(OJO_ARCO, 6) +
+          spr(RAYA, 20, 12) +
+          spr(SERVILLETA, 3, 8) +
+          spr(tint(["XX"], "m"), 4, 9),
       ],
       ".9s",
     )}`,

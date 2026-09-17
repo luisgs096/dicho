@@ -197,7 +197,7 @@ conocimiento. Y se commitea con el resto.
   alto agitándose, bocaza abierta riendo y una vagoneta debajo) y **`MAREO`**,
   que ahora son **cuatro** y no tres: al zarandearla sube de mareada →
   aguantándose → vomita, y al acabar el vómito encadena sola con **limpiarse la
-  boca con el antebrazo** antes de fundir a una carita normal.
+  boca con una servilleta** antes de fundir a una carita normal.
 
   Cuatro lecciones de dibujar la montaña rusa, todas pagadas en el banco de
   pruebas y todas del mismo tipo — **a 48×16 px el detalle no se lee, la
@@ -225,17 +225,26 @@ conocimiento. Y se commitea con el resto.
     gafas huecas, no en ojos con luz. A este tamaño el ojo gana siempre, así que
     un detalle interior tiene que ser una **línea que cruce** —como la banda de
     dientes— y nunca un punto aislado.
-  - **Un saludo de un píxel no es un saludo.** Con los dos cuadros separados por
-    1 px la mano no se lee agitándose, se lee temblando. Dos.
+  - **Saludar no es subir y bajar el brazo entero.** Con los dos cuadros
+    separados por un píxel la mano no se lee agitándose, se lee temblando; y
+    subiendo el brazo completo dos píxeles se lee dando botes. Lo que sí se lee
+    es **el hombro clavado y la mano barriendo dos columnas**, con el antebrazo
+    inclinándose para alcanzarla, y los dos brazos **en contrafase** — uno abre
+    mientras el otro cierra. Los dos a la vez se leen como un dibujo que se
+    estira.
   - **Un brazo levantado es una vertical gruesa, no una diagonal.** Se
     descartaron tres: en diagonal larga salían dos corchetes, corta salían dos
     piedrecitas, y la manita suelta sin brazo salían dos orejas. La diagonal a
     esta escala no es una línea inclinada, es una escalera.
   - **Un objeto suelto a la altura de la boca se lee como otra boca.** Le pasó
-    al antebrazo con el que se limpia: como sprite suelto parecía primero una
-    linterna y luego una segunda boca. Lo que lo arregló fue **anclarlo al borde
-    del lienzo** (`brazoLimpia()` rellena hasta x=48) — así es algo que *entra*,
-    y entonces el puño de delante dice en qué dirección.
+    al antebrazo con el que se limpiaba: como sprite suelto parecía primero una
+    linterna y luego una segunda boca, y sólo funcionaba anclándolo al borde del
+    lienzo, para que se leyera como algo que *entra*.
+    Lo que lo resolvió del todo fue cambiar de objeto: una **servilleta** no
+    necesita el truco del borde porque tiene identidad propia —las dos bandas
+    que la cruzan— y no es un trozo de cuerpo que tenga que venir de algún
+    sitio. Cuando una forma necesita un apaño para leerse, a veces el apaño no
+    es la respuesta: es que la forma está mal elegida.
 
   Y una regla de proceso: **el carrito no puede ganarle sitio a la cara**. La
   primera vagoneta era una caja de cinco filas y el conjunto se leía como una

@@ -26,7 +26,7 @@ guiones. Nada más.
   agarrada aparece el aro punteado, y un clic normal sigue siendo un clic.
 - **Y va montada en una montaña rusa**: al arrastrarla saca las manitas y se ríe con
   la boca abierta. Si la zarandeas se marea, y cuando se le pasa se limpia la boca
-  con el antebrazo antes de volver a su cara de siempre.
+  con una servilleta antes de volver a su cara de siempre.
 - **El menú de la onda son dos botones**, a la vista al pasar el ratón: clavarla y
   devolverla a su sitio. Fuera el "+" y fuera "cambiarla de sitio", que ya no hacía
   falta.

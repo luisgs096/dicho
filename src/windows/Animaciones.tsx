@@ -152,7 +152,7 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
               No salen dictando: salen al <b>arrastrar la onda</b>. Llevándola
               con calma se queda en la primera, montada en su carrito. Si la
               zarandeas, cada sacudida sube un escalón y se va poniendo peor —
-              hasta que vomita, se limpia con el antebrazo y se le pasa.
+              hasta que vomita, se limpia con una servilleta y se le pasa.
             </p>
             <div className="flex flex-col gap-2.5">
               {[RODANDO, ...MAREO].map((v, i) => (

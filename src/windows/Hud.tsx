@@ -70,7 +70,7 @@ const BAR_MAX = 30;
 const PLANTON_MAREO = 1600;
 
 /** Hasta dónde llega la escalada del zarandeo. Del cuarto tiempo —limpiarse la
- *  boca con el antebrazo— se encarga el reloj: no se le puede pedir al usuario
+ *  boca con la servilleta— se encarga el reloj: no se le puede pedir al usuario
  *  que siga meneando para ver cómo se le pasa. */
 const VOMITO = 3;
 
@@ -575,7 +575,7 @@ export default function Hud() {
   }, [mareo]);
 
   // Se le pasa solo. Los dos primeros escalones aguantan un rato por si sigues
-  // zarandeando; el vómito encadena con la limpiada del antebrazo, y de ahí se
+  // zarandeando; el vómito encadena con la limpiada de la servilleta, y de ahí se
   // sale **fundiendo**, nunca de un fotograma al siguiente.
   useEffect(() => {
     if (mareo === 0) return;
