@@ -693,9 +693,10 @@ los dos tiempos.
 3. **Purga del historial** (ver el siguiente paso inmediato).
 4. **Sincronización con Google de punta a punta.** El código está entero desde el 23/08
    y nunca se ha ejecutado de verdad; bloqueado por el cliente OAuth que sólo puede crear
-   luisg. Ojo: `merge_history` ya va en una transacción desde la 0.11.4, pero **no
-   sincroniza los tres campos nuevos** (`polish_mode`, `stt_ms`, `polish_ms`): habría que
-   añadirlos a `SyncHist` con `#[serde(default)]` antes de usarlo en serio.
+   luisg. Ya no le falta nada por dentro: `merge_history` va en una transacción desde la
+   0.11.4 y desde el 17/09 viaja con los tres campos de la 0.11 (`polish_mode`, `stt_ms`,
+   `polish_ms`), con `#[serde(default)]` para que un respaldo viejo siga entrando. Tres
+   tests lo cubren.
 5. **Vocabulario propio en el prompt del STT.** El diccionario personal llega al pulido
    pero **no** al `prompt` de Whisper, así que hoy sólo corrige la palabra *después* de
    oírla mal. Cuidado: ese mismo prompt es lo que frena la traducción, así que meterle
