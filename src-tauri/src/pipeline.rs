@@ -696,6 +696,30 @@ fn cola_de(texto: &str, max: usize) -> String {
 /// Opciones de transcripción según los ajustes. Con "no traducir" jamás se fija
 /// idioma —es justo lo que empuja al motor a traducir el otro— y se le pasa una
 /// muestra de spanglish como contexto de estilo.
+/// Añade los términos del diccionario al oído de Whisper.
+///
+/// Se hace aparte de `opts_de` porque ahí no hay base de datos y porque el
+/// diccionario cambia entre dictados: el usuario puede añadir una palabra y
+/// querer que el siguiente ya la oiga bien.
+///
+/// Sólo si el usuario tiene encendido «no traducir». Sin eso no hay prompt al
+/// que añadir nada, y montar uno sólo para el diccionario le cambiaría el
+/// comportamiento a quien lo tiene apagado a propósito.
+fn con_diccionario(mut opts: SttOpts, store: &std::sync::Arc<crate::store::Store>) -> SttOpts {
+    if opts.prompt.is_none() {
+        return opts;
+    }
+    let terminos: Vec<String> = store
+        .dict_pairs()
+        .into_iter()
+        // El reemplazo es cómo quiere que se escriba; si no lo hay, el término
+        // ya es la grafía buena (una «palabra protegida»).
+        .map(|(t, r)| r.unwrap_or(t))
+        .collect();
+    opts.prompt = Some(crate::stt::groq::prime_con_terminos(&terminos));
+    opts
+}
+
 fn opts_de(s: &crate::settings::AppSettings) -> SttOpts {
     SttOpts {
         language: if s.no_traducir {
@@ -706,6 +730,8 @@ fn opts_de(s: &crate::settings::AppSettings) -> SttOpts {
                 other => Some(other.to_string()),
             }
         },
+        // Los términos del usuario se añaden fuera, en `con_diccionario`: aquí
+        // no hay acceso a la base y `opts_de` se llama desde varios sitios.
         prompt: s.no_traducir.then(|| groq::PRIME_SPANGLISH.to_string()),
     }
 }
@@ -1165,6 +1191,10 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                         let s = settings.read().unwrap();
                         (s.engine, opts_de(&s))
                     };
+                    // El diccionario se lee aquí y no en `opts_de` porque puede
+                    // haber cambiado desde el dictado anterior: añades una
+                    // palabra y el siguiente ya la oye bien.
+                    let opts = con_diccionario(opts, &store);
                     engine_activo = engine;
                     if engine == EngineKind::Parakeet && parakeet.is_none() {
                         if matches!(models::status(&app), ModelStatus::Ready) {
