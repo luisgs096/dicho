@@ -69,6 +69,69 @@ pub struct Correction {
 /// sugerencia dentro del prompt, y el modelo puede ignorarla. Así que ahora se
 /// cuenta también en la salida: `aplicadas == 0` significa que la ignoró, y eso
 /// vale la pena enseñarlo en vez de esconderlo.
+/// Aplica el diccionario del usuario **al texto ya redactado**, literalmente.
+///
+/// # Por qué existe
+///
+/// Hasta hoy el diccionario sólo viajaba **dentro del prompt**, como una lista
+/// de sugerencias, y la sustitución literal ocurría nada más en modo Reglas. En
+/// los modos con IA el modelo era libre de ignorarla, y la ignoraba: medido
+/// sobre el historial real, **13 de 400 dictados conservaban un término que el
+/// diccionario tenía que haber cambiado** — «Cloud Code» seguía saliendo
+/// «Cloud», y «Jimmy Knight» no se convertía en «Gemini».
+///
+/// Un diccionario que el usuario se molestó en escribir no puede ser una
+/// sugerencia. Si él dice que «cloud code» se escribe «Claude code», se escribe
+/// así. Por eso esto corre **después** de pulir y en todos los modos: lo último
+/// que toca el texto es su diccionario, no el modelo.
+///
+/// # Dos detalles que no son adorno
+///
+/// Los términos se aplican **de más largo a más corto**. Con «Cloud» y «cloud
+/// code» los dos en la lista, aplicar primero el corto dejaría «Claude code»
+/// convertido en un destrozo a medias.
+///
+/// Y si lo que había empezaba en mayúscula y el reemplazo no, se le respeta la
+/// mayúscula: «Clode» al principio de una frase se vuelve «Claude», no «claude».
+pub fn aplicar_diccionario(texto: &str, dict: &[(String, Option<String>)]) -> String {
+    let mut pares: Vec<(&str, &str)> = dict
+        .iter()
+        .filter_map(|(t, r)| r.as_deref().map(|r| (t.as_str(), r)))
+        .filter(|(t, r)| !t.trim().is_empty() && !r.trim().is_empty())
+        .collect();
+    pares.sort_by_key(|(t, _)| std::cmp::Reverse(t.chars().count()));
+
+    let mut out = texto.to_string();
+    for (term, bueno) in pares {
+        let Ok(re) = Regex::new(&format!(r"(?i)\b{}\b", regex::escape(term))) else {
+            continue;
+        };
+        out = re
+            .replace_all(&out, |c: &regex::Captures| {
+                respeta_mayuscula(&c[0], bueno)
+            })
+            .into_owned();
+    }
+    out
+}
+
+/// Si lo encontrado empezaba en mayúscula y el reemplazo no, se la pone.
+fn respeta_mayuscula(encontrado: &str, bueno: &str) -> String {
+    let empieza_alto = encontrado
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_uppercase());
+    let bueno_bajo = bueno.chars().next().is_some_and(|c| c.is_lowercase());
+    if !(empieza_alto && bueno_bajo) {
+        return bueno.to_string();
+    }
+    let mut cs = bueno.chars();
+    match cs.next() {
+        Some(c) => c.to_uppercase().collect::<String>() + cs.as_str(),
+        None => bueno.to_string(),
+    }
+}
+
 pub fn corrections(raw: &str, polished: &str, ctx: &PolishCtx) -> Vec<Correction> {
     let mut out = Vec::new();
     for (term, replacement) in &ctx.dictionary {
@@ -99,6 +162,58 @@ pub fn corrections(raw: &str, polished: &str, ctx: &PolishCtx) -> Vec<Correction
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// El fallo que lo motivó, con los términos reales del usuario.
+    #[test]
+    fn el_diccionario_se_aplica_aunque_el_modelo_lo_ignore() {
+        let dict = vec![
+            ("cloud code".to_string(), Some("Claude code".to_string())),
+            ("Cloud".to_string(), Some("Claude".to_string())),
+            ("Jimmy Knight".to_string(), Some("Gemini".to_string())),
+        ];
+        let salido_del_modelo =
+            "¿Desde dónde debería iniciar Cloud Code? Y que Jimmy Knight haga las imágenes.";
+        let arreglado = aplicar_diccionario(salido_del_modelo, &dict);
+        assert!(arreglado.contains("Claude code"), "{arreglado}");
+        assert!(arreglado.contains("Gemini"), "{arreglado}");
+        assert!(!arreglado.contains("Cloud"), "{arreglado}");
+        assert!(!arreglado.contains("Jimmy"), "{arreglado}");
+    }
+
+    /// Lo más largo primero. Al revés, «Cloud» se comería la primera palabra de
+    /// «cloud code» y dejaría el resto colgando.
+    #[test]
+    fn el_termino_largo_gana_al_corto() {
+        let dict = vec![
+            ("Cloud".to_string(), Some("Claude".to_string())),
+            ("cloud code".to_string(), Some("Claude code".to_string())),
+        ];
+        assert_eq!(
+            aplicar_diccionario("abre cloud code ya", &dict),
+            "abre Claude code ya"
+        );
+    }
+
+    #[test]
+    fn respeta_la_mayuscula_de_principio_de_frase() {
+        let dict = vec![("clode".to_string(), Some("claude".to_string()))];
+        assert_eq!(aplicar_diccionario("Clode me dijo.", &dict), "Claude me dijo.");
+        assert_eq!(aplicar_diccionario("con clode", &dict), "con claude");
+    }
+
+    /// Sólo palabras enteras: un término dentro de otra palabra no se toca.
+    #[test]
+    fn no_se_mete_dentro_de_otra_palabra() {
+        let dict = vec![("mac".to_string(), Some("Mac".to_string()))];
+        assert_eq!(aplicar_diccionario("una macarena", &dict), "una macarena");
+    }
+
+    /// Las entradas sin reemplazo son «palabras protegidas», no sustituciones.
+    #[test]
+    fn una_entrada_sin_reemplazo_no_cambia_nada() {
+        let dict = vec![("Brío".to_string(), None)];
+        assert_eq!(aplicar_diccionario("somos Brío", &dict), "somos Brío");
+    }
 
     #[test]
     fn detecta_correcciones_con_conteo() {

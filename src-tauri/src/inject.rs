@@ -3,42 +3,32 @@ use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 use std::thread;
 use std::time::Duration;
 
-/// Lee lo que el usuario tenga **seleccionado** en la app que esté usando.
+/// Lee el texto que el usuario haya copiado.
 ///
-/// No hay forma de preguntarle a Windows "qué hay seleccionado": hay que pedir
-/// una copia y mirar el portapapeles, que es lo que hace cualquier herramienta
-/// de este tipo. Por eso se respalda antes y se devuelve después — si no, usar
-/// la corrección te borraría lo que tuvieras copiado.
+/// # Por qué NO sintetiza un Ctrl+C
 ///
-/// Devuelve `None` si no había nada seleccionado. Se distingue comparando con
-/// lo que ya había: si tras el Ctrl+C el portapapeles no cambió, es que no se
-/// copió nada. No es infalible —seleccionar exactamente lo mismo que ya tenías
-/// copiado daría un falso negativo— pero el precio de equivocarse es no hacer
-/// nada, que es el lado seguro.
+/// La primera versión lo hacía: mandaba Ctrl+C y miraba si el portapapeles
+/// cambiaba, que es como lo resuelven casi todas las herramientas de este tipo.
+/// **Está mal y rompe cosas.** Ctrl+C sólo significa «copiar» en un editor de
+/// texto. En una terminal significa **interrumpir**, y en una TUI como Claude
+/// Code significa cortar lo que estuviera corriendo. Usar la corrección dentro
+/// de una terminal le cerraba al usuario la conversación en la que estaba
+/// trabajando — lo reportó él, y el síntoma no apuntaba a esto por ningún lado.
+///
+/// La regla que queda: **nunca sintetizar un atajo que el usuario no pulsó.**
+/// No se puede saber qué significa esa combinación en la app que tiene delante,
+/// y el repertorio de cosas destructivas que hay detrás de un atajo común es
+/// enorme. Copiar lo hace él, con el atajo que use su app —Ctrl+C, Ctrl+Shift+C
+/// o el menú—; Dicho sólo lee lo que quedó.
+///
+/// Devuelve `None` si el portapapeles está vacío o sólo tiene espacios.
 pub fn leer_seleccion() -> anyhow::Result<Option<String>> {
     let mut clipboard =
         arboard::Clipboard::new().context("No se pudo acceder al portapapeles")?;
-    let previo = clipboard.get_text().ok();
-
-    let mut enigo =
-        Enigo::new(&Settings::default()).context("No se pudo inicializar el inyector")?;
-    enigo.key(Key::Control, Direction::Press)?;
-    enigo.key(Key::Unicode('c'), Direction::Click)?;
-    enigo.key(Key::Control, Direction::Release)?;
-    // La app de destino copia de forma asíncrona; leer antes devuelve lo viejo.
-    thread::sleep(Duration::from_millis(160));
-
-    let ahora = clipboard.get_text().ok();
-    let seleccion = match (&previo, &ahora) {
-        (_, None) => None,
-        (Some(a), Some(b)) if a == b => None,
-        (_, Some(b)) if b.trim().is_empty() => None,
-        (_, Some(b)) => Some(b.clone()),
-    };
-    if let Some(viejo) = previo {
-        let _ = clipboard.set_text(viejo);
-    }
-    Ok(seleccion)
+    Ok(clipboard
+        .get_text()
+        .ok()
+        .filter(|t| !t.trim().is_empty()))
 }
 
 /// Inserta texto en la app activa: respalda el portapapeles, coloca el texto,

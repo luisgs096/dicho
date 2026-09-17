@@ -354,6 +354,8 @@ fn corregir_seleccion(
     };
     match polish::groq::polish(&original, &ctx, nivel) {
         Ok(corregido) => {
+            // Igual que en el dictado: el diccionario manda sobre el modelo.
+            let corregido = polish::aplicar_diccionario(&corregido, &ctx.dictionary);
             let conservar = settings
                 .read()
                 .map(|s| s.copiar_al_portapapeles)
@@ -842,6 +844,12 @@ fn procesar(
             },
         };
         let polish_ms = t_polish.elapsed().as_millis() as i64;
+        // **Lo último que toca el texto es el diccionario del usuario, no el
+        // modelo.** Hasta la 0.12 el diccionario sólo viajaba dentro del prompt
+        // como sugerencia, y el modelo la ignoraba: 13 de 400 dictados reales
+        // conservaban un término que tenía que haber cambiado. Si él escribió
+        // que «cloud code» se escribe «Claude code», se escribe así.
+        let polished = polish::aplicar_diccionario(&polished, &ctx.dictionary);
         let corrections = polish::corrections(&raw, &polished, &ctx);
         {
             let n_in = raw.split_whitespace().count();
