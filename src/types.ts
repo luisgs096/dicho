@@ -12,6 +12,8 @@ export interface AppSettings {
   hotkey: string[];
   /** Tecla para cancelar a media grabación. `null` la desactiva. */
   cancelar: string | null;
+  /** Atajo para corregir lo que tengas seleccionado. Vacío = apagado. */
+  corregir_atajo: string[];
   engine: EngineKind;
   polish: PolishKind;
   language: string;
@@ -20,6 +22,8 @@ export interface AppSettings {
   copiar_al_portapapeles: boolean;
   /** Ids de las secciones plegadas (se guardan las cerradas, no las abiertas). */
   secciones_plegadas: string[];
+  corregir_al_escribir: boolean;
+  apps_sin_correccion: string[];
   hud_enabled: boolean;
   hud_style: HudStyle;
   /** Un rincón por pantalla, por tamaño del área de trabajo ("3840x2040"). */
@@ -66,6 +70,9 @@ export type RecordingState =
   | { state: "empty" }
   /** Te arrepentiste a media frase: el audio se tiró sin transcribir. */
   | { state: "cancelado" }
+  /** Corrigiendo un texto que ya estaba escrito: la onda se pone en modo
+   *  lectura —pluma y pergamino— porque no está escuchando nada. */
+  | { state: "corrigiendo" }
   /** Primer arranque tras actualizar: la carita lo celebra una vez. */
   | { state: "actualizado"; version: string }
   | { state: "error"; message: string };

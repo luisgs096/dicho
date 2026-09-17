@@ -1,6 +1,6 @@
 [package]
 name = "mike"
-version = "0.11.5"
+version = "0.12.0"
 description = "Dictado por voz push-to-talk, local y gratuito"
 authors = ["luisg"]
 edition = "2021"
@@ -48,6 +48,9 @@ windows-sys = { version = "0.61", features = [
     "Win32_Graphics_Gdi",
     "Win32_UI_WindowsAndMessaging",
     "Win32_UI_Input_KeyboardAndMouse",
+    # Para leer el nombre del proceso en primer plano (la lista de apps donde la
+    # correccion al vuelo no actua).
+    "Win32_System_Threading",
 ] }
 
 # Deps optimizados tambien en dev: rubato/ort en debug son 20-30x mas lentos

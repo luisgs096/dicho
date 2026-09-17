@@ -10,6 +10,44 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.13.0 — 17 de septiembre de 2026
+
+- **Corrige mientras escribes** (LABS, apagado hasta que lo enciendas). Al
+  terminar una palabra, si le falta la tilde, Dicho la pone: «tambien» pasa a
+  «también» e «informacion» a «información». Funciona en cualquier programa y
+  sin internet.
+- **Sólo pone tildes, nunca cambia una palabra por otra.** Y deja en paz todo lo
+  que es ambiguo —«hacia», «sabia», «cuando», «publico»—, donde la forma sin
+  tilde también es correcta y cuál toca depende de la frase.
+- **Tu diccionario personal manda sobre la lista interna**, así que las
+  correcciones que ya tenías puestas para dictar ahora también valen al escribir.
+- **Nada de lo que escribes se guarda, se manda a ningún sitio ni entra en el
+  historial.** Y hay una lista de programas donde no actúa nunca, editable, con
+  las terminales y los gestores de contraseñas ya puestos.
+
+## 0.12.0 — 17 de septiembre de 2026
+
+- **Corrige lo que ya escribiste.** Selecciona un texto en cualquier app, pulsa el
+  atajo (por defecto ⊞ Shift C) y Dicho lo reescribe con el mismo motor que redacta
+  tus dictados. Si no puede mejorarlo, **te deja tu texto como estaba**: nunca lo
+  cambia por algo peor. Está en LABS.
+- **Una carita nueva para eso**: se pone en modo lectura, se le va el micrófono, la
+  pantalla se vuelve pergamino y saca una pluma de ave con la que escribe.
+- **El modo Estándar volvió a corregir de verdad.** Estaba devolviendo el dictado
+  *idéntico* al crudo en buena parte de los casos —por eso el interruptor
+  CRUDO/FINAL del historial parecía no hacer nada— y ya no: medido contra tres
+  dictados reales, ahora los toca los tres y les quita las muletillas.
+- **La onda se arrastra libremente**, sin entrar en ningún modo. Mientras la llevas
+  agarrada aparece el aro punteado, y un clic normal sigue siendo un clic.
+- **Y va montada en una montaña rusa**: al arrastrarla saca las manitas y se ríe con
+  la boca abierta. Si la zarandeas se marea, y cuando se le pasa se limpia la boca
+  con una servilleta antes de volver a su cara de siempre.
+- **El menú de la onda son dos botones**, a la vista al pasar el ratón: clavarla y
+  devolverla a su sitio. Fuera el "+" y fuera "cambiarla de sitio", que ya no hacía
+  falta.
+- En el historial, el botón CRUDO/FINAL se apaga y dice **SIN CAMBIOS** cuando el
+  texto no se tocó, en vez de parecer que está roto.
+
 ## 0.11.5 — 16 de septiembre de 2026
 
 - **El teclado del atajo enseña las dos teclas a la vez.** La de dictar en azul y la

@@ -1,9 +1,6 @@
-use anyhow::Context;
 use rusqlite::Connection;
 use serde::Serialize;
-use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager};
 
 pub struct Store {
     conn: Mutex<Connection>,
@@ -31,6 +28,29 @@ pub struct HistoryItem {
     pub polish_ms: Option<i64>,
 }
 
+/// Una fila de historial que llega de otro equipo por la sincronización.
+///
+/// Es casi `NuevoDictado`, pero con dos diferencias que obligan a que sea su
+/// propia struct: trae **su** marca de tiempo —la del equipo donde se dictó, no
+/// la de ahora— y lo trae todo en propiedad, porque sale de deserializar un
+/// JSON y no de préstamos vivos.
+///
+/// Los tres últimos son `Option` a propósito: un respaldo hecho con una versión
+/// anterior a la 0.11 no los lleva, y esa fila entra igual con ellos vacíos.
+/// Inventarles un valor sería peor que no tenerlos — la interfaz ya sabe
+/// enseñar un guion donde no hay dato.
+pub struct DictadoRemoto {
+    pub ts: i64,
+    pub raw: String,
+    pub polished: String,
+    pub engine: String,
+    pub duration_ms: i64,
+    pub corrections_json: Option<String>,
+    pub polish_mode: Option<String>,
+    pub stt_ms: Option<i64>,
+    pub polish_ms: Option<i64>,
+}
+
 /// Lo que hace falta para guardar un dictado.
 ///
 /// Era una lista de cinco parámetros posicionales y con los tres campos nuevos
@@ -54,14 +74,6 @@ pub struct DictItem {
     pub replacement: Option<String>,
 }
 
-fn db_path(app: &AppHandle) -> anyhow::Result<PathBuf> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .context("app_data_dir no disponible")?;
-    std::fs::create_dir_all(&dir)?;
-    Ok(dir.join("mike.db"))
-}
 
 impl Store {
     /// Abre (o crea) la base en una ruta concreta.
@@ -264,10 +276,12 @@ impl Store {
 
     /// Fusión de sincronización: inserta dictados remotos que no existen
     /// localmente, identificados por (ts, raw).
-    pub fn merge_history(
-        &self,
-        remote: &[(i64, String, String, String, i64, Option<String>)],
-    ) -> anyhow::Result<usize> {
+    /// Mete las filas que falten, sin duplicar.
+    ///
+    /// Recibe structs y no tuplas por lo mismo que `add_history`: con nueve
+    /// campos, cuatro de ellos enteros, una tupla posicional es una trampa que
+    /// el compilador no ve.
+    pub fn merge_history(&self, remote: &[DictadoRemoto]) -> anyhow::Result<usize> {
         let mut conn = self.conn.lock().unwrap();
         // Todo en una transacción: sin ella cada fila es un commit propio, o sea
         // un fsync al disco por dictado. Con un respaldo de varios cientos eso
@@ -275,12 +289,24 @@ impl Store {
         // medias podía dejar la mitad de las filas dentro.
         let tx = conn.transaction()?;
         let mut added = 0;
-        for (ts, raw, polished, engine, duration_ms, corrections) in remote {
+        for d in remote {
             added += tx.execute(
-                "INSERT INTO history (ts, raw, polished, engine, duration_ms, corrections)
-                 SELECT ?1, ?2, ?3, ?4, ?5, ?6
+                "INSERT INTO history
+                   (ts, raw, polished, engine, duration_ms, corrections,
+                    polish_mode, stt_ms, polish_ms)
+                 SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9
                  WHERE NOT EXISTS (SELECT 1 FROM history WHERE ts = ?1 AND raw = ?2)",
-                rusqlite::params![ts, raw, polished, engine, duration_ms, corrections],
+                rusqlite::params![
+                    d.ts,
+                    d.raw,
+                    d.polished,
+                    d.engine,
+                    d.duration_ms,
+                    d.corrections_json,
+                    d.polish_mode,
+                    d.stt_ms,
+                    d.polish_ms,
+                ],
             )?;
         }
         tx.commit()?;
@@ -297,5 +323,92 @@ impl Store {
                     .collect()
             })
             .unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Una base de usar y tirar, en una carpeta temporal propia.
+    fn base(nombre: &str) -> Store {
+        let carpeta = std::env::temp_dir().join(format!("mike-test-{nombre}"));
+        let _ = std::fs::remove_dir_all(&carpeta);
+        Store::init_en(&carpeta).unwrap()
+    }
+
+    /// El sync viajaba con seis campos cuando la tabla ya tenía nueve: el modo
+    /// de redacción y los dos tiempos se perdían en silencio al fusionar un
+    /// respaldo. Silencio es la palabra — no fallaba nada, sólo llegaban filas
+    /// a las que les faltaba la mitad de lo que cuenta la tarjeta del historial.
+    #[test]
+    fn fusionar_conserva_el_modo_y_los_tiempos() {
+        let store = base("merge-campos");
+        store
+            .merge_history(&[DictadoRemoto {
+                ts: 1_700_000_000,
+                raw: "a ver, o sea, esto".into(),
+                polished: "Esto.".into(),
+                engine: "groq".into(),
+                duration_ms: 4200,
+                corrections_json: None,
+                polish_mode: Some("editor".into()),
+                stt_ms: Some(910),
+                polish_ms: Some(2400),
+            }])
+            .unwrap();
+
+        let filas = store.list_history(None, 10).unwrap();
+        assert_eq!(filas.len(), 1);
+        assert_eq!(filas[0].polish_mode.as_deref(), Some("editor"));
+        assert_eq!(filas[0].stt_ms, Some(910));
+        assert_eq!(filas[0].polish_ms, Some(2400));
+    }
+
+    /// Un respaldo subido por una versión anterior a la 0.11 no trae esos tres
+    /// campos. Tiene que entrar igual, con ellos vacíos: perder el respaldo
+    /// entero por tres columnas que faltan sería mucho peor que no tenerlas.
+    #[test]
+    fn un_respaldo_viejo_entra_con_los_campos_nuevos_vacios() {
+        let store = base("merge-viejo");
+        store
+            .merge_history(&[DictadoRemoto {
+                ts: 1_600_000_000,
+                raw: "dictado de antes".into(),
+                polished: "Dictado de antes.".into(),
+                engine: "local".into(),
+                duration_ms: 3000,
+                corrections_json: None,
+                polish_mode: None,
+                stt_ms: None,
+                polish_ms: None,
+            }])
+            .unwrap();
+
+        let filas = store.list_history(None, 10).unwrap();
+        assert_eq!(filas.len(), 1);
+        assert!(filas[0].polish_mode.is_none());
+        assert!(filas[0].stt_ms.is_none());
+    }
+
+    /// Fusionar dos veces el mismo respaldo no puede duplicar nada: la clave de
+    /// hecho es (ts, raw), porque los ids son de cada equipo.
+    #[test]
+    fn fusionar_dos_veces_no_duplica() {
+        let store = base("merge-idempotente");
+        let fila = || DictadoRemoto {
+            ts: 1_700_000_001,
+            raw: "lo mismo".into(),
+            polished: "Lo mismo.".into(),
+            engine: "groq".into(),
+            duration_ms: 1000,
+            corrections_json: None,
+            polish_mode: Some("estandar".into()),
+            stt_ms: Some(300),
+            polish_ms: Some(700),
+        };
+        assert_eq!(store.merge_history(&[fila()]).unwrap(), 1);
+        assert_eq!(store.merge_history(&[fila()]).unwrap(), 0);
+        assert_eq!(store.list_history(None, 10).unwrap().len(), 1);
     }
 }

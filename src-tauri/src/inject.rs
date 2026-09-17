@@ -3,6 +3,34 @@ use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 use std::thread;
 use std::time::Duration;
 
+/// Lee el texto que el usuario haya copiado.
+///
+/// # Por qué NO sintetiza un Ctrl+C
+///
+/// La primera versión lo hacía: mandaba Ctrl+C y miraba si el portapapeles
+/// cambiaba, que es como lo resuelven casi todas las herramientas de este tipo.
+/// **Está mal y rompe cosas.** Ctrl+C sólo significa «copiar» en un editor de
+/// texto. En una terminal significa **interrumpir**, y en una TUI como Claude
+/// Code significa cortar lo que estuviera corriendo. Usar la corrección dentro
+/// de una terminal le cerraba al usuario la conversación en la que estaba
+/// trabajando — lo reportó él, y el síntoma no apuntaba a esto por ningún lado.
+///
+/// La regla que queda: **nunca sintetizar un atajo que el usuario no pulsó.**
+/// No se puede saber qué significa esa combinación en la app que tiene delante,
+/// y el repertorio de cosas destructivas que hay detrás de un atajo común es
+/// enorme. Copiar lo hace él, con el atajo que use su app —Ctrl+C, Ctrl+Shift+C
+/// o el menú—; Dicho sólo lee lo que quedó.
+///
+/// Devuelve `None` si el portapapeles está vacío o sólo tiene espacios.
+pub fn leer_seleccion() -> anyhow::Result<Option<String>> {
+    let mut clipboard =
+        arboard::Clipboard::new().context("No se pudo acceder al portapapeles")?;
+    Ok(clipboard
+        .get_text()
+        .ok()
+        .filter(|t| !t.trim().is_empty()))
+}
+
 /// Inserta texto en la app activa: respalda el portapapeles, coloca el texto,
 /// simula Ctrl+V y restaura el contenido original. Maneja Unicode completo
 /// (acentos, ñ, emoji) sin depender del layout de teclado.

@@ -18,7 +18,7 @@ import type {
   ModelStatus,
   ListasAnalisis,
 } from "../types";
-import { keyLabel } from "../types";
+import { hotkeyLabel, keyLabel } from "../types";
 import Animaciones from "./Animaciones";
 import VistaPrevia from "./VistaPrevia";
 import { TarjetaDictado } from "./TarjetaDictado";
@@ -1190,6 +1190,153 @@ export default function Settings() {
                           </span>
                         </span>
                       </label>
+
+                      {/* La segunda de LABS: corregir lo que YA escribiste. Va
+                          aquí y no en Ajustes porque comparte el mismo motor
+                          que el Editor y se prueba junto con él. */}
+                      <label
+                        className={`flex items-start gap-3 rounded-xl border p-3 transition-colors ${
+                          settings.corregir_atajo.length > 0
+                            ? "border-emerald-500 bg-white ring-2 ring-emerald-500/30 dark:border-emerald-400 dark:bg-slate-900 dark:ring-emerald-400/30"
+                            : "border-emerald-200/80 bg-white/50 dark:border-emerald-900/60 dark:bg-slate-900/40"
+                        } ${hasKey ? "" : "cursor-not-allowed opacity-50"}`}
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={!hasKey}
+                          checked={settings.corregir_atajo.length > 0}
+                          onChange={(e) =>
+                            update({
+                              corregir_atajo: e.target.checked
+                                ? ["MetaLeft", "ShiftLeft", "KeyC"]
+                                : [],
+                            })
+                          }
+                          className="mt-0.5 h-4 w-4 accent-emerald-600"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold">
+                              Corregir lo que ya escribiste
+                            </span>
+                            {settings.corregir_atajo.length > 0 && (
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                {hotkeyLabel(settings.corregir_atajo)}
+                              </span>
+                            )}
+                          </span>
+                          <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            Selecciona texto en cualquier programa, pulsa el atajo
+                            y Dicho te lo devuelve corregido con el mismo motor
+                            que usa al dictar. La onda se pone en modo lectura
+                            mientras lo hace: pluma y pergamino, sin micrófono.
+                          </span>
+                          <span className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2.2}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="mt-[3px] h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+                            >
+                              <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" />
+                            </svg>
+                            <span>
+                              Si no puede mejorarlo, <strong>no toca tu texto</strong>
+                              : lo deja como estaba y te avisa. Reemplazarlo por
+                              algo peor sería lo único imperdonable aquí.
+                            </span>
+                          </span>
+                        </span>
+                      </label>
+
+                      <label className="flex cursor-pointer items-start gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={settings.corregir_al_escribir}
+                          onChange={(e) =>
+                            update({ corregir_al_escribir: e.target.checked })
+                          }
+                          className="mt-0.5 h-4 w-4 accent-emerald-600"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="text-sm font-semibold">
+                            Corregir mientras escribo
+                          </span>
+                          <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            Al terminar una palabra, si le falta la tilde, Dicho
+                            la pone. Funciona en cualquier programa y sin
+                            internet: la lista de correcciones está dentro de la
+                            app y tu diccionario personal manda sobre ella.
+                          </span>
+                          <span className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2.2}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="mt-[3px] h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+                            >
+                              <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" />
+                            </svg>
+                            <span>
+                              Sólo <strong>pone tildes</strong>: nunca cambia una
+                              palabra por otra. Nada de lo que escribes se
+                              guarda, ni se manda a ningún sitio, ni entra en el
+                              historial.
+                            </span>
+                          </span>
+                          <span className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2.2}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="mt-[3px] h-3 w-3 shrink-0"
+                            >
+                              <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+                            </svg>
+                            <span>
+                              En el navegador Windows no deja saber si estás en
+                              un campo de contraseña. Por eso está la lista de
+                              abajo, y por eso la corrección sólo toca palabras
+                              del castellano — una contraseña no lo es.
+                            </span>
+                          </span>
+                        </span>
+                      </label>
+
+                      {settings.corregir_al_escribir && (
+                        <div className="rounded-lg border border-emerald-200 bg-white/70 p-3 dark:border-emerald-900/60 dark:bg-slate-900/40">
+                          <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                            Nunca corregir en estos programas
+                          </p>
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            Un programa por línea, con su .exe. Vienen puestas
+                            las terminales y los gestores de contraseñas.
+                          </p>
+                          <textarea
+                            defaultValue={settings.apps_sin_correccion.join("\n")}
+                            onBlur={(e) =>
+                              update({
+                                apps_sin_correccion: e.target.value
+                                  .split("\n")
+                                  .map((l) => l.trim().toLowerCase())
+                                  .filter(Boolean),
+                              })
+                            }
+                            spellCheck={false}
+                            rows={5}
+                            className="mt-2 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 font-mono text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                          />
+                        </div>
+                      )}
 
                       {settings.hud_niveles && (
                         <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">

@@ -62,6 +62,15 @@ struct SyncHist {
     duration_ms: i64,
     #[serde(default)]
     corrections: serde_json::Value,
+    // Los tres de la 0.11. Van con `default` porque un respaldo subido por una
+    // versión anterior no los trae, y sin esto la deserialización entera
+    // fallaría: se perdería el respaldo completo por tres campos que faltan.
+    #[serde(default)]
+    polish_mode: Option<String>,
+    #[serde(default)]
+    stt_ms: Option<i64>,
+    #[serde(default)]
+    polish_ms: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -331,6 +340,9 @@ fn export_local(store: &Store) -> anyhow::Result<SyncData> {
             engine: h.engine,
             duration_ms: h.duration_ms,
             corrections: h.corrections,
+            polish_mode: h.polish_mode,
+            stt_ms: h.stt_ms,
+            polish_ms: h.polish_ms,
         })
         .collect();
     Ok(SyncData {
@@ -395,15 +407,16 @@ pub async fn sync_now(app: AppHandle) -> anyhow::Result<GoogleStatus> {
         let hist_rows: Vec<_> = remote
             .history
             .iter()
-            .map(|h| {
-                (
-                    h.ts,
-                    h.raw.clone(),
-                    h.polished.clone(),
-                    h.engine.clone(),
-                    h.duration_ms,
-                    corrections_to_json(&h.corrections),
-                )
+            .map(|h| crate::store::DictadoRemoto {
+                ts: h.ts,
+                raw: h.raw.clone(),
+                polished: h.polished.clone(),
+                engine: h.engine.clone(),
+                duration_ms: h.duration_ms,
+                corrections_json: corrections_to_json(&h.corrections),
+                polish_mode: h.polish_mode.clone(),
+                stt_ms: h.stt_ms,
+                polish_ms: h.polish_ms,
             })
             .collect();
         let added_hist = store.merge_history(&hist_rows)?;

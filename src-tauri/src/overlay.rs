@@ -127,6 +127,129 @@ pub fn active_work_area() -> Option<WorkArea> {
     None
 }
 
+// ─── quién tiene el foco ────────────────────────────────────────────────────
+//
+// Lo usa la corrección al vuelo para saber dónde está escribiendo el usuario y,
+// sobre todo, dónde **no** debe meterse.
+
+/// La ventana que tiene el foco ahora mismo, o 0 si no hay ninguna.
+#[cfg(windows)]
+pub fn ventana_al_frente() -> isize {
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+    unsafe { GetForegroundWindow() as isize }
+}
+
+#[cfg(not(windows))]
+pub fn ventana_al_frente() -> isize {
+    0
+}
+
+/// Nombre del ejecutable al que pertenece la ventana en primer plano, en
+/// minúsculas y sin la ruta (`chrome.exe`, `code.exe`…).
+///
+/// Es lo que compara la lista de apps donde la corrección no actúa. Se pide con
+/// `PROCESS_QUERY_LIMITED_INFORMATION` y no con el permiso completo: para leer
+/// el nombre basta, y es el único que da un proceso elevado sin ser
+/// administrador. Con el permiso completo, escribir en una ventana abierta como
+/// administrador devolvería siempre `None` y la lista de vetados no se aplicaría
+/// justo donde más importa.
+#[cfg(windows)]
+pub fn proceso_al_frente() -> Option<String> {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
+        PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetWindowThreadProcessId,
+    };
+
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd.is_null() {
+            return None;
+        }
+        let mut pid: u32 = 0;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+        if pid == 0 {
+            return None;
+        }
+        let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if h.is_null() {
+            return None;
+        }
+        let mut buf = [0u16; 260];
+        let mut len = buf.len() as u32;
+        let ok = QueryFullProcessImageNameW(h, PROCESS_NAME_WIN32, buf.as_mut_ptr(), &mut len);
+        CloseHandle(h);
+        if ok == 0 {
+            return None;
+        }
+        let ruta = String::from_utf16_lossy(&buf[..len as usize]);
+        Some(
+            ruta.rsplit(['\\', '/'])
+                .next()
+                .unwrap_or(&ruta)
+                .to_lowercase(),
+        )
+    }
+}
+
+#[cfg(not(windows))]
+pub fn proceso_al_frente() -> Option<String> {
+    None
+}
+
+/// ¿El control que tiene el foco es un campo de contraseña?
+///
+/// **Sólo lo sabe cuando el control es nativo de Windows.** Un `EDIT` con el
+/// estilo de contraseña contesta a `EM_GETPASSWORDCHAR` con el carácter que
+/// pinta en vez de las letras. En Chrome, Edge, Electron o cualquier app que se
+/// dibuje su propia interfaz **no hay nada que preguntar**: el sistema ve una
+/// sola superficie de dibujo y el campo de contraseña vive dentro, fuera del
+/// alcance de Win32. Ahí esto devuelve `false` y no queda más remedio que
+/// confiar en las otras dos protecciones — la lista de apps vetadas, y que la
+/// tabla de correcciones sólo contenga palabras castellanas.
+///
+/// Se pregunta con `SendMessageTimeout` y no con `SendMessage`: el mensaje va a
+/// la ventana de **otro proceso**, así que a secas se queda esperando a que esa
+/// app conteste, y una app colgada colgaría con ella el hilo del corrector.
+#[cfg(windows)]
+pub fn es_campo_password() -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetGUIThreadInfo, SendMessageTimeoutW, GUITHREADINFO, SMTO_ABORTIFHUNG,
+    };
+
+    /// `EM_GETPASSWORDCHAR`: devuelve el carácter con el que el control tapa lo
+    /// que escribes, o 0 si no tapa nada.
+    const EM_GETPASSWORDCHAR: u32 = 0x00D2;
+
+    unsafe {
+        let mut gti: GUITHREADINFO = std::mem::zeroed();
+        gti.cbSize = std::mem::size_of::<GUITHREADINFO>() as u32;
+        // Hilo 0 = el del primer plano, que es el único que nos interesa.
+        if GetGUIThreadInfo(0, &mut gti) == 0 || gti.hwndFocus.is_null() {
+            return false;
+        }
+        let mut res: usize = 0;
+        let ok = SendMessageTimeoutW(
+            gti.hwndFocus,
+            EM_GETPASSWORDCHAR,
+            0,
+            0,
+            SMTO_ABORTIFHUNG,
+            80,
+            &mut res,
+        );
+        ok != 0 && res != 0
+    }
+}
+
+#[cfg(not(windows))]
+pub fn es_campo_password() -> bool {
+    false
+}
+
 /// Área de trabajo del monitor donde está *esa* ventana. Al soltar el HUD hay
 /// que medirlo contra la pantalla en la que quedó, que no tiene por qué ser la
 /// de la ventana activa: se puede arrastrar a la otra sin cambiar de foco.
@@ -220,7 +343,27 @@ pub fn assert_topmost(_hwnd: isize) {}
 ///
 /// Corre en su propio hilo: bloquea mientras dure el gesto.
 #[cfg(windows)]
-pub fn arrastrar_con_cursor(hwnd: isize, mut al_menear: impl FnMut()) -> Option<WorkArea> {
+/// Cuánto tiene que viajar el ratón antes de que la onda se despegue.
+///
+/// Existe desde que la onda se arrastra **siempre**, sin modo de colocación. Sin
+/// umbral, el `pointerdown` la pegaba al cursor en el acto: ir a pulsar su
+/// propio menú o el toggle de niveles la movía sin querer, que es justo el
+/// motivo por el que antes el arrastre estaba bajo llave.
+///
+/// Seis píxeles es lo que separa un clic de un arrastre. Por debajo no se toca
+/// la ventana, así que el clic llega limpio a lo que haya dentro.
+const UMBRAL_ARRASTRE: i32 = 6;
+
+/// Pega la ventana al cursor hasta que se suelte el botón.
+///
+/// `al_arrancar` se llama **una sola vez**, al cruzar el umbral: es lo que le
+/// dice al HUD que ya va montado de verdad (el aro punteado y la carita de la
+/// montaña rusa). `al_menear` salta en cada vaivén.
+pub fn arrastrar_con_cursor(
+    hwnd: isize,
+    mut al_arrancar: impl FnMut(),
+    mut al_menear: impl FnMut(),
+) -> Option<WorkArea> {
     use windows_sys::Win32::Foundation::POINT;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
         GetAsyncKeyState, VK_LBUTTON, VK_RBUTTON,
@@ -237,6 +380,9 @@ pub fn arrastrar_con_cursor(hwnd: isize, mut al_menear: impl FnMut()) -> Option<
         let mut pt = POINT { x: 0, y: 0 };
         (GetCursorPos(&mut pt) != 0).then_some(pt)
     };
+    // Fuera del bloque porque se consulta al final: un clic que no cruzó el
+    // umbral no deja posición nueva.
+    let mut suelta = false;
     unsafe {
         // Con los botones invertidos (zurdos), el botón "principal" que el
         // webview reporta como primario es el físico derecho.
@@ -247,7 +393,7 @@ pub fn arrastrar_con_cursor(hwnd: isize, mut al_menear: impl FnMut()) -> Option<
         };
         let apretado = || (GetAsyncKeyState(boton as i32) as u16) & 0x8000 != 0;
 
-        let c0 = cursor()?;
+        let mut c0 = cursor()?;
         let (wx, wy, _, _) = window_rect(hwnd)?;
         // Detección del meneo, para la carita mareada. Va aquí y no en el
         // webview porque durante el arrastre la ventana persigue al cursor:
@@ -261,6 +407,20 @@ pub fn arrastrar_con_cursor(hwnd: isize, mut al_menear: impl FnMut()) -> Option<
                 break;
             }
             if let Some(c) = cursor() {
+                if !suelta {
+                    if (c.x - c0.x).abs() < UMBRAL_ARRASTRE
+                        && (c.y - c0.y).abs() < UMBRAL_ARRASTRE
+                    {
+                        std::thread::sleep(std::time::Duration::from_millis(8));
+                        continue;
+                    }
+                    // Se recoloca el origen: sin esto la onda pegaría un salto
+                    // de seis píxeles justo al empezar a moverse.
+                    c0 = c;
+                    meneo = Meneo::nuevo(c.x);
+                    suelta = true;
+                    al_arrancar();
+                }
                 if meneo.empuja(c.x, arranque.elapsed().as_millis()) {
                     al_menear();
                 }
@@ -277,11 +437,20 @@ pub fn arrastrar_con_cursor(hwnd: isize, mut al_menear: impl FnMut()) -> Option<
             std::thread::sleep(std::time::Duration::from_millis(8));
         }
     }
+    // Un clic no es un arrastre. Sin esta salida, pulsar la onda para cualquier
+    // cosa reescribiría `hud_posiciones` y guardaría los ajustes enteros.
+    if !suelta {
+        return None;
+    }
     window_rect(hwnd)
 }
 
 #[cfg(not(windows))]
-pub fn arrastrar_con_cursor(_hwnd: isize, _al_menear: impl FnMut()) -> Option<WorkArea> {
+pub fn arrastrar_con_cursor(
+    _hwnd: isize,
+    _al_arrancar: impl FnMut(),
+    _al_menear: impl FnMut(),
+) -> Option<WorkArea> {
     None
 }
 

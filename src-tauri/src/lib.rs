@@ -1,9 +1,11 @@
 mod audio;
+mod autotype;
 mod chunker;
 mod commands;
 mod hotkey;
 mod inject;
 mod models;
+mod ortografia;
 mod overlay;
 mod pipeline;
 mod polish;
@@ -172,7 +174,7 @@ pub fn run() {
 
             let (tx, rx) = mpsc::channel();
             pipeline::spawn(handle.clone(), rx, settings_state.clone(), store.clone());
-            hotkey::spawn(tx.clone(), settings_state.clone());
+            hotkey::spawn(tx.clone(), settings_state.clone(), store.clone());
             app.manage(PipelineTx(Mutex::new(tx.clone())));
 
             // Primer arranque: descarga automática del modelo local con progreso.
@@ -207,9 +209,6 @@ pub fn run() {
             // Cerrar la ventana principal la oculta: la app vive en la bandeja.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
-                    // Cerrar Ajustes cancela la colocación del HUD: si no, se
-                    // quedaría clavado en pantalla sin nada que lo apagara.
-                    pipeline::modo_colocar(window.app_handle(), false);
                     let _ = window.hide();
                     api.prevent_close();
                 }
@@ -235,7 +234,6 @@ pub fn run() {
             commands::google_logout,
             commands::hud_log,
             commands::hud_arrastrar,
-            commands::hud_colocar,
             commands::hud_pos_reset,
             commands::hud_pin,
             commands::hud_encima,
