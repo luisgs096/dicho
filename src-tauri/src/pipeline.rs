@@ -482,10 +482,13 @@ pub(crate) fn celebrar_actualizacion(app: &AppHandle, version: &str) {
         Some(serde_json::json!({ "version": version })),
     );
     diag(app, &format!("Estrenando la versión {version}"));
-    // 1,8 s de animación y medio segundo de propina para ver el resultado.
+    // 2,8 s de animación y medio segundo de propina para ver el resultado.
+    // **Este número va atado al reloj de `ACTUALIZADO` en faces.ts**: si allí se
+    // alarga la animación y aquí no, la onda se esconde a media película y el
+    // usuario no llega a ver ni el número de versión.
     let app = app.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(2300));
+        std::thread::sleep(Duration::from_millis(3300));
         if GRABANDO.load(Ordering::SeqCst) || ARRASTRANDO.load(Ordering::SeqCst) {
             return;
         }

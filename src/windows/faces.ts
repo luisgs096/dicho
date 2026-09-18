@@ -683,32 +683,64 @@ export const LEYENDO: Variant = {
 //   4 · El blanco se funde con el fondo.
 //   5 · Vuelve el reposo: la cara se revela píxel a píxel.
 
-/** Ojos girando: un arco de celdas dando la vuelta a un aro de 3x3. Cuatro
- *  cuadros son una vuelta.
- *
- *  **No es un espiral dibujado**, y no por pereza: ya se probó dos veces y las
- *  dos salió mal. En OJO_ASPA está escrito que un remolino "a 5 px se leía como
- *  una letra G", y en MAREO que "el espiral clásico a 3 px se convierte en una
- *  mancha". Lo que sí lee como rotación a este tamaño es que el ojo se quede
- *  quieto y lo que se mueva sea dónde está encendido. */
-const ARO = [
-  ["XXX", "..X", "..."],
-  ["..X", "..X", ".XX"],
-  ["...", "X..", "XXX"],
-  ["XX.", "X..", "X.."],
-];
-/** En contrafase, media vuelta de diferencia. Dos arcos girando a la vez y en
- *  la misma posición se leen como un desplazamiento lateral, no como un giro:
- *  es la misma lección del balancín de MAREO. */
-const OJOS_GIRO = ARO.map((_, i) => spr(ARO[i], LX, 6) + spr(ARO[(i + 2) % 4], RX, 6));
 
-/** El barrido del revelado: 12 ms por diagonal, arrancando en el 80 % de 1,8 s.
+/**
+ * Las doce celdas del aro de 5×5, en orden de reloj.
+ *
+ * El aro de 3×3 tiene sólo cuatro paradas, y con cuatro el giro se ve a
+ * tirones: cada cuadro salta un cuarto de vuelta. A 5×5 caben doce, así que el
+ * arco avanza de una en una y el giro se lee liso sin dejar de ser pixel art.
+ */
+const ARO5_CELDAS: [number, number][] = [
+  [1, 0], [2, 0], [3, 0],
+  [4, 1], [4, 2], [4, 3],
+  [3, 4], [2, 4], [1, 4],
+  [0, 3], [0, 2], [0, 1],
+];
+
+/** Un cuadro del aro: `largo` celdas encendidas a partir de `desde`. */
+const aroCuadro = (desde: number, largo: number): string[] => {
+  const m = Array.from({ length: 5 }, () => Array(5).fill("."));
+  for (let k = 0; k < largo; k++) {
+    const [x, y] = ARO5_CELDAS[(desde + k) % ARO5_CELDAS.length];
+    m[y][x] = "X";
+  }
+  return m.map((r) => r.join(""));
+};
+
+/**
+ * Los ojos girando del estreno: un arco de cinco celdas dando la vuelta a un
+ * aro de 5×5, en doce cuadros.
+ *
+ * **No es un espiral dibujado**, y no por pereza: ya se probó dos veces y las
+ * dos salió mal — en `OJO_ASPA` está escrito que un remolino «a 5 px se leía
+ * como una letra G», y en `MAREO` que «el espiral clásico a 3 px se convierte
+ * en una mancha». Lo que sí lee como rotación a este tamaño es que el ojo se
+ * quede quieto y lo que se mueva sea **dónde está encendido**.
+ *
+ * Los dos ojos van a media vuelta de diferencia. A la vez y en la misma
+ * posición se leen como un desplazamiento lateral, no como un giro: es la misma
+ * lección del balancín de `MAREO`.
+ */
+const OJOS_GIRO = Array.from({ length: 12 }, (_, i) =>
+  spr(aroCuadro(i, 5), LX - 1, 5) + spr(aroCuadro(i + 6, 5), RX - 1, 5),
+);
+
+/** La lengua del estreno, dando vueltas dentro de la boca abierta. */
+const LENGUA_ESTRENO: [number, number][] = [
+  [20, 12],
+  [21, 13],
+  [23, 13],
+  [24, 12],
+];
+
+/** El barrido del revelado: 12 ms por diagonal, arrancando en el 87 % de 2,8 s.
  *  Va por `x + y` en coordenadas absolutas y no por índice del sprite: por
  *  índice, cada spr() empezaría en cero y los dos ojos y la boca aparecerían a
  *  la vez, como tres manchas. En diagonal hay un solo frente de onda cruzando
  *  la tira. Literales y no variables CSS, por el gotcha de siempre. */
 const REVELA_PASO = 0.012;
-const REVELA_INI = 1.44 - 20 * REVELA_PASO;
+const REVELA_INI = 2.44 - 20 * REVELA_PASO;
 const revelado = (x: number, y: number) =>
   `animation-delay:${(REVELA_INI + (x + y) * REVELA_PASO).toFixed(3)}s`;
 
@@ -723,8 +755,12 @@ export const ACTUALIZADO: Variant = {
   status: "Dicho",
   scene: `<g class="u-ini">${CARA_REPOSO(spr)}</g>
     <g class="u-carga">
-      ${flip(OJOS_GIRO, ".36s")}
-      ${flip([spr(ZIGZAG, 18, 12), spr(BOCA_O, 20, 11), spr(SONRISA_LADO, 18, 12)], ".72s")}
+      ${flip(OJOS_GIRO, ".72s")}
+      ${spr(BOSTEZO, 19, 10)}
+      ${flip(
+        LENGUA_ESTRENO.map(([x, y]) => spr(tint(["XX", "XX"], "p"), x, y)),
+        ".56s",
+      )}
     </g>
     <g class="u-fin">${CARA_REPOSO((m, ox, oy) => spr(m, ox, oy, revelado))}</g>`,
 };
@@ -1295,7 +1331,7 @@ export const MIC_SVG = `<svg viewBox="0 0 7 13">${spr(
  * escribirse a mano para que añadir una carita de 8 cuadros no obligue a
  * tocar el CSS (así se quedó la ruedita de "cargando").
  */
-const FLIP_CSS = [2, 3, 4, 5, 6, 7, 8]
+const FLIP_CSS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
   .map((n) => {
     let css = "";
     for (let i = 0; i < n; i++) {
@@ -1560,20 +1596,20 @@ ${FLIP_CSS}
        64-80 %  el blanco se funde con el fondo
        80-100 % la cara se revela píxel a píxel                              */
   .u-ini, .u-carga, .u-fin, .u-barra, .u-blanco, .u-entra {
-    animation-duration: 1.8s;
+    animation-duration: 2.8s;
     animation-iteration-count: 1;
     animation-fill-mode: forwards;
   }
 
   .u-ini { animation-name: u-ini; animation-timing-function: steps(1, end); }
-  @keyframes u-ini { 0%, 10% { opacity: 1; } 11%, 100% { opacity: 0; } }
+  @keyframes u-ini { 0%, 6% { opacity: 1; } 7%, 100% { opacity: 0; } }
 
   .u-carga { opacity: 0; animation-name: u-carga; animation-timing-function: steps(1, end); }
-  @keyframes u-carga { 0%, 9% { opacity: 0; } 10%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  @keyframes u-carga { 0%, 5% { opacity: 0; } 6%, 67% { opacity: 1; } 68%, 100% { opacity: 0; } }
   /* Los dos flipbooks arrancan cuando arranca su tiempo, no cuando se monta la
      escena: si no entran a media vuelta y la tercera boca se queda fuera. Un
      ciclo de bocas y dos de ojos caben justos en los 720 ms. */
-  .u-carga .flip > g { animation-delay: .18s; }
+  .u-carga .flip > g { animation-delay: .17s; }
 
   /* La barra. Molde de .cinta —scaleX con el origen a la izquierda— pero la
      escala la pone un keyframe y no una variable. A tirones y no lisa: un
@@ -1584,14 +1620,15 @@ ${FLIP_CSS}
              opacity: .55; transform-origin: left center; transform: scaleX(0);
              animation-name: u-barra; animation-timing-function: steps(1, end); }
   @keyframes u-barra {
-    0%, 10% { transform: scaleX(0); }
-    16% { transform: scaleX(.14); }
-    22% { transform: scaleX(.22); }
-    29% { transform: scaleX(.48); }
-    36% { transform: scaleX(.55); }
-    43% { transform: scaleX(.84); }
-    50% { transform: scaleX(1); opacity: .55; }
-    52%, 100% { transform: scaleX(1); opacity: 0; }
+    0%, 6% { transform: scaleX(0); }
+    14% { transform: scaleX(.11); }
+    23% { transform: scaleX(.19); }
+    32% { transform: scaleX(.34); }
+    41% { transform: scaleX(.46); }
+    50% { transform: scaleX(.58); }
+    59% { transform: scaleX(.81); }
+    67% { transform: scaleX(1); opacity: .55; }
+    69%, 100% { transform: scaleX(1); opacity: 0; }
   }
 
   /* El destello, con el número dentro: así se funden juntos sin un segundo
@@ -1603,7 +1640,7 @@ ${FLIP_CSS}
               font: 700 24px/1 Consolas, "Cascadia Mono", monospace;
               letter-spacing: .04em;
               animation-name: u-blanco; animation-timing-function: linear; }
-  @keyframes u-blanco { 0%, 49% { opacity: 0; } 50%, 64% { opacity: 1; } 80%, 100% { opacity: 0; } }
+  @keyframes u-blanco { 0%, 66% { opacity: 0; } 68%, 77% { opacity: 1; } 87%, 100% { opacity: 0; } }
 
   /* El revelado: cada píxel se enciende con su propio retraso. Un fundido corto
      y no un salto — a pelo con steps se lee como tartamudeo. */

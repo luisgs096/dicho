@@ -101,6 +101,29 @@ const DRAG_CSS = `
   html, body, #root { overflow: hidden; }
   ::-webkit-scrollbar { width: 0; height: 0; }
   .agarrable { cursor: grab; }
+  /* El vómito rompiendo la cuarta pared: nace en el borde de abajo de la
+     cápsula y chorrea por fuera, sobre la ventana. Sólo hay ocho píxeles de
+     aire ahí debajo —la cápsula va pegada abajo para que el menú quepa
+     arriba—, así que el reguero es corto a propósito: alargarlo obligaría a
+     crecer la ventana, y una ventana más alta es más superficie invisible
+     atrapando clics, que es un fallo que ya se pagó una vez. */
+  .chorrea {
+    position: absolute; top: 100%; left: 58%; width: 3px; height: 0;
+    background: var(--m); border-radius: 0 0 3px 3px;
+    pointer-events: none; opacity: 0;
+    animation-name: chorrear; animation-duration: 2.4s;
+    animation-timing-function: ease-in; animation-iteration-count: 1;
+    animation-fill-mode: forwards;
+  }
+  /* El segundo, más fino y con retraso: un solo hilo se lee como una raya, dos
+     desiguales se leen como algo cayendo. */
+  .chorrea.dos { left: 63%; width: 2px; animation-delay: .35s; }
+  @keyframes chorrear {
+    0% { height: 0; opacity: 0; }
+    10% { opacity: 1; }
+    55% { height: 8px; opacity: 1; }
+    100% { height: 8px; opacity: 0; }
+  }
   .agarrando { cursor: grabbing; }
   /* Relevo entre caritas: la pantalla da un golpe de luz, como un LCD al
      refrescar. Sin él, una carita se convertía en otra de un fotograma a otro
@@ -988,7 +1011,11 @@ export default function Hud() {
                 {rodando ? "Arrástrame donde quieras" : "Dicho"}
               </p>
             )}
-            {verNiveles && (
+            {/* El toggle se esconde mientras la onda va montada: ocupa el
+                borde de abajo de la cápsula, que es justo por donde asoma la
+                vagoneta y por donde se escurre el vómito. Y mientras arrastras
+                no vas a cambiar de modo. */}
+            {verNiveles && !rodando && mareo === 0 && (
               <span className={estrenando ? "u-entra" : ""}>
                 <CintaNiveles
                   nivel={nivel}
@@ -1025,6 +1052,16 @@ export default function Hud() {
         {encima && (
           <MenuOnda pin={pin} onPin={alternarPin} onReset={resetearPos} />
         )}
+        {/* El vómito se sale de la cápsula y chorrea por fuera. Va **aquí**
+            y no dentro del SVG a propósito: dentro está recortado por la
+            pantalla, y la gracia es justo que se salga. Son píxeles de verdad,
+            no de la rejilla del LCD — por eso puede medir 3 de ancho. */}
+        {mareo === VOMITO && (
+          <>
+            <span className="chorrea" />
+            <span className="chorrea dos" />
+          </>
+        )}
         <div
           ref={tamaRef}
           className={`tama ${sad ? "sad" : ""} ${leyendo ? "leyendo" : ""} ${v.shake && !isError ? "shake" : ""} ${relevo ? "relevo" : ""} ${fundiendo ? "fundido" : ""}`}
@@ -1053,7 +1090,11 @@ export default function Hud() {
               {status}
             </span>
             {cinta}
-            {verNiveles && (
+            {/* El toggle se esconde mientras la onda va montada: ocupa el
+                borde de abajo de la cápsula, que es justo por donde asoma la
+                vagoneta y por donde se escurre el vómito. Y mientras arrastras
+                no vas a cambiar de modo. */}
+            {verNiveles && !rodando && mareo === 0 && (
               <span className={estrenando ? "u-entra" : ""}>
                 <CintaNiveles
                   nivel={nivel}
