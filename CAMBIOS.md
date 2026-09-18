@@ -23,6 +23,21 @@ guiones. Nada más.
 
 ## 0.13.0 — 17 de septiembre de 2026
 
+- **Modo escribano.** Copias un texto en cualquier programa y la onda cambia de
+  carita y se ofrece a corregirlo: un clic encima y lo hace. Sale una ventanita
+  con el antes y el después, y un botón de **Sustituir** que lo pega donde
+  estabas. También sigue el atajo de teclado.
+- **La onda va en montaña rusa.** Al arrastrarla se sube a una vagoneta con las
+  manitas agitándose. Si la zarandeas se marea —abanicándose primero, luego
+  ondeando los brazos como una medusa— y acaba vomitando, y **el vómito se
+  chorrea por fuera de la cápsula**. Para limpiarse hay dos versiones y sale una
+  al azar: con servilleta o con la lengua.
+- **La animación de estrenar versión dura un segundo más**, con los ojos en
+  espiral más detallados y la boca abierta moviendo la lengua.
+- **Corrige mientras escribes** (LABS, apagado hasta que lo enciendas): al
+  terminar una palabra, si le falta la tilde, Dicho la pone.
+
+
 - **Corrige mientras escribes** (LABS, apagado hasta que lo enciendas). Al
   terminar una palabra, si le falta la tilde, Dicho la pone: «tambien» pasa a
   «también» e «informacion» a «información». Funciona en cualquier programa y
