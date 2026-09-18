@@ -9,6 +9,7 @@ import {
   LEYENDO,
   CARITA_CANCELADO,
   FACE_CSS,
+  BAJANDO,
   LIMPIADAS,
   MAREO,
   RODANDO,
@@ -73,6 +74,11 @@ const PLANTON_MAREO = 1600;
 /** Hasta dónde llega la escalada del zarandeo: `MAREO` son los tres escalones
  *  —mareada, aguantándose, vomita— y al último se llega meneando. */
 const VOMITO = MAREO.length;
+
+/** Lo que tarda en levantarse la barandilla y quedarse la cara sola. Un ciclo
+ *  entero del flipbook de `BAJANDO`, ni más ni menos: si se enseña de más, el
+ *  bucle vuelve a empezar y la barandilla baja sola otra vez. */
+const BAJARSE_MS = 1200;
 
 /** Y un escalón más, al que **no** se llega meneando: limpiarse la boca. Del
  *  cuarto tiempo se encarga el reloj, que no se le puede pedir al usuario que
@@ -443,6 +449,8 @@ export default function Hud() {
   const [mareo, setMareo] = useState(0);
   /** La pantalla se está fundiendo para cambiar de carita sin corte. */
   const [fundiendo, setFundiendo] = useState(false);
+  /** Bajándose del carrito: la barandilla se levanta y se va. */
+  const [bajando, setBajando] = useState(false);
   /** Clavada en pantalla: no se esconde al acabar el dictado. */
   const [pin, setPin] = useState(false);
   const [opacidadReposo, setOpacidadReposo] = useState(0.45);
@@ -459,6 +467,9 @@ export default function Hud() {
    *  a mitad de la animación. */
   const limpiada = useRef(LIMPIADAS[0].v);
   const mareoDesde = useRef(0);
+  /** El listener del arrastre se registra una vez y se quedaría con el `mareo`
+   *  de aquel render; la ref le da siempre el de ahora. */
+  const mareoRef = useRef(0);
   const [agarrando, setAgarrando] = useState(false);
   const [dark, setDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
@@ -563,6 +574,9 @@ export default function Hud() {
     const un = listen<boolean>("hud-arrastre", (e) => {
       if (e.payload) arrastro.current = true;
       setRodando(e.payload);
+      // Soltaste sin haberte mareado: toca bajarse. Si hubo mareo, la bajada
+      // espera a que termine esa historia — se encadena desde el fundido.
+      if (!e.payload) setBajando((b) => b || mareoRef.current === 0);
     });
     return () => {
       un.then((f) => f());
@@ -634,16 +648,34 @@ export default function Hud() {
     return () => clearTimeout(t);
   }, [mareo]);
 
+  // Bajarse del carrito dura lo que dura su flipbook, y luego funde a reposo.
+  useEffect(() => {
+    if (!bajando) return;
+    const t = setTimeout(() => setFundiendo(true), BAJARSE_MS);
+    return () => clearTimeout(t);
+  }, [bajando]);
+
   // El fundido: la pantalla baja a cero, se cambia la carita por debajo y vuelve
   // a subir. Los 200 ms son los mismos que declara la transición de la escena.
+  //
+  // Al salir del mareo **se encadena la bajada**: el bicho acaba de vomitar
+  // encima de un carrito, así que todavía tiene que bajarse de él. Sólo si ya
+  // estaba bajándose se vuelve a reposo de verdad.
   useEffect(() => {
     if (!fundiendo) return;
     const t = setTimeout(() => {
+      // Si sigues arrastrando no te has bajado de nada: vuelve a la vagoneta.
+      setBajando(!bajando && !rodando);
       setMareo(0);
       setFundiendo(false);
     }, 200);
     return () => clearTimeout(t);
-  }, [fundiendo]);
+  }, [fundiendo, bajando, rodando]);
+
+  // La ref del mareo, al día en cada render.
+  useEffect(() => {
+    mareoRef.current = mareo;
+  }, [mareo]);
 
   // Estilo del HUD desde Ajustes; se refresca al vuelo al guardar cambios.
   useEffect(() => {
@@ -789,7 +821,12 @@ export default function Hud() {
   // con lo que estés leyendo. Al pasarle el ratón por encima vuelve entera, y
   // mientras dictas nunca se vela: es justo cuando hay que verla.
   const velo =
-    pin && rec.state === "idle" && !encima && !rodando && mareo === 0
+    pin &&
+    rec.state === "idle" &&
+    !encima &&
+    !rodando &&
+    !bajando &&
+    mareo === 0
       ? opacidadReposo
       : 1;
 
@@ -801,7 +838,7 @@ export default function Hud() {
   const cancelada = rec.state === "cancelado" ? CARITA_CANCELADO : null;
   // Arrastrándola: va en la vagoneta. Pierde contra el mareo, que es lo que
   // pasa si además la zarandeas.
-  const encarrito = rodando ? RODANDO : null;
+  const encarrito = bajando ? BAJANDO : rodando ? RODANDO : null;
   // Modo escribano: acabas de copiar algo y la onda se ofrece a corregirlo.
   // Es la misma carita que mientras corrige —pluma y pergamino— y eso es
   // deliberado: el usuario ve «modo escribano» y lo que cambia es la leyenda,
@@ -1015,7 +1052,7 @@ export default function Hud() {
                 borde de abajo de la cápsula, que es justo por donde asoma la
                 vagoneta y por donde se escurre el vómito. Y mientras arrastras
                 no vas a cambiar de modo. */}
-            {verNiveles && !rodando && mareo === 0 && (
+            {verNiveles && !rodando && !bajando && mareo === 0 && (
               <span className={estrenando ? "u-entra" : ""}>
                 <CintaNiveles
                   nivel={nivel}
@@ -1094,7 +1131,7 @@ export default function Hud() {
                 borde de abajo de la cápsula, que es justo por donde asoma la
                 vagoneta y por donde se escurre el vómito. Y mientras arrastras
                 no vas a cambiar de modo. */}
-            {verNiveles && !rodando && mareo === 0 && (
+            {verNiveles && !rodando && !bajando && mareo === 0 && (
               <span className={estrenando ? "u-entra" : ""}>
                 <CintaNiveles
                   nivel={nivel}

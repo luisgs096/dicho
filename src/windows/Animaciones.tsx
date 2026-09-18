@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import {
   ESTADOS,
   FACE_CSS,
+  BAJANDO,
+  CURIOSEANDO,
   LIMPIADAS,
   MAREO,
   MIC_SVG,
@@ -157,7 +159,8 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
               sorteadas: con la servilleta o con la lengua.
             </p>
             <div className="flex flex-col gap-2.5">
-              {[RODANDO, ...MAREO, ...LIMPIADAS.map((l) => l.v)].map((v, i) => (
+              {[RODANDO, ...MAREO, ...LIMPIADAS.map((l) => l.v), BAJANDO, CURIOSEANDO].map(
+                (v, i) => (
                 <div
                   key={i}
                   className="flex items-center gap-3"

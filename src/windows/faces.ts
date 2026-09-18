@@ -685,45 +685,33 @@ export const LEYENDO: Variant = {
 
 
 /**
- * Las doce celdas del aro de 5×5, en orden de reloj.
+ * Los ojos del estreno: dos pantallitas con una línea barriéndolas.
  *
- * El aro de 3×3 tiene sólo cuatro paradas, y con cuatro el giro se ve a
- * tirones: cada cuadro salta un cuarto de vuelta. A 5×5 caben doce, así que el
- * arco avanza de una en una y el giro se lee liso sin dejar de ser pixel art.
+ * # Por qué no son un espiral, habiéndolo intentado tres veces
+ *
+ * El espiral es la convención universal de «mareado» y era lo que se quería.
+ * **No se lee a este tamaño, y ya está medido tres veces**: a 5 px salía «una
+ * letra G» (ver `OJO_ASPA`), a 3 px «una mancha» (ver `MAREO`), y a **7 px**
+ * —probado en el banco, dibujándose de fuera hacia dentro y también con un
+ * tramo viajando— sale un laberinto roto. El problema no es el tamaño: es que
+ * una espiral es una línea de 1 px que se cruza consigo misma, y sin medios
+ * tonos que separen las vueltas, las vueltas se tocan.
+ *
+ * # Y por qué esto sí
+ *
+ * Un marco hueco con una barra recorriéndolo de arriba abajo se lee como **una
+ * pantalla refrescándose**, que es literalmente lo que está pasando: la app se
+ * está actualizando. No es la convención de «mareado» — es la de «máquina
+ * trabajando», y aquí esa es la correcta. Además encaja con el aparato: el
+ * tamagotchi cuenta las cosas con casillas que se llenan, no con dibujos finos.
  */
-const ARO5_CELDAS: [number, number][] = [
-  [1, 0], [2, 0], [3, 0],
-  [4, 1], [4, 2], [4, 3],
-  [3, 4], [2, 4], [1, 4],
-  [0, 3], [0, 2], [0, 1],
-];
-
-/** Un cuadro del aro: `largo` celdas encendidas a partir de `desde`. */
-const aroCuadro = (desde: number, largo: number): string[] => {
-  const m = Array.from({ length: 5 }, () => Array(5).fill("."));
-  for (let k = 0; k < largo; k++) {
-    const [x, y] = ARO5_CELDAS[(desde + k) % ARO5_CELDAS.length];
-    m[y][x] = "X";
-  }
-  return m.map((r) => r.join(""));
-};
-
-/**
- * Los ojos girando del estreno: un arco de cinco celdas dando la vuelta a un
- * aro de 5×5, en doce cuadros.
- *
- * **No es un espiral dibujado**, y no por pereza: ya se probó dos veces y las
- * dos salió mal — en `OJO_ASPA` está escrito que un remolino «a 5 px se leía
- * como una letra G», y en `MAREO` que «el espiral clásico a 3 px se convierte
- * en una mancha». Lo que sí lee como rotación a este tamaño es que el ojo se
- * quede quieto y lo que se mueva sea **dónde está encendido**.
- *
- * Los dos ojos van a media vuelta de diferencia. A la vez y en la misma
- * posición se leen como un desplazamiento lateral, no como un giro: es la misma
- * lección del balancín de `MAREO`.
- */
-const OJOS_GIRO = Array.from({ length: 12 }, (_, i) =>
-  spr(aroCuadro(i, 5), LX - 1, 5) + spr(aroCuadro(i + 6, 5), RX - 1, 5),
+const OJO_PANTALLA = ["XXXXX", "X...X", "X...X", "X...X", "XXXXX"];
+const OJOS_GIRO = [1, 2, 3].map(
+  (fila) =>
+    spr(OJO_PANTALLA, LX - 1, 5) +
+    spr(["XXXXX"], LX - 1, 5 + fila) +
+    spr(OJO_PANTALLA, RX - 1, 5) +
+    spr(["XXXXX"], RX - 1, 5 + fila),
 );
 
 /** La lengua del estreno, dando vueltas dentro de la boca abierta. */
@@ -755,7 +743,7 @@ export const ACTUALIZADO: Variant = {
   status: "Dicho",
   scene: `<g class="u-ini">${CARA_REPOSO(spr)}</g>
     <g class="u-carga">
-      ${flip(OJOS_GIRO, ".72s")}
+      ${flip(OJOS_GIRO, ".45s")}
       ${spr(BOSTEZO, 19, 10)}
       ${flip(
         LENGUA_ESTRENO.map(([x, y]) => spr(tint(["XX", "XX"], "p"), x, y)),
@@ -1018,8 +1006,24 @@ const par = (izq: string[], der: string[]) =>
   spr(izq, 8, 4) + spr(espejo(der), 31, 4);
 
 /**
- * El escenario que comparten las cuatro escenas del arrastre: la vagoneta y los
- * brazos, en su propio grupo para que boten como un carrito.
+ * La barandilla de seguridad del carrito.
+ *
+ * Va en **azul** —el color de acento de la app— y no en rojo ni amarillo
+ * chillón. No es capricho: a este tamaño, un color de alarma cruzando la cara se
+ * lee como un error, y esto no es un error, es una atracción.
+ *
+ * Es lo único de todo el HUD que no comparte color con la tinta, y por eso
+ * funciona: al levantarse se ve clarísimo qué se está moviendo.
+ */
+const BARANDILLA = [
+  "XXXXXXXXXXXXXXXXXXXXXXXXX",
+  "X.......................X",
+];
+
+/**
+ * El escenario que comparten las escenas del arrastre: la vagoneta, la
+ * barandilla bajada y los brazos, en su propio grupo para que boten como un
+ * carrito.
  *
  * Antes la vagoneta salía sólo en la primera y desaparecía en las tres del
  * mareo, y eso rompía la historia: el bicho se subía a un carrito, se mareaba en
@@ -1031,7 +1035,11 @@ const par = (izq: string[], der: string[]) =>
  * movimientos distintos —el riel y el estómago— y cuadrarlos los volvería uno.
  */
 const escenario = (brazos: string) =>
-  `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${brazos}</g>`;
+  `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${spr(
+    tint(BARANDILLA, "a"),
+    10,
+    13,
+  )}${brazos}</g>`;
 
 /**
  * Arrastrando la onda: va montada en la vagoneta y lo está pasando bien.
@@ -1191,6 +1199,64 @@ const LIMPIADA_LENGUA: Variant = {
     ],
     "1.2s",
   )}</g>`,
+};
+
+/**
+ * Bajarse del carrito: la barandilla se levanta y el bicho se queda curioseando.
+ *
+ * Existe porque sin ella la transición mentía. Al soltar la onda, la carita
+ * saltaba de golpe a una de reposo —y con frecuencia a la de estar dormido—, o
+ * sea que el bicho pasaba de una montaña rusa a roncar en un fotograma. Esto es
+ * el puente: se levanta la barandilla, se va, y lo que queda es una cara mirando
+ * a los lados como quien acaba de bajarse y no sabe muy bien dónde está.
+ *
+ * La barandilla sube **con las manitas pegadas a ella**, como cuando te quitas
+ * unos audífonos: si sube sola parece que se abre el carrito, y si suben sólo
+ * las manos no se entiende qué empujan. Al llegar arriba se desvanece, y ahí se
+ * queda la cara sola.
+ *
+ * Seis cuadros en 1,2 s, y el HUD la enseña **una sola vuelta**: es una
+ * transición, no un estado.
+ */
+export const BAJANDO: Variant = {
+  status: "Uf…",
+  scene: `${spr(VAGONETA, 9, 15)}${flip(
+    [
+      // Agarrada, todavía abajo.
+      spr(tint(BARANDILLA, "a"), 10, 13) + par(BRAZO_ABAJO, BRAZO_ABAJO) + eyes(OJO, 5),
+      // Empieza a subir; las manos van pegadas.
+      spr(tint(BARANDILLA, "a"), 10, 10) + par(ABANICO_MEDIO, ABANICO_MEDIO) + eyes(OJO, 5),
+      spr(tint(BARANDILLA, "a"), 10, 6) + par(BRAZO_ABIERTO, BRAZO_ABIERTO) + eyes(OJO, 5),
+      // Arriba del todo, a la altura de la cápsula.
+      spr(tint(BARANDILLA, "a"), 10, 3) + par(BRAZO_RECTO, BRAZO_RECTO) + eyes(OJO, 5),
+      // Se va, y las manos bajan.
+      par(BRAZO_ABAJO, BRAZO_ABAJO) + eyes(OJO, 5),
+      // Y se queda mirando a un lado: ya está en el suelo.
+      eyes(OJO, 5) + spr(RAYA, 20, 12),
+    ],
+    "1.2s",
+  )}`,
+};
+
+/**
+ * En reposo, curioseando: los ojos miran a un lado y a otro.
+ *
+ * Es donde aterriza el bicho después de bajarse del carrito, y por eso mira
+ * alrededor en vez de quedarse quieto: acaba de llegar. La pupila se desplaza
+ * dentro del ojo en lugar de moverse el ojo entero — mover el ojo completo se
+ * lee como que tiembla la cara, mover lo de dentro se lee como que mira.
+ */
+export const CURIOSEANDO: Variant = {
+  status: "",
+  scene: `${flip(
+    [
+      spr(["XXX", "X..", "X..", "XXX"], LX, 5) + spr(["XXX", "X..", "X..", "XXX"], RX, 5),
+      spr(OJO, LX, 5) + spr(OJO, RX, 5),
+      spr(["XXX", "..X", "..X", "XXX"], LX, 5) + spr(["XXX", "..X", "..X", "XXX"], RX, 5),
+      spr(OJO, LX, 5) + spr(OJO, RX, 5),
+    ],
+    "2.4s",
+  )}${spr(RAYA, 20, 12)}`,
 };
 
 /**
