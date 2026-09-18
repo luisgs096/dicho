@@ -214,8 +214,27 @@ const PUFF = [".XX.", "XXXX", "XXXX", ".XX."];
  *  para que se lea como líquido y no como otra burbuja. */
 const CHARCO_CHICO = ["..XX..", ".XXXX."];
 const CHARCO = ["..XXXX..", ".XXXXXX.", "XXXXXXXX"];
-/** Hilo que escurre de la comisura. Un píxel de ancho: más, y es un chorro. */
-const ESCURRE = ["X", "X", "X"];
+/**
+ * Lo que le cuelga de la boca después de la tercera arcada.
+ *
+ * Antes era un hilo de 1 px —`["X","X","X"]`— y a este tamaño un píxel de ancho
+ * no se lee como líquido: se lee como una raya, o como suciedad de la pantalla.
+ * Esto es ancho arriba (pegado al labio), estrecha, y acaba en un goterón. Ese
+ * remate es lo que lo convierte en algo que **pesa**; sin él, cualquier forma
+ * alargada sigue siendo una raya.
+ */
+const PLASTA = [
+  "XXXXX",
+  "XXXXX",
+  ".XXXX",
+  ".XXX.",
+  ".XXX.",
+  "XXXX.",
+  "XXXX.",
+];
+
+/** El charco más grande de los tres, el de la tercera. */
+const CHARCO_GRANDE = ["..XXXXXX..", ".XXXXXXXX.", "XXXXXXXXXX"];
 /** Aspa flotante: en los tamagotchi el significado va en el símbolo de al lado,
  *  no en la cara. Ésta es la de "no, olvídalo". */
 const ASPA = ["X...X", ".X.X.", "..X..", ".X.X.", "X...X"];
@@ -1340,11 +1359,16 @@ export const MAREO: Variant[] = [
       <g class="a-sudor">${spr(tint(GOTA, "s"), 33, 4)}</g>`,
   },
   {
-    // 3 · Ya no aguantó. Cinco tiempos, que es una historia y no un gesto: el
-    // "ay, no" con los ojos de par en par, la boca abriéndose, el chorro, y al
-    // final **se limpia la boca con la manita** mientras el charco se queda ahí.
-    // Los tamagotchi ponen el significado en el símbolo de al lado y no en la
-    // cara: por eso el charco vive fuera, en el suelo, y no encima del bicho.
+    // 3 · Ya no aguantó, y no una vez: **tres**, cada una peor que la anterior.
+    //
+    // Es la tercera vez que lo mareas, así que la historia no es «vomita», es
+    // «vomita, coge aire, vuelve a vomitar, y la tercera es la mala». Seis
+    // tiempos: tres arcadas y sus tres sueltas, la última con la boca abierta
+    // del todo y la plasta colgando.
+    //
+    // El charco crece en tres escalones y **no se va**: los tamagotchi ponen el
+    // significado en el símbolo de al lado y no en la cara, así que lo que
+    // cuenta cuánto ha vomitado es el charco del suelo, no su expresión.
     status: "¡Blegh!",
     // Aquí los brazos **no se mueven**: te agarras. Un saludo mientras vomitas
     // contaría dos cosas a la vez y no se leería ninguna.
@@ -1353,17 +1377,23 @@ export const MAREO: Variant[] = [
       [
         eyes(OJO_ANCHO, 5),
         eyes(OJO_ARCO, 6),
+        eyes(OJO_ANCHO, 5),
         eyes(OJO_ARCO, 6),
-        eyes(OJO_ARCO, 6),
+        eyes(OJO_ANCHO, 5),
         eyes(OJO_MEDIO, 7),
       ],
-      "1.4s",
+      "2.4s",
     )}${flip(
       [
+        // Arcada 1 y su suelta.
         spr(BOCA_O, 20, 11),
         spr(BOSTEZO, 19, 10),
+        // Arcada 2, ya con la boca más abierta.
+        spr(BOCA_O, 20, 11),
         spr(BOSTEZO, 19, 10),
-        spr(BOSTEZO, 19, 10),
+        // Arcada 3: la mala. Boca de par en par y la plasta colgando.
+        spr(BOCA_O, 20, 11),
+        spr(BOSTEZO, 19, 10) + spr(tint(PLASTA, "m"), 21, 14),
         // El último cuadro: la boca ya chica, y nada más.
         //
         // Aquí hubo una manita limpiándosela y **se leía como una segunda
@@ -1372,16 +1402,25 @@ export const MAREO: Variant[] = [
         // idénticos separados por un píxel no son una cara limpiándose, son
         // dos bocas. Se quita y ya está: de limpiarse se encarga el cuadro
         // siguiente, que es una escena entera dedicada a eso.
-        spr(BOCA_CHICA, 21, 12),
       ],
-      "1.4s",
+      "2.4s",
     )}</g>
-      <g class="a-vom1">${spr(tint(PUFF, "m"), 26, 12)}</g>
-      <g class="a-vom2">${spr(tint(PUFF, "m"), 26, 12)}</g>
-      <g class="a-vom3">${spr(tint(PUNTO, "m"), 26, 13)}</g>
-      <g class="a-escurre">${spr(tint(ESCURRE, "m"), 25, 14)}</g>
-      <g class="a-charco1">${spr(tint(CHARCO_CHICO, "m"), 31, 15)}</g>
-      <g class="a-charco2">${spr(tint(CHARCO, "m"), 30, 15)}</g>`,
+      <!-- Las tres sueltas. Mismo recorrido, distinto retraso y distinto
+           tamaño: la primera son dos motas, la segunda tres, y la tercera es
+           una sopa. Escalar el tamaño es lo que cuenta que va a peor; repetir
+           lo mismo tres veces sólo contaría que se repite. -->
+      <g class="v-uno">${spr(tint(PUNTO, "m"), 26, 12)}</g>
+      <g class="v-uno dos">${spr(tint(PUNTO, "m"), 26, 13)}</g>
+      <g class="v-dos">${spr(tint(PUFF, "m"), 26, 12)}</g>
+      <g class="v-dos dos">${spr(tint(PUFF, "m"), 26, 13)}</g>
+      <g class="v-dos tres">${spr(tint(PUNTO, "m"), 27, 11)}</g>
+      <g class="v-tres">${spr(tint(PUFF, "m"), 26, 11)}</g>
+      <g class="v-tres dos">${spr(tint(CHARCO_CHICO, "m"), 26, 13)}</g>
+      <g class="v-tres tres">${spr(tint(PUFF, "m"), 27, 14)}</g>
+      <g class="v-tres cuatro">${spr(tint(PUNTO, "m"), 28, 12)}</g>
+      <g class="a-charco1">${spr(tint(CHARCO_CHICO, "m"), 33, 15)}</g>
+      <g class="a-charco2">${spr(tint(CHARCO, "m"), 32, 15)}</g>
+      <g class="a-charco3">${spr(tint(CHARCO_GRANDE, "m"), 31, 15)}</g>`,
   },
 ];
 
@@ -1748,6 +1787,16 @@ ${FLIP_CSS}
      un arco hacia la derecha y abajo. En arco y no en caída recta porque la
      pantalla sólo tiene 16 px de alto (y=2 a 17) y la boca ya acaba en y=14:
      cayendo a plomo se salía del lienzo antes de leerse. */
+  /* Un solo recorrido para las tres sueltas: sale de la boca, describe el arco
+     hacia la derecha y se apaga al llegar al suelo. En arco y no a plomo porque
+     cayendo recto se sale del lienzo — la boca ya acaba en y=14 de 17. */
+  @keyframes chorro { 0%, 6% { transform: translate(0, 0); opacity: 0; }
+                      8% { transform: translate(0, 0); opacity: 1; }
+                      12% { transform: translate(2px, 1px); }
+                      16% { transform: translate(4px, 2px); }
+                      20% { transform: translate(6px, 3px); }
+                      24% { transform: translate(8px, 4px); opacity: 1; }
+                      26%, 100% { opacity: 0; } }
   @keyframes vomito { 0%, 18% { transform: translate(0, 0); opacity: 0; }
                       20% { transform: translate(0, 0); opacity: 1; }
                       32% { transform: translate(2px, 1px); }
@@ -1763,8 +1812,9 @@ ${FLIP_CSS}
                        78%, 100% { transform: scaleY(1); opacity: 0; } }
   /* El charco no se va: aparece cuando aterriza el primer chorro, crece con el
      segundo y se queda hasta el final del ciclo. */
-  @keyframes charco { 0%, 36% { opacity: 0; } 40%, 100% { opacity: 1; } }
-  @keyframes charco2 { 0%, 60% { opacity: 0; } 64%, 100% { opacity: 1; } }
+  @keyframes charco { 0%, 22% { opacity: 0; } 26%, 100% { opacity: 1; } }
+  @keyframes charco2 { 0%, 55% { opacity: 0; } 59%, 100% { opacity: 1; } }
+  @keyframes charco3 { 0%, 88% { opacity: 0; } 92%, 100% { opacity: 1; } }
 
   @keyframes eructo { 0% { transform: translate(0, 0); opacity: 0; }
                       75% { transform: translate(0, 0); opacity: 1; }
@@ -1817,16 +1867,31 @@ ${FLIP_CSS}
   .a-orb2 { opacity: .55; animation: orbita 1.28s steps(1, end) .64s infinite; }
   .a-glup { animation: glup 1.28s steps(1, end) infinite; }
   .a-sudor { opacity: 0; animation: sudor 1.28s steps(1, end) infinite; }
-  .a-arcada { animation: arcada 1.4s steps(1, end) infinite; }
-  .a-vom1, .a-vom2, .a-vom3 { opacity: 0; animation: vomito 1.4s steps(1, end) infinite; }
-  /* Escalonados por medio paso cada uno: se leen como un chorro y no como tres
-     bolas sueltas. */
-  .a-vom2 { animation-delay: .06s; }
-  .a-vom3 { animation-delay: .12s; }
-  .a-escurre { opacity: 0; transform-box: fill-box; transform-origin: center top;
-               animation: escurre 1.4s steps(1, end) infinite; }
-  .a-charco1 { opacity: 0; animation: charco 1.4s steps(1, end) infinite; }
-  .a-charco2 { opacity: 0; animation: charco2 1.4s steps(1, end) infinite; }
+  .a-arcada { animation: arcada 2.4s steps(1, end) infinite; }
+  /* Las tres sueltas comparten recorrido y se separan por el retraso: cada una
+     sale justo cuando su arcada abre la boca (a 1/6, 3/6 y 5/6 del ciclo). */
+  .v-uno, .v-dos, .v-tres {
+    opacity: 0; animation-name: chorro; animation-duration: 2.4s;
+    animation-timing-function: steps(1, end); animation-iteration-count: infinite;
+  }
+  .v-uno { animation-delay: 0s; }
+  .v-dos { animation-delay: .8s; }
+  .v-tres { animation-delay: 1.6s; }
+  /* Dentro de cada suelta, las piezas salen escalonadas: juntas se leen como
+     una bola, escalonadas como un chorro. */
+  .dos { animation-delay: calc(var(--t, 0s) + .07s); }
+  .v-uno.dos { --t: 0s; }
+  .v-dos.dos { --t: .8s; }
+  .v-tres.dos { --t: 1.6s; }
+  .tres { animation-delay: calc(var(--t2, 0s) + .14s); }
+  .v-dos.tres { --t2: .8s; }
+  .v-tres.tres { --t2: 1.6s; }
+  .cuatro { animation-delay: 1.81s; }
+  /* El charco no se va: crece un escalón por arcada y se queda. Es lo que
+     cuenta cuánto ha vomitado — la cara ya no puede contarlo más. */
+  .a-charco1 { opacity: 0; animation: charco 2.4s steps(1, end) infinite; }
+  .a-charco2 { opacity: 0; animation: charco2 2.4s steps(1, end) infinite; }
+  .a-charco3 { opacity: 0; animation: charco3 2.4s steps(1, end) infinite; }
 
   .a-onda > g { opacity: 0; animation: onda 1.4s steps(1, end) infinite; }
   .a-eructo, .a-eructo2 { opacity: 0; animation: eructo 1.2s steps(1, end) infinite; }
