@@ -1419,6 +1419,10 @@ const PEGOTE_DER = ["XX.", "XXX"];
  */
 const CACHETE_IZQ = ["XX.", "XXX", "XX."];
 const CACHETE_DER = [".XX", "XXX", ".XX"];
+// Y **pegados**, sin un pixel de aire. Con tres columnas de hueco entre la boca
+// y el carrillo se ven dos manchas sueltas, que es exactamente el fallo que ya
+// costo una vuelta en el mareo. Juntos son una sola forma de 6 de ancho: una
+// boca empujada a un lado con un bulto al otro.
 
 /** Los labios de mascar: la boca se desplaza al lado contrario del carrillo. */
 const BOCA_MASCA = ["XXX", "XXX"];
@@ -1439,13 +1443,13 @@ export const CHICLE: Variant = {
       // 1 · Entra el chicle por la derecha.
       eyes(OJO, 5) + spr(RAYA, 20, 12) + spr(tint(CHICLE_BOLA, "p"), 30, 11),
       // 2 · Masca: se hincha el carrillo derecho y la boca se va a la izquierda.
-      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 25, 11),
+      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 22, 11),
       // 3 · Y al revés.
-      eyes(OJO, 5) + spr(BOCA_MASCA, 23, 11) + spr(CACHETE_IZQ, 17, 11),
+      eyes(OJO, 5) + spr(CACHETE_IZQ, 20, 11) + spr(BOCA_MASCA, 23, 11),
       // 4 · Primera bomba: aguanta. Los ojos la miran de reojo.
       eyes(OJO, 5) + spr(tint(BOMBA_CHICA, "p"), 20, 9),
       // 5 · Se la vuelve a meter y masca.
-      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 25, 11),
+      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 22, 11),
       // 6 · Segunda bomba, más grande: también aguanta.
       eyes(OJO, 5) + spr(tint(BOMBA_MEDIA, "p"), 19, 7),
       // 7 · La tercera. Los ojos van DESPUÉS de la bomba, encima: es lo único
@@ -1474,10 +1478,10 @@ export const CHICLE_CORTO: Variant = {
   status: "",
   scene: `${flip(
     [
-      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 25, 11),
-      eyes(OJO, 5) + spr(BOCA_MASCA, 23, 11) + spr(CACHETE_IZQ, 17, 11),
+      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 22, 11),
+      eyes(OJO, 5) + spr(CACHETE_IZQ, 20, 11) + spr(BOCA_MASCA, 23, 11),
       eyes(OJO, 5) + spr(tint(BOMBA_CHICA, "p"), 20, 9),
-      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 25, 11),
+      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 22, 11),
     ],
     "1.4s",
   )}`,
