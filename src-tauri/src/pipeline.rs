@@ -36,6 +36,10 @@ pub enum Cmd {
     /// Corregir lo que el usuario tenga seleccionado, sin dictar nada. Es el
     /// mismo motor de redacción del dictado aplicado a texto que ya existía.
     Corregir,
+    /// Quitar de en medio el escribano: está ofreciéndose y no quieres nada.
+    /// Lo manda **la misma tecla que cancela un dictado**, que es la que el
+    /// usuario ya tiene en la cabeza para decir «déjalo».
+    CancelarEscribano,
 }
 
 /// Frases que los modelos STT "alucinan" sobre audio casi mudo: vienen de
@@ -1175,6 +1179,10 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                 }
                 Some(Cmd::ModelReady) => {
                     log::info!("Modelo local disponible; se cargará al dictar");
+                }
+                Some(Cmd::CancelarEscribano) => {
+                    crate::escribano::desarmar();
+                    escribano_expirado(&app);
                 }
                 Some(Cmd::Corregir) => {
                     // No se puede corregir en mitad de un dictado: el atajo de
