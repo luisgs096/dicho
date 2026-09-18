@@ -1158,11 +1158,17 @@ const LIMPIADA_LENGUA: Variant = {
 };
 
 /**
- * La que está puesta ahora mismo. Cambiar de versión es cambiar esta línea.
+ * Las dos versiones de limpiarse, y **se quedan las dos**.
+ *
+ * Iban a competir y al verlas animadas ganaron las dos, así que el HUD **sortea**
+ * cuál sale cada vez que el bicho acaba de vomitar. Es la misma idea que ya rige
+ * las 26 caritas del dictado —cinco variantes por estado, elegidas al azar— y
+ * por el mismo motivo: lo que hace que una mascota se sienta viva es que no
+ * sepas exactamente qué va a hacer.
+ *
+ * Siempre **después del vómito**, nunca sueltas: son el final de esa historia y
+ * fuera de ella no significan nada.
  */
-const LIMPIADA: Variant = LIMPIADA_SERVILLETA;
-
-/** Las dos, para poder compararlas en el catálogo y en el brandbook. */
 export const LIMPIADAS: { nombre: string; v: Variant }[] = [
   { nombre: "Con servilleta en la mano", v: LIMPIADA_SERVILLETA },
   { nombre: "Con la lengua", v: LIMPIADA_LENGUA },
@@ -1275,7 +1281,6 @@ export const MAREO: Variant[] = [
       <g class="a-charco1">${spr(tint(CHARCO_CHICO, "m"), 31, 15)}</g>
       <g class="a-charco2">${spr(tint(CHARCO, "m"), 30, 15)}</g>`,
   },
-  LIMPIADA,
 ];
 
 export const MIC_SVG = `<svg viewBox="0 0 7 13">${spr(

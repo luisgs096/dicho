@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   ESTADOS,
   FACE_CSS,
+  LIMPIADAS,
   MAREO,
   MIC_SVG,
   RODANDO,
@@ -152,10 +153,11 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
               No salen dictando: salen al <b>arrastrar la onda</b>. Llevándola
               con calma se queda en la primera, montada en su carrito. Si la
               zarandeas, cada sacudida sube un escalón y se va poniendo peor —
-              hasta que vomita, se limpia con una servilleta y se le pasa.
+              hasta que vomita. Y para limpiarse hay <b>dos</b>, que salen
+              sorteadas: con la servilleta o con la lengua.
             </p>
             <div className="flex flex-col gap-2.5">
-              {[RODANDO, ...MAREO].map((v, i) => (
+              {[RODANDO, ...MAREO, ...LIMPIADAS.map((l) => l.v)].map((v, i) => (
                 <div
                   key={i}
                   className="flex items-center gap-3"

@@ -9,6 +9,7 @@ import {
   LEYENDO,
   CARITA_CANCELADO,
   FACE_CSS,
+  LIMPIADAS,
   MAREO,
   RODANDO,
   MIC_SVG,
@@ -69,10 +70,14 @@ const BAR_MAX = 30;
  *  un bucle entero de la carita (los más largos duran 1,4 s) y un respiro. */
 const PLANTON_MAREO = 1600;
 
-/** Hasta dónde llega la escalada del zarandeo. Del cuarto tiempo —limpiarse la
- *  boca con la servilleta— se encarga el reloj: no se le puede pedir al usuario
- *  que siga meneando para ver cómo se le pasa. */
-const VOMITO = 3;
+/** Hasta dónde llega la escalada del zarandeo: `MAREO` son los tres escalones
+ *  —mareada, aguantándose, vomita— y al último se llega meneando. */
+const VOMITO = MAREO.length;
+
+/** Y un escalón más, al que **no** se llega meneando: limpiarse la boca. Del
+ *  cuarto tiempo se encarga el reloj, que no se le puede pedir al usuario que
+ *  siga zarandeando para ver cómo se le pasa. */
+const LIMPIANDO = VOMITO + 1;
 
 const CLASSIC_CSS = `
   .classic-shake { animation: cshake .55s ease-in-out; }
@@ -426,6 +431,10 @@ export default function Hud() {
   const [encima, setEncima] = useState(false);
   /** Destello de relevo entre una carita del mareo y la siguiente. */
   const [relevo, setRelevo] = useState(false);
+  /** Cuál de las dos limpiadas tocó esta vez. Se sortea al entrar y se guarda en
+   *  una ref, que si no cada repintado sacaría otra y las dos se atropellarían
+   *  a mitad de la animación. */
+  const limpiada = useRef(LIMPIADAS[0].v);
   const mareoDesde = useRef(0);
   const [agarrando, setAgarrando] = useState(false);
   const [dark, setDark] = useState(
@@ -582,12 +591,21 @@ export default function Hud() {
   // sale **fundiendo**, nunca de un fotograma al siguiente.
   useEffect(() => {
     if (mareo === 0) return;
-    if (mareo === MAREO.length) {
+    if (mareo === LIMPIANDO) {
       const t = setTimeout(() => setFundiendo(true), 900);
       return () => clearTimeout(t);
     }
     const t = setTimeout(
-      () => (mareo === VOMITO ? setMareo(VOMITO + 1) : setFundiendo(true)),
+      () => {
+        if (mareo !== VOMITO) {
+          setFundiendo(true);
+          return;
+        }
+        // El sorteo: las dos versiones se quedaron y sale una u otra.
+        limpiada.current =
+          LIMPIADAS[Math.floor(Math.random() * LIMPIADAS.length)].v;
+        setMareo(LIMPIANDO);
+      },
       mareo === VOMITO ? 2600 : 4200,
     );
     return () => clearTimeout(t);
@@ -755,7 +773,8 @@ export default function Hud() {
   const isError = rec.state === "error";
   // Zarandeada gana a todo: es el único momento en que la carita no cuenta en
   // qué va el dictado, y para entonces no hay dictado ninguno.
-  const mareada = mareo > 0 ? MAREO[mareo - 1] : null;
+  const mareada =
+    mareo === LIMPIANDO ? limpiada.current : mareo > 0 ? MAREO[mareo - 1] : null;
   const cancelada = rec.state === "cancelado" ? CARITA_CANCELADO : null;
   // Arrastrándola: va en la vagoneta. Pierde contra el mareo, que es lo que
   // pasa si además la zarandeas.
