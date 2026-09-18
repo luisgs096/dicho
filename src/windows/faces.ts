@@ -335,7 +335,7 @@ export const V: Record<FaceState, Variant[]> = {
       // mismo ritmo que se abre la boca.
       status: "Dicho",
       scene: `${flip([eyes(OJO_MEDIO, 7), eyes(OJO_LINEA, 7), eyes(OJO_ARCO, 6)], "1.4s")}
-        ${flip([spr(BOCA_CHICA, 21, 12), spr(BOCA_O, 20, 11), spr(BOSTEZO, 19, 10)], "1.4s")}`,
+        ${flip([spr(BOCA_CHICA, 21, 12), spr(BOCA_O, 20, 8), spr(BOSTEZO, 19, 10)], "1.4s")}`,
     },
   ],
 
@@ -509,7 +509,7 @@ export const V: Record<FaceState, Variant[]> = {
             spr(BOCA_CHICA, 21, 12),
             spr(BOCA_CHICA, 21, 12),
             spr(BOCA_CHICA, 21, 12),
-            spr(BOSTEZO, 19, 10),
+            spr(BOSTEZO, 19, 7),
           ],
           "1.2s",
         )}
@@ -799,7 +799,6 @@ const BOCAZA_DIENTES = [
   "XXXXXXXXXXX",
   "XXXXXXXXXXX",
   "XX.......XX",
-  "XX.......XX",
   ".XX.....XX.",
   "..XXXXXXX..",
 ];
@@ -988,10 +987,10 @@ const SERVILLETA_MANO = [
  */
 const brazoConServilleta = (mano: number) =>
   // El hombro, bajando a la vagoneta.
-  spr(["XX", "XX", "XX"], 12, 12) +
+  spr(["XX", "XX", "XX"], 12, 9) +
   // El antebrazo, del hombro a la mano.
-  spr(Array(2).fill("X".repeat(Math.max(1, mano - 12))), 12, 11) +
-  spr(SERVILLETA_MANO, mano, 9);
+  spr(Array(2).fill("X".repeat(Math.max(1, mano - 12))), 12, 8) +
+  spr(SERVILLETA_MANO, mano, 6);
 
 /** El mismo sprite del revés, para el otro brazo. */
 const espejo = (m: string[]) => m.map((r) => [...r].reverse().join(""));
@@ -1022,7 +1021,7 @@ const VAGONETA = [
  * tamaño eso se ve.
  */
 const par = (izq: string[], der: string[]) =>
-  spr(izq, 8, 4) + spr(espejo(der), 31, 4);
+  spr(izq, 8, 3) + spr(espejo(der), 31, 3);
 
 /**
  * La barandilla de seguridad del carrito.
@@ -1033,10 +1032,15 @@ const par = (izq: string[], der: string[]) =>
  *
  * Es lo único de todo el HUD que no comparte color con la tinta, y por eso
  * funciona: al levantarse se ve clarísimo qué se está moviendo.
+ *
+ * El centro va **más gordo**, como el acolchado de las de verdad, y engorda
+ * **hacia abajo**: hacia arriba le robaría sitio a la cara, que es lo único que
+ * no puede encogerse.
  */
 const BARANDILLA = [
   "XXXXXXXXXXXXXXXXXXXXXXXXX",
-  "X.......................X",
+  "X....XXXXXXXXXXXXXXX....X",
+  ".....XXXXXXXXXXXXXXX.....",
 ];
 
 /**
@@ -1054,11 +1058,16 @@ const BARANDILLA = [
  * movimientos distintos —el riel y el estómago— y cuadrarlos los volvería uno.
  */
 const escenario = (brazos: string) =>
-  `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${spr(
+  // El orden importa y es el del mundo real: primero el carrito, luego los
+  // brazos, y **la barandilla encima de ellos** — es lo que tienes delante, así
+  // que los brazos se esconden por detrás. La cara va después de todo esto, o
+  // sea por encima de la barandilla: si la barra le tapa la boca, la animación
+  // deja de contarse.
+  `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${brazos}${spr(
     tint(BARANDILLA, "a"),
     10,
-    13,
-  )}${brazos}</g>`;
+    12,
+  )}</g>`;
 
 /**
  * Arrastrando la onda: va montada en la vagoneta y lo está pasando bien.
@@ -1089,8 +1098,8 @@ export const RODANDO: Variant = {
       ".3s",
     ),
   )}
-    <g class="a-vagon">${flip([eyes(OJO_ANCHO, 3), eyes(OJO_ANCHO, 4)], ".48s")}
-    ${spr(BOCAZA_DIENTES, 17, 9)}</g>`,
+    <g class="a-vagon">${flip([eyes(OJO_ANCHO, 2), eyes(OJO_ANCHO, 3)], ".48s")}
+    ${spr(BOCAZA_DIENTES, 17, 7)}</g>`,
 };
 
 /**
@@ -1108,17 +1117,17 @@ const LIMPIADA_SERVILLETA: Variant = {
     [
       // Llega con la boca aún sucia.
       brazoConServilleta(26) +
-        spr(espejo(BRAZO_RECTO), 31, 4) +
-        eyes(OJO_LINEA, 7) +
-        spr(BOCA_CHICA, 21, 12) +
-        spr(tint(["XXX"], "m"), 25, 14),
+        spr(espejo(BRAZO_RECTO), 31, 3) +
+        eyes(OJO_LINEA, 4) +
+        spr(BOCA_CHICA, 21, 9) +
+        spr(tint(["XXX"], "m"), 25, 11),
       // Cruza y tapa. La mancha ya no está: se la llevó.
-      brazoConServilleta(20) + spr(espejo(BRAZO_RECTO), 31, 4) + eyes(OJO_LINEA, 7),
+      brazoConServilleta(20) + spr(espejo(BRAZO_RECTO), 31, 3) + eyes(OJO_LINEA, 4),
       // Vuelve, y la cara está limpia.
       brazoConServilleta(26) +
-        spr(espejo(BRAZO_RECTO), 31, 4) +
-        eyes(OJO_ARCO, 6) +
-        spr(RAYA, 20, 12),
+        spr(espejo(BRAZO_RECTO), 31, 3) +
+        eyes(OJO_ARCO, 3) +
+        spr(RAYA, 20, 9),
     ],
     ".9s",
   )}</g>`,
@@ -1187,12 +1196,12 @@ const RESTO = ["XX"];
  * cara va quedando limpia a la vista.
  */
 const VUELTA: { resto: [number, number]; lengua: [number, number] }[] = [
-  { resto: [23, 8], lengua: [22, 9] },
-  { resto: [27, 10], lengua: [24, 10] },
-  { resto: [23, 14], lengua: [22, 12] },
-  { resto: [19, 14], lengua: [19, 12] },
-  { resto: [16, 10], lengua: [18, 10] },
-  { resto: [19, 8], lengua: [19, 9] },
+  { resto: [23, 5], lengua: [22, 6] },
+  { resto: [27, 7], lengua: [24, 7] },
+  { resto: [23, 11], lengua: [22, 9] },
+  { resto: [19, 11], lengua: [19, 9] },
+  { resto: [16, 7], lengua: [18, 7] },
+  { resto: [19, 5], lengua: [19, 6] },
 ];
 
 const LIMPIADA_LENGUA: Variant = {
@@ -1201,8 +1210,8 @@ const LIMPIADA_LENGUA: Variant = {
     [
       ...VUELTA.map(
         (paso, k) =>
-          eyes(OJO_ANCHO, 3) +
-          spr(BOCA_REDONDA, 16, 8) +
+          eyes(OJO_ANCHO, 2) +
+          spr(BOCA_REDONDA, 16, 5) +
           // Los restos que aún no ha limpiado.
           VUELTA.slice(k + 1)
             .map((r) => spr(tint(RESTO, "m"), r.resto[0], r.resto[1]))
@@ -1210,10 +1219,10 @@ const LIMPIADA_LENGUA: Variant = {
           spr(tint(LENGUA, "p"), paso.lengua[0], paso.lengua[1]),
       ),
       // Se lo traga.
-      eyes(OJO_ANCHO, 3) + spr(BOCA_CHICA, 21, 11),
+      eyes(OJO_ANCHO, 2) + spr(BOCA_CHICA, 21, 8),
       // Y se le pasó: sonríe y suelta el destello de «quedó limpio».
-      eyes(OJO_ARCO, 4) +
-        spr(SONRISA, 18, 11) +
+      eyes(OJO_ARCO, 2) +
+        spr(SONRISA, 18, 8) +
         spr(tint(CHISPITA, "w"), 31, 3),
     ],
     "1.2s",
@@ -1242,16 +1251,16 @@ export const BAJANDO: Variant = {
   scene: `${spr(VAGONETA, 9, 15)}${flip(
     [
       // Agarrada, todavía abajo.
-      spr(tint(BARANDILLA, "a"), 10, 13) + par(BRAZO_ABAJO, BRAZO_ABAJO) + eyes(OJO, 5),
+      spr(tint(BARANDILLA, "a"), 10, 12) + par(BRAZO_ABAJO, BRAZO_ABAJO) + eyes(OJO, 2),
       // Empieza a subir; las manos van pegadas.
-      spr(tint(BARANDILLA, "a"), 10, 10) + par(ABANICO_MEDIO, ABANICO_MEDIO) + eyes(OJO, 5),
-      spr(tint(BARANDILLA, "a"), 10, 6) + par(BRAZO_ABIERTO, BRAZO_ABIERTO) + eyes(OJO, 5),
+      spr(tint(BARANDILLA, "a"), 10, 9) + par(ABANICO_MEDIO, ABANICO_MEDIO) + eyes(OJO, 2),
+      spr(tint(BARANDILLA, "a"), 10, 6) + par(BRAZO_ABIERTO, BRAZO_ABIERTO) + eyes(OJO, 2),
       // Arriba del todo, a la altura de la cápsula.
-      spr(tint(BARANDILLA, "a"), 10, 3) + par(BRAZO_RECTO, BRAZO_RECTO) + eyes(OJO, 5),
+      spr(tint(BARANDILLA, "a"), 10, 2) + par(BRAZO_RECTO, BRAZO_RECTO) + eyes(OJO, 2),
       // Se va, y las manos bajan.
-      par(BRAZO_ABAJO, BRAZO_ABAJO) + eyes(OJO, 5),
+      par(BRAZO_ABAJO, BRAZO_ABAJO) + eyes(OJO, 2),
       // Y se queda mirando a un lado: ya está en el suelo.
-      eyes(OJO, 5) + spr(RAYA, 20, 12),
+      eyes(OJO, 2) + spr(RAYA, 20, 9),
     ],
     "1.2s",
   )}`,
@@ -1269,13 +1278,13 @@ export const CURIOSEANDO: Variant = {
   status: "",
   scene: `${flip(
     [
-      spr(["XXX", "X..", "X..", "XXX"], LX, 5) + spr(["XXX", "X..", "X..", "XXX"], RX, 5),
-      spr(OJO, LX, 5) + spr(OJO, RX, 5),
-      spr(["XXX", "..X", "..X", "XXX"], LX, 5) + spr(["XXX", "..X", "..X", "XXX"], RX, 5),
-      spr(OJO, LX, 5) + spr(OJO, RX, 5),
+      spr(["XXX", "X..", "X..", "XXX"], LX, 2) + spr(["XXX", "X..", "X..", "XXX"], RX, 2),
+      spr(OJO, LX, 2) + spr(OJO, RX, 2),
+      spr(["XXX", "..X", "..X", "XXX"], LX, 2) + spr(["XXX", "..X", "..X", "XXX"], RX, 2),
+      spr(OJO, LX, 2) + spr(OJO, RX, 2),
     ],
     "2.4s",
-  )}${spr(RAYA, 20, 12)}`,
+  )}${spr(RAYA, 20, 9)}`,
 };
 
 /**
@@ -1317,13 +1326,13 @@ export const MAREO: Variant[] = [
       ),
     )}<g class="a-mareo">${flip(
       [
-        spr(OJO, LX, 5) + spr(OJO_MEDIO, RX, 7),
-        spr(OJO_MEDIO, LX, 6) + spr(OJO_MEDIO, RX, 6),
-        spr(OJO_MEDIO, LX, 7) + spr(OJO, RX, 5),
-        spr(OJO_MEDIO, LX, 6) + spr(OJO_MEDIO, RX, 6),
+        spr(OJO, LX, 2) + spr(OJO_MEDIO, RX, 4),
+        spr(OJO_MEDIO, LX, 3) + spr(OJO_MEDIO, RX, 3),
+        spr(OJO_MEDIO, LX, 4) + spr(OJO, RX, 2),
+        spr(OJO_MEDIO, LX, 3) + spr(OJO_MEDIO, RX, 3),
       ],
       "1.28s",
-    )}${spr(ZIGZAG, 18, 12)}</g>
+    )}${spr(ZIGZAG, 18, 9)}</g>
       <g class="a-orb1">${spr(tint(CHISPITA, "w"), 37, 3)}</g>
       <g class="a-orb2">${spr(tint(CHISPITA, "w"), 37, 3)}</g>`,
   },
@@ -1343,16 +1352,16 @@ export const MAREO: Variant[] = [
         ".6s",
       ),
     )}<g class="a-glup">${flip(
-      [eyes(OJO, 5), eyes(OJO_ANCHO, 5), eyes(OJO, 5), eyes(OJO_ANCHO, 5)],
+      [eyes(OJO, 2), eyes(OJO_ANCHO, 2), eyes(OJO, 2), eyes(OJO_ANCHO, 2)],
       ".64s",
     )}${flip(
       [
-        spr(RAYA, 20, 12),
+        spr(RAYA, 20, 9),
         // La raya de la boca sigue dentro del bulto: sin ella el hueco se leía
         // como una bocaza abierta, que es justo lo contrario de aguantarse.
-        spr(CARRILLOS_MEDIO, 17, 11) + spr(RAYA, 20, 12),
-        spr(CARRILLOS_LLENO, 15, 10) + spr(RAYA, 20, 12),
-        spr(BOCA_CHICA, 21, 12),
+        spr(CARRILLOS_MEDIO, 17, 8) + spr(RAYA, 20, 9),
+        spr(CARRILLOS_LLENO, 15, 7) + spr(RAYA, 20, 9),
+        spr(BOCA_CHICA, 21, 9),
       ],
       "1.28s",
     )}</g>
@@ -1375,25 +1384,25 @@ export const MAREO: Variant[] = [
     scene: `${escenario(par(BRAZO_RECTO, BRAZO_RECTO))}
       <g class="a-arcada">${flip(
       [
-        eyes(OJO_ANCHO, 5),
-        eyes(OJO_ARCO, 6),
-        eyes(OJO_ANCHO, 5),
-        eyes(OJO_ARCO, 6),
-        eyes(OJO_ANCHO, 5),
-        eyes(OJO_MEDIO, 7),
+        eyes(OJO_ANCHO, 2),
+        eyes(OJO_ARCO, 3),
+        eyes(OJO_ANCHO, 2),
+        eyes(OJO_ARCO, 3),
+        eyes(OJO_ANCHO, 2),
+        eyes(OJO_MEDIO, 4),
       ],
       "2.4s",
     )}${flip(
       [
         // Arcada 1 y su suelta.
-        spr(BOCA_O, 20, 11),
-        spr(BOSTEZO, 19, 10),
+        spr(BOCA_O, 20, 8),
+        spr(BOSTEZO, 19, 7),
         // Arcada 2, ya con la boca más abierta.
-        spr(BOCA_O, 20, 11),
-        spr(BOSTEZO, 19, 10),
+        spr(BOCA_O, 20, 8),
+        spr(BOSTEZO, 19, 7),
         // Arcada 3: la mala. Boca de par en par y la plasta colgando.
-        spr(BOCA_O, 20, 11),
-        spr(BOSTEZO, 19, 10) + spr(tint(PLASTA, "m"), 21, 14),
+        spr(BOCA_O, 20, 8),
+        spr(BOSTEZO, 19, 7) + spr(tint(PLASTA, "m"), 21, 11),
         // El último cuadro: la boca ya chica, y nada más.
         //
         // Aquí hubo una manita limpiándosela y **se leía como una segunda
@@ -1409,15 +1418,15 @@ export const MAREO: Variant[] = [
            tamaño: la primera son dos motas, la segunda tres, y la tercera es
            una sopa. Escalar el tamaño es lo que cuenta que va a peor; repetir
            lo mismo tres veces sólo contaría que se repite. -->
-      <g class="v-uno">${spr(tint(PUNTO, "m"), 26, 12)}</g>
-      <g class="v-uno dos">${spr(tint(PUNTO, "m"), 26, 13)}</g>
-      <g class="v-dos">${spr(tint(PUFF, "m"), 26, 12)}</g>
-      <g class="v-dos dos">${spr(tint(PUFF, "m"), 26, 13)}</g>
-      <g class="v-dos tres">${spr(tint(PUNTO, "m"), 27, 11)}</g>
-      <g class="v-tres">${spr(tint(PUFF, "m"), 26, 11)}</g>
-      <g class="v-tres dos">${spr(tint(CHARCO_CHICO, "m"), 26, 13)}</g>
-      <g class="v-tres tres">${spr(tint(PUFF, "m"), 27, 14)}</g>
-      <g class="v-tres cuatro">${spr(tint(PUNTO, "m"), 28, 12)}</g>
+      <g class="v-uno">${spr(tint(PUNTO, "m"), 26, 9)}</g>
+      <g class="v-uno dos">${spr(tint(PUNTO, "m"), 26, 10)}</g>
+      <g class="v-dos">${spr(tint(PUFF, "m"), 26, 9)}</g>
+      <g class="v-dos dos">${spr(tint(PUFF, "m"), 26, 10)}</g>
+      <g class="v-dos tres">${spr(tint(PUNTO, "m"), 27, 8)}</g>
+      <g class="v-tres">${spr(tint(PUFF, "m"), 26, 8)}</g>
+      <g class="v-tres dos">${spr(tint(CHARCO_CHICO, "m"), 26, 10)}</g>
+      <g class="v-tres tres">${spr(tint(PUFF, "m"), 27, 11)}</g>
+      <g class="v-tres cuatro">${spr(tint(PUNTO, "m"), 28, 9)}</g>
       <g class="a-charco1">${spr(tint(CHARCO_CHICO, "m"), 33, 15)}</g>
       <g class="a-charco2">${spr(tint(CHARCO, "m"), 32, 15)}</g>
       <g class="a-charco3">${spr(tint(CHARCO_GRANDE, "m"), 31, 15)}</g>`,
