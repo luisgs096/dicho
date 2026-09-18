@@ -992,22 +992,59 @@ const brazoConServilleta = (mano: number) =>
   spr(Array(2).fill("X".repeat(Math.max(1, mano - 12))), 12, 8) +
   spr(SERVILLETA_MANO, mano, 6);
 
+/**
+ * El brazo doblado hacia abajo: agarrado a la barandilla.
+ *
+ * Con la mano arriba —la pose de saludar— queda **a la altura de los ojos**, y
+ * entonces brazos y ojos se leen como una fila de cuatro bloques iguales en vez
+ * de como una cara. Doblado despeja el renglón de los ojos y queda agarrado al
+ * carrito, que es lo que toca cuando no estás saludando: vomitando, bajándote,
+ * o mientras la otra mano te limpia la boca.
+ */
+const BRAZO_ABAJO = [
+  "......",
+  "......",
+  "......",
+  "......",
+  "XXXX..",
+  "XXXX..",
+  ".XX...",
+  "..XX..",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+];
+
 /** El mismo sprite del revés, para el otro brazo. */
 const espejo = (m: string[]) => m.map((r) => [...r].reverse().join(""));
 
 /**
- * La vagoneta, a ras de suelo: los costados asomando, el borde y las ruedas.
+ * La vagoneta, de frente.
  *
- * Empezó siendo una caja de cinco filas y había que elegir entre el carrito y
- * la cara: con la caja puesta, la cara quedaba aplastada contra ella y el
- * conjunto se leía como una carita encima de una mesa. Tres filas bastan para
- * decir "va montada en algo" y dejan el lienzo para el bicho, que es lo que
- * hay que mirar.
+ * # Cómo se hace profundidad sin sombras
+ *
+ * En 1 bit no hay medios tonos, así que el truco de sombrear el frente para que
+ * parezca un volumen **no existe**. Tiene que salir de las tres cosas que sí
+ * funcionan a este tamaño, y aquí están las tres:
+ *
+ *  - **El hueco.** Un interior del color del fondo dentro de un borde macizo se
+ *    lee como algo en lo que te puedes meter. Es la misma lección que arregló la
+ *    bocaza: el hueco *es* la abertura.
+ *  - **La silueta que estrecha.** El frente se come una columna por lado según
+ *    baja. Algo que estrecha hacia abajo se aleja, y con eso deja de ser una
+ *    fachada plana.
+ *  - **El tapado.** La barandilla se dibuja después, así que le pisa el borde de
+ *    arriba: lo de delante esconde lo de detrás.
+ *
+ * Antes era una raya con dos muñones y el usuario lo dijo sin rodeos — parecía
+ * una repisa, no un carrito. Las cuatro filas salen de que la cara ya subió a la
+ * mitad de arriba: abajo había sitio y no se estaba usando.
  */
 const VAGONETA = [
-  "X.........................X",
   "XXXXXXXXXXXXXXXXXXXXXXXXXXX",
-  "...XXX...............XXX...",
+  "XX.......................XX",
+  ".XXXXXXXXXXXXXXXXXXXXXXXXX.",
+  "..XXX.................XXX..",
 ];
 
 
@@ -1063,7 +1100,7 @@ const escenario = (brazos: string) =>
   // que los brazos se esconden por detrás. La cara va después de todo esto, o
   // sea por encima de la barandilla: si la barra le tapa la boca, la animación
   // deja de contarse.
-  `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${brazos}${spr(
+  `<g class="a-vagon">${spr(VAGONETA, 9, 14)}${brazos}${spr(
     tint(BARANDILLA, "a"),
     10,
     12,
@@ -1113,19 +1150,22 @@ export const RODANDO: Variant = {
  */
 const LIMPIADA_SERVILLETA: Variant = {
   status: "Ya, ya…",
-  scene: `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${flip(
+  // El brazo libre va **apoyado**, no en alto. Con la mano arriba mientras la
+  // otra te limpia la boca no se entiende qué está haciendo: parece que saluda
+  // y se limpia a la vez, que son dos cosas y ninguna se lee.
+  scene: `<g class="a-vagon">${spr(VAGONETA, 9, 14)}${flip(
     [
       // Llega con la boca aún sucia.
       brazoConServilleta(26) +
-        spr(espejo(BRAZO_RECTO), 31, 3) +
+        spr(espejo(BRAZO_ABAJO), 31, 3) +
         eyes(OJO_LINEA, 4) +
         spr(BOCA_CHICA, 21, 9) +
         spr(tint(["XXX"], "m"), 25, 11),
       // Cruza y tapa. La mancha ya no está: se la llevó.
-      brazoConServilleta(20) + spr(espejo(BRAZO_RECTO), 31, 3) + eyes(OJO_LINEA, 4),
+      brazoConServilleta(20) + spr(espejo(BRAZO_ABAJO), 31, 3) + eyes(OJO_LINEA, 4),
       // Vuelve, y la cara está limpia.
       brazoConServilleta(26) +
-        spr(espejo(BRAZO_RECTO), 31, 3) +
+        spr(espejo(BRAZO_ABAJO), 31, 3) +
         eyes(OJO_ARCO, 3) +
         spr(RAYA, 20, 9),
     ],
@@ -1154,27 +1194,6 @@ const BOCA_REDONDA = [
   "...XXXXXXX...",
 ];
 
-/**
- * El brazo doblado hacia abajo, para la lamida.
- *
- * Con la mano arriba —la pose de saludar— queda **a la altura de los ojos**, y
- * entonces brazos y ojos se leen como una fila de cuatro bloques iguales en vez
- * de como una cara. Doblado despeja el renglón de los ojos, y de paso queda
- * como agarrándose al carrito, que es lo que toca después de vomitar.
- */
-const BRAZO_ABAJO = [
-  "......",
-  "......",
-  "......",
-  "......",
-  "XXXX..",
-  "XXXX..",
-  ".XX...",
-  "..XX..",
-  "...XX.",
-  "...XX.",
-  "...XX.",
-];
 
 /** La lengua, rosa, por dentro del aro. */
 const LENGUA = ["XXX", "XXX"];
@@ -1206,7 +1225,7 @@ const VUELTA: { resto: [number, number]; lengua: [number, number] }[] = [
 
 const LIMPIADA_LENGUA: Variant = {
   status: "Ya, ya…",
-  scene: `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${par(BRAZO_ABAJO, BRAZO_ABAJO)}${flip(
+  scene: `<g class="a-vagon">${spr(VAGONETA, 9, 14)}${par(BRAZO_ABAJO, BRAZO_ABAJO)}${flip(
     [
       ...VUELTA.map(
         (paso, k) =>
@@ -1245,20 +1264,36 @@ const LIMPIADA_LENGUA: Variant = {
  *
  * Seis cuadros en 1,2 s, y el HUD la enseña **una sola vuelta**: es una
  * transición, no un estado.
+ *
+ * La boca va en **todos** los cuadros. En la primera versión sólo la tenía el
+ * último y se veía exactamente como lo que era: una cara sin boca hasta que
+ * terminaba de subir la barandilla.
  */
 export const BAJANDO: Variant = {
   status: "Uf…",
-  scene: `${spr(VAGONETA, 9, 15)}${flip(
+  scene: `${spr(VAGONETA, 9, 14)}${flip(
     [
       // Agarrada, todavía abajo.
-      spr(tint(BARANDILLA, "a"), 10, 12) + par(BRAZO_ABAJO, BRAZO_ABAJO) + eyes(OJO, 2),
+      spr(tint(BARANDILLA, "a"), 10, 12) +
+        par(BRAZO_ABAJO, BRAZO_ABAJO) +
+        eyes(OJO, 2) +
+        spr(BOCA_CHICA, 21, 9),
       // Empieza a subir; las manos van pegadas.
-      spr(tint(BARANDILLA, "a"), 10, 9) + par(ABANICO_MEDIO, ABANICO_MEDIO) + eyes(OJO, 2),
-      spr(tint(BARANDILLA, "a"), 10, 6) + par(BRAZO_ABIERTO, BRAZO_ABIERTO) + eyes(OJO, 2),
+      spr(tint(BARANDILLA, "a"), 10, 9) +
+        par(ABANICO_MEDIO, ABANICO_MEDIO) +
+        eyes(OJO, 2) +
+        spr(BOCA_CHICA, 21, 9),
+      spr(tint(BARANDILLA, "a"), 10, 6) +
+        par(BRAZO_ABIERTO, BRAZO_ABIERTO) +
+        eyes(OJO, 2) +
+        spr(BOCA_CHICA, 21, 9),
       // Arriba del todo, a la altura de la cápsula.
-      spr(tint(BARANDILLA, "a"), 10, 2) + par(BRAZO_RECTO, BRAZO_RECTO) + eyes(OJO, 2),
+      spr(tint(BARANDILLA, "a"), 10, 2) +
+        par(BRAZO_RECTO, BRAZO_RECTO) +
+        eyes(OJO, 2) +
+        spr(BOCA_CHICA, 21, 9),
       // Se va, y las manos bajan.
-      par(BRAZO_ABAJO, BRAZO_ABAJO) + eyes(OJO, 2),
+      par(BRAZO_ABAJO, BRAZO_ABAJO) + eyes(OJO, 2) + spr(BOCA_CHICA, 21, 9),
       // Y se queda mirando a un lado: ya está en el suelo.
       eyes(OJO, 2) + spr(RAYA, 20, 9),
     ],
