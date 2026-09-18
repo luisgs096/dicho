@@ -1322,6 +1322,167 @@ export const CURIOSEANDO: Variant = {
   )}${spr(RAYA, 20, 9)}`,
 };
 
+// ─── reposo: el chicle ──────────────────────────────────────────────────────
+//
+// La primera de las caritas de reposo nuevas. No es un gesto, es **una
+// historia**: mete el chicle, masca, infla una bomba que aguanta, masca, infla
+// otra que también aguanta, y a la tercera le revienta en la cara.
+//
+// Que aguante dos veces antes de reventar no es relleno. Si revienta a la
+// primera, el chiste es un golpe y se gasta en cuanto lo has visto una vez; si
+// aguanta dos, la tercera **tiene expectativa** — ya sabes lo que va a pasar y
+// aun así esperas a ver si esta vez sí. Es la diferencia entre un gag y un
+// personaje.
+//
+// # Aquí entra el color, y no rompe nada
+//
+// Hasta ahora las caritas eran de un solo color de tinta. El chicle es **rosa**
+// (`p`), y eso ya existía en el lenguaje: el vómito es menta, la lengua rosa y
+// la barandilla azul. La regla que se mantiene es la de siempre — el color
+// nunca *sustituye* a la forma, sólo la acompaña. Si le quitas el color, la
+// animación se sigue entendiendo.
+
+/** La bolita de chicle antes de entrar en la boca. */
+const CHICLE_BOLA = ["XX", "XX"];
+
+/**
+ * Las tres bombas: **macizas y rosas, con brillo**.
+ *
+ * Macizas y no huecas, al revés que la boca abierta, y por un motivo: aquí hay
+ * color. Un aro rosa de contorno se lee como un anillo; un disco rosa se lee
+ * como un globo. El hueco era la solución cuando sólo había un color y había que
+ * distinguir un volumen de una mancha — con color, la mancha ya está resuelta.
+ *
+ * El brillo es **un hueco de 2×1 arriba a la izquierda**, del color del fondo.
+ * Va descentrado a propósito: centrado se leería como una pupila, y hay una
+ * regla escrita sobre eso —un hueco suelto dentro de un bloque macizo se lee
+ * como un ojo—. Arriba y a un lado, es un reflejo.
+ *
+ * Crecen desde la boca **hacia arriba** y se quedan por debajo de los ojos: el
+ * chicle sale por la boca, y una bomba que tape la cara entera deja de tener
+ * personaje detrás.
+ */
+const BOMBA_CHICA = [
+  ".XXX.",
+  "XooXX",
+  "XXXXX",
+  "XXXXX",
+  ".XXX.",
+];
+const BOMBA_MEDIA = [
+  "..XXX..",
+  ".XXXXX.",
+  "XooXXXX",
+  "XXXXXXX",
+  "XXXXXXX",
+  ".XXXXX.",
+  "..XXX..",
+];
+const BOMBA_GIGANTE = [
+  "...XXXXXXX...",
+  ".XXXXXXXXXXX.",
+  "XXooXXXXXXXXX",
+  "XXooXXXXXXXXX",
+  "XXXXXXXXXXXXX",
+  "XXXXXXXXXXXXX",
+  ".XXXXXXXXXXX.",
+  "...XXXXXXX...",
+];
+
+/**
+ * El reventón: cuatro pares de esquirlas apuntando hacia fuera.
+ *
+ * Pocas y largas. La primera versión era una trama tupida y salía un garabato:
+ * a este tamaño lo que se lee como explosión no es la cantidad de piezas, es que
+ * **apunten todas desde un centro común**.
+ */
+const ESQUIRLAS = [
+  "..X.....X..",
+  "X..X...X..X",
+  "...........",
+  "XX.......XX",
+  "...........",
+  "X..X...X..X",
+  "..X.....X..",
+];
+
+/** El chicle pegado en la cara después del reventón. Rosa, como la bomba. */
+const PEGOTE_IZQ = ["XXX", ".XX"];
+const PEGOTE_DER = ["XX.", "XXX"];
+
+/**
+ * Los cachetes al mascar: se hincha uno y luego el otro.
+ *
+ * Van pegados a la boca y no sueltos a los lados de la cara. Sueltos ya se probó
+ * en el mareo y se leían como **orejas**: dos bloques flotando lejos de la boca
+ * no son carrillos.
+ */
+const CACHETE_IZQ = ["XX.", "XXX", "XX."];
+const CACHETE_DER = [".XX", "XXX", ".XX"];
+
+/** Los labios de mascar: la boca se desplaza al lado contrario del carrillo. */
+const BOCA_MASCA = ["XXX", "XXX"];
+
+/**
+ * Mascando chicle, versión larga: ocho tiempos.
+ *
+ * Es deliberadamente más larga que el resto de caritas —4,8 s frente a los 1,4 s
+ * de tope habituales— y el tope no aplica aquí: esa regla existe porque las
+ * caritas del dictado salen unos segundos y un gesto que no cierra se ve
+ * cortado. Ésta sale con la onda clavada, mirándola, y lo que hay que evitar es
+ * justo lo contrario, que se sienta repetitiva.
+ */
+export const CHICLE: Variant = {
+  status: "",
+  scene: `${flip(
+    [
+      // 1 · Entra el chicle por la derecha.
+      eyes(OJO, 5) + spr(RAYA, 20, 12) + spr(tint(CHICLE_BOLA, "p"), 30, 11),
+      // 2 · Masca: se hincha el carrillo derecho y la boca se va a la izquierda.
+      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 25, 11),
+      // 3 · Y al revés.
+      eyes(OJO, 5) + spr(BOCA_MASCA, 23, 11) + spr(CACHETE_IZQ, 17, 11),
+      // 4 · Primera bomba: aguanta. Los ojos la miran de reojo.
+      eyes(OJO, 5) + spr(tint(BOMBA_CHICA, "p"), 20, 9),
+      // 5 · Se la vuelve a meter y masca.
+      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 25, 11),
+      // 6 · Segunda bomba, más grande: también aguanta.
+      eyes(OJO, 5) + spr(tint(BOMBA_MEDIA, "p"), 19, 7),
+      // 7 · La tercera. Los ojos van DESPUÉS de la bomba, encima: es lo único
+      //     que mantiene al personaje a la vista cuando la bomba le tapa media
+      //     cara, y sin ojos no hay nadie a quien le vaya a reventar.
+      spr(tint(BOMBA_GIGANTE, "p"), 16, 6) + eyes(OJO_ANCHO, 5),
+      // 8 · ¡Pof! Y se queda con el chicle pegado en la cara.
+      spr(tint(ESQUIRLAS, "p"), 17, 6) +
+        spr(tint(PEGOTE_IZQ, "p"), 14, 4) +
+        spr(tint(PEGOTE_DER, "p"), 28, 5) +
+        eyes(OJO_LINEA, 7) +
+        spr(RAYA, 20, 12),
+    ],
+    "4.8s",
+  )}`,
+};
+
+/**
+ * La misma, corta: masca y saca una bomba que aguanta.
+ *
+ * No es la larga recortada: es el mismo personaje haciendo lo mismo sin llegar a
+ * la parte que sorprende. Sale cuando la onda va a estar poco tiempo a la vista,
+ * donde la de ocho tiempos se vería cortada por la mitad.
+ */
+export const CHICLE_CORTO: Variant = {
+  status: "",
+  scene: `${flip(
+    [
+      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 25, 11),
+      eyes(OJO, 5) + spr(BOCA_MASCA, 23, 11) + spr(CACHETE_IZQ, 17, 11),
+      eyes(OJO, 5) + spr(tint(BOMBA_CHICA, "p"), 20, 9),
+      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 25, 11),
+    ],
+    "1.4s",
+  )}`,
+};
+
 /**
  * Las dos versiones de limpiarse, y **se quedan las dos**.
  *

@@ -3,6 +3,8 @@ import {
   ESTADOS,
   FACE_CSS,
   BAJANDO,
+  CHICLE,
+  CHICLE_CORTO,
   CURIOSEANDO,
   LIMPIADAS,
   MAREO,
@@ -159,7 +161,7 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
               sorteadas: con la servilleta o con la lengua.
             </p>
             <div className="flex flex-col gap-2.5">
-              {[RODANDO, ...MAREO, ...LIMPIADAS.map((l) => l.v), BAJANDO, CURIOSEANDO].map(
+              {[RODANDO, ...MAREO, ...LIMPIADAS.map((l) => l.v), BAJANDO, CURIOSEANDO, CHICLE, CHICLE_CORTO].map(
                 (v, i) => (
                 <div
                   key={i}
