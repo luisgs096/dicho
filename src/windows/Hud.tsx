@@ -9,6 +9,7 @@ import {
   LEYENDO,
   CARITA_CANCELADO,
   FACE_CSS,
+  LIMPIADAS,
   MAREO,
   RODANDO,
   MIC_SVG,
@@ -69,10 +70,14 @@ const BAR_MAX = 30;
  *  un bucle entero de la carita (los más largos duran 1,4 s) y un respiro. */
 const PLANTON_MAREO = 1600;
 
-/** Hasta dónde llega la escalada del zarandeo. Del cuarto tiempo —limpiarse la
- *  boca con la servilleta— se encarga el reloj: no se le puede pedir al usuario
- *  que siga meneando para ver cómo se le pasa. */
-const VOMITO = 3;
+/** Hasta dónde llega la escalada del zarandeo: `MAREO` son los tres escalones
+ *  —mareada, aguantándose, vomita— y al último se llega meneando. */
+const VOMITO = MAREO.length;
+
+/** Y un escalón más, al que **no** se llega meneando: limpiarse la boca. Del
+ *  cuarto tiempo se encarga el reloj, que no se le puede pedir al usuario que
+ *  siga zarandeando para ver cómo se le pasa. */
+const LIMPIANDO = VOMITO + 1;
 
 const CLASSIC_CSS = `
   .classic-shake { animation: cshake .55s ease-in-out; }
@@ -96,6 +101,29 @@ const DRAG_CSS = `
   html, body, #root { overflow: hidden; }
   ::-webkit-scrollbar { width: 0; height: 0; }
   .agarrable { cursor: grab; }
+  /* El vómito rompiendo la cuarta pared: nace en el borde de abajo de la
+     cápsula y chorrea por fuera, sobre la ventana. Sólo hay ocho píxeles de
+     aire ahí debajo —la cápsula va pegada abajo para que el menú quepa
+     arriba—, así que el reguero es corto a propósito: alargarlo obligaría a
+     crecer la ventana, y una ventana más alta es más superficie invisible
+     atrapando clics, que es un fallo que ya se pagó una vez. */
+  .chorrea {
+    position: absolute; top: 100%; left: 58%; width: 3px; height: 0;
+    background: var(--m); border-radius: 0 0 3px 3px;
+    pointer-events: none; opacity: 0;
+    animation-name: chorrear; animation-duration: 2.4s;
+    animation-timing-function: ease-in; animation-iteration-count: 1;
+    animation-fill-mode: forwards;
+  }
+  /* El segundo, más fino y con retraso: un solo hilo se lee como una raya, dos
+     desiguales se leen como algo cayendo. */
+  .chorrea.dos { left: 63%; width: 2px; animation-delay: .35s; }
+  @keyframes chorrear {
+    0% { height: 0; opacity: 0; }
+    10% { opacity: 1; }
+    55% { height: 8px; opacity: 1; }
+    100% { height: 8px; opacity: 0; }
+  }
   .agarrando { cursor: grabbing; }
   /* Relevo entre caritas: la pantalla da un golpe de luz, como un LCD al
      refrescar. Sin él, una carita se convertía en otra de un fotograma a otro
@@ -426,6 +454,10 @@ export default function Hud() {
   const [encima, setEncima] = useState(false);
   /** Destello de relevo entre una carita del mareo y la siguiente. */
   const [relevo, setRelevo] = useState(false);
+  /** Cuál de las dos limpiadas tocó esta vez. Se sortea al entrar y se guarda en
+   *  una ref, que si no cada repintado sacaría otra y las dos se atropellarían
+   *  a mitad de la animación. */
+  const limpiada = useRef(LIMPIADAS[0].v);
   const mareoDesde = useRef(0);
   const [agarrando, setAgarrando] = useState(false);
   const [dark, setDark] = useState(
@@ -528,7 +560,10 @@ export default function Hud() {
   // al cruzar el umbral— y cuando se suelta. Es lo que enciende el aro punteado
   // y la carita de la vagoneta.
   useEffect(() => {
-    const un = listen<boolean>("hud-arrastre", (e) => setRodando(e.payload));
+    const un = listen<boolean>("hud-arrastre", (e) => {
+      if (e.payload) arrastro.current = true;
+      setRodando(e.payload);
+    });
     return () => {
       un.then((f) => f());
     };
@@ -579,12 +614,21 @@ export default function Hud() {
   // sale **fundiendo**, nunca de un fotograma al siguiente.
   useEffect(() => {
     if (mareo === 0) return;
-    if (mareo === MAREO.length) {
+    if (mareo === LIMPIANDO) {
       const t = setTimeout(() => setFundiendo(true), 900);
       return () => clearTimeout(t);
     }
     const t = setTimeout(
-      () => (mareo === VOMITO ? setMareo(VOMITO + 1) : setFundiendo(true)),
+      () => {
+        if (mareo !== VOMITO) {
+          setFundiendo(true);
+          return;
+        }
+        // El sorteo: las dos versiones se quedaron y sale una u otra.
+        limpiada.current =
+          LIMPIADAS[Math.floor(Math.random() * LIMPIADAS.length)].v;
+        setMareo(LIMPIANDO);
+      },
       mareo === VOMITO ? 2600 : 4200,
     );
     return () => clearTimeout(t);
@@ -675,15 +719,28 @@ export default function Hud() {
   // resuelve el umbral de seis píxeles del backend (UMBRAL_ARRASTRE): por
   // debajo de eso el clic llega limpio y la ventana no se mueve. Hasta cruzarlo
   // no hay ni aro punteado ni vagoneta.
+  // ¿Llegó a arrastrarse? Lo dice el backend al cruzar el umbral. Sin esto no
+  // se puede distinguir un clic de un arrastre: la onda es a la vez el botón
+  // del escribano y su propia asa.
+  const arrastro = useRef(false);
   const agarrar = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
+    arrastro.current = false;
     e.preventDefault();
     setAgarrando(true);
     invoke("hud_arrastrar").catch(() => {});
   };
   useEffect(() => {
     if (!agarrando) return;
-    const soltar = () => setAgarrando(false);
+    const soltar = () => {
+      setAgarrando(false);
+      // Soltaste sin haberla movido: eso es un clic. Y sólo hace algo si el
+      // escribano está armado — el backend lo vuelve a comprobar, porque en la
+      // cápsula se hacen muchos clics que no son éste.
+      if (!arrastro.current && recRef.current.state === "escribano") {
+        invoke("hud_corregir").catch(() => {});
+      }
+    };
     window.addEventListener("pointerup", soltar);
     window.addEventListener("pointercancel", soltar);
     // Red de seguridad: si la ventana se mueve fuera del cursor y el
@@ -739,14 +796,19 @@ export default function Hud() {
   const isError = rec.state === "error";
   // Zarandeada gana a todo: es el único momento en que la carita no cuenta en
   // qué va el dictado, y para entonces no hay dictado ninguno.
-  const mareada = mareo > 0 ? MAREO[mareo - 1] : null;
+  const mareada =
+    mareo === LIMPIANDO ? limpiada.current : mareo > 0 ? MAREO[mareo - 1] : null;
   const cancelada = rec.state === "cancelado" ? CARITA_CANCELADO : null;
   // Arrastrándola: va en la vagoneta. Pierde contra el mareo, que es lo que
   // pasa si además la zarandeas.
   const encarrito = rodando ? RODANDO : null;
-  // Modo lectura: corrigiendo un texto que ya existía. No hay micrófono que
-  // enseñar porque no se está escuchando nada.
-  const leyendo = rec.state === "corrigiendo";
+  // Modo escribano: acabas de copiar algo y la onda se ofrece a corregirlo.
+  // Es la misma carita que mientras corrige —pluma y pergamino— y eso es
+  // deliberado: el usuario ve «modo escribano» y lo que cambia es la leyenda,
+  // no el personaje.
+  const armado = rec.state === "escribano";
+  // Modo lectura: no hay micrófono que enseñar porque no se está escuchando.
+  const leyendo = rec.state === "corrigiendo" || armado;
   const corrigiendo = leyendo ? LEYENDO : null;
   // El estreno ya no es una pantalla aparte: es una carita más que entra por
   // el camino de siempre, con dos capas encima de la cápsula. Ver `ACTUALIZADO`
@@ -765,7 +827,9 @@ export default function Hud() {
   const sad =
     (isError && !mareada && !cancelada && !corrigiendo && !estrenada) || v.sad;
   const porLimite = rec.state === "processing" && rec.motivo === "limite";
-  const status = mareada
+  const status = armado
+    ? `Clic para corregir · ${rec.state === "escribano" ? rec.palabras : 0} palabras`
+    : mareada
     ? mareada.status
     : cancelada
     ? cancelada.status
@@ -947,7 +1011,11 @@ export default function Hud() {
                 {rodando ? "Arrástrame donde quieras" : "Dicho"}
               </p>
             )}
-            {verNiveles && (
+            {/* El toggle se esconde mientras la onda va montada: ocupa el
+                borde de abajo de la cápsula, que es justo por donde asoma la
+                vagoneta y por donde se escurre el vómito. Y mientras arrastras
+                no vas a cambiar de modo. */}
+            {verNiveles && !rodando && mareo === 0 && (
               <span className={estrenando ? "u-entra" : ""}>
                 <CintaNiveles
                   nivel={nivel}
@@ -984,6 +1052,16 @@ export default function Hud() {
         {encima && (
           <MenuOnda pin={pin} onPin={alternarPin} onReset={resetearPos} />
         )}
+        {/* El vómito se sale de la cápsula y chorrea por fuera. Va **aquí**
+            y no dentro del SVG a propósito: dentro está recortado por la
+            pantalla, y la gracia es justo que se salga. Son píxeles de verdad,
+            no de la rejilla del LCD — por eso puede medir 3 de ancho. */}
+        {mareo === VOMITO && (
+          <>
+            <span className="chorrea" />
+            <span className="chorrea dos" />
+          </>
+        )}
         <div
           ref={tamaRef}
           className={`tama ${sad ? "sad" : ""} ${leyendo ? "leyendo" : ""} ${v.shake && !isError ? "shake" : ""} ${relevo ? "relevo" : ""} ${fundiendo ? "fundido" : ""}`}
@@ -1012,7 +1090,11 @@ export default function Hud() {
               {status}
             </span>
             {cinta}
-            {verNiveles && (
+            {/* El toggle se esconde mientras la onda va montada: ocupa el
+                borde de abajo de la cápsula, que es justo por donde asoma la
+                vagoneta y por donde se escurre el vómito. Y mientras arrastras
+                no vas a cambiar de modo. */}
+            {verNiveles && !rodando && mareo === 0 && (
               <span className={estrenando ? "u-entra" : ""}>
                 <CintaNiveles
                   nivel={nivel}

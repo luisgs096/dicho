@@ -36,6 +36,20 @@
         "skipTaskbar": true,
         "visible": false,
         "focus": false
+      },
+      {
+        "label": "revision",
+        "title": "Revisar la corrección",
+        "width": 560,
+        "height": 460,
+        "minWidth": 420,
+        "minHeight": 320,
+        "resizable": true,
+        "decorations": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": false,
+        "visible": false,
+        "center": true
       }
     ],
     "security": {

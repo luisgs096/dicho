@@ -1,5 +1,6 @@
 mod audio;
 mod autotype;
+mod escribano;
 mod chunker;
 mod commands;
 mod hotkey;
@@ -176,6 +177,9 @@ pub fn run() {
             pipeline::spawn(handle.clone(), rx, settings_state.clone(), store.clone());
             hotkey::spawn(tx.clone(), settings_state.clone(), store.clone());
             app.manage(PipelineTx(Mutex::new(tx.clone())));
+            // El vigilante del portapapeles: cuando el usuario copia algo, la
+            // onda se ofrece a corregirlo.
+            escribano::vigilar(handle.clone(), settings_state.clone());
 
             // Primer arranque: descarga automática del modelo local con progreso.
             let dl_handle = handle.clone();
@@ -236,6 +240,8 @@ pub fn run() {
             commands::hud_arrastrar,
             commands::hud_pos_reset,
             commands::hud_pin,
+            commands::hud_corregir,
+            commands::escribano_sustituir,
             commands::hud_encima,
             commands::hud_nivel,
             commands::programar_relanzamiento,

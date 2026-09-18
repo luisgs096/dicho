@@ -99,6 +99,12 @@ pub struct AppSettings {
     /// Vacío = apagado. Por defecto `Win + Mayús + C`: Windows no se queda esa
     /// combinación y casi ninguna app la usa, pero es configurable por lo de
     /// siempre — cualquier atajo choca con algo en algún sitio.
+    /// El atajo de «corregir lo que ya escribiste». Vacío = función apagada.
+    ///
+    /// Encenderla **fuerza `hud_pin`**: el gesto es copiar y darle un clic a la
+    /// onda, y una onda que se esconde a los tres segundos no se puede pulsar.
+    /// Lo aplica `guardar_ajustes`, no la interfaz, para que valga también si
+    /// alguien edita el `settings.json` a mano.
     pub corregir_atajo: Vec<Key>,
     pub engine: EngineKind,
     pub polish: PolishKind,

@@ -683,32 +683,64 @@ export const LEYENDO: Variant = {
 //   4 · El blanco se funde con el fondo.
 //   5 · Vuelve el reposo: la cara se revela píxel a píxel.
 
-/** Ojos girando: un arco de celdas dando la vuelta a un aro de 3x3. Cuatro
- *  cuadros son una vuelta.
- *
- *  **No es un espiral dibujado**, y no por pereza: ya se probó dos veces y las
- *  dos salió mal. En OJO_ASPA está escrito que un remolino "a 5 px se leía como
- *  una letra G", y en MAREO que "el espiral clásico a 3 px se convierte en una
- *  mancha". Lo que sí lee como rotación a este tamaño es que el ojo se quede
- *  quieto y lo que se mueva sea dónde está encendido. */
-const ARO = [
-  ["XXX", "..X", "..."],
-  ["..X", "..X", ".XX"],
-  ["...", "X..", "XXX"],
-  ["XX.", "X..", "X.."],
-];
-/** En contrafase, media vuelta de diferencia. Dos arcos girando a la vez y en
- *  la misma posición se leen como un desplazamiento lateral, no como un giro:
- *  es la misma lección del balancín de MAREO. */
-const OJOS_GIRO = ARO.map((_, i) => spr(ARO[i], LX, 6) + spr(ARO[(i + 2) % 4], RX, 6));
 
-/** El barrido del revelado: 12 ms por diagonal, arrancando en el 80 % de 1,8 s.
+/**
+ * Las doce celdas del aro de 5×5, en orden de reloj.
+ *
+ * El aro de 3×3 tiene sólo cuatro paradas, y con cuatro el giro se ve a
+ * tirones: cada cuadro salta un cuarto de vuelta. A 5×5 caben doce, así que el
+ * arco avanza de una en una y el giro se lee liso sin dejar de ser pixel art.
+ */
+const ARO5_CELDAS: [number, number][] = [
+  [1, 0], [2, 0], [3, 0],
+  [4, 1], [4, 2], [4, 3],
+  [3, 4], [2, 4], [1, 4],
+  [0, 3], [0, 2], [0, 1],
+];
+
+/** Un cuadro del aro: `largo` celdas encendidas a partir de `desde`. */
+const aroCuadro = (desde: number, largo: number): string[] => {
+  const m = Array.from({ length: 5 }, () => Array(5).fill("."));
+  for (let k = 0; k < largo; k++) {
+    const [x, y] = ARO5_CELDAS[(desde + k) % ARO5_CELDAS.length];
+    m[y][x] = "X";
+  }
+  return m.map((r) => r.join(""));
+};
+
+/**
+ * Los ojos girando del estreno: un arco de cinco celdas dando la vuelta a un
+ * aro de 5×5, en doce cuadros.
+ *
+ * **No es un espiral dibujado**, y no por pereza: ya se probó dos veces y las
+ * dos salió mal — en `OJO_ASPA` está escrito que un remolino «a 5 px se leía
+ * como una letra G», y en `MAREO` que «el espiral clásico a 3 px se convierte
+ * en una mancha». Lo que sí lee como rotación a este tamaño es que el ojo se
+ * quede quieto y lo que se mueva sea **dónde está encendido**.
+ *
+ * Los dos ojos van a media vuelta de diferencia. A la vez y en la misma
+ * posición se leen como un desplazamiento lateral, no como un giro: es la misma
+ * lección del balancín de `MAREO`.
+ */
+const OJOS_GIRO = Array.from({ length: 12 }, (_, i) =>
+  spr(aroCuadro(i, 5), LX - 1, 5) + spr(aroCuadro(i + 6, 5), RX - 1, 5),
+);
+
+/** La lengua del estreno, dando vueltas dentro de la boca abierta. */
+const LENGUA_ESTRENO: [number, number][] = [
+  [20, 12],
+  [21, 13],
+  [23, 13],
+  [24, 12],
+];
+
+/** El barrido del revelado: 12 ms por diagonal, arrancando en el 87 % de 2,8 s.
  *  Va por `x + y` en coordenadas absolutas y no por índice del sprite: por
  *  índice, cada spr() empezaría en cero y los dos ojos y la boca aparecerían a
  *  la vez, como tres manchas. En diagonal hay un solo frente de onda cruzando
  *  la tira. Literales y no variables CSS, por el gotcha de siempre. */
 const REVELA_PASO = 0.012;
-const REVELA_INI = 1.44 - 20 * REVELA_PASO;
+const REVELA_INI = 2.44 - 20 * REVELA_PASO;
 const revelado = (x: number, y: number) =>
   `animation-delay:${(REVELA_INI + (x + y) * REVELA_PASO).toFixed(3)}s`;
 
@@ -723,8 +755,12 @@ export const ACTUALIZADO: Variant = {
   status: "Dicho",
   scene: `<g class="u-ini">${CARA_REPOSO(spr)}</g>
     <g class="u-carga">
-      ${flip(OJOS_GIRO, ".36s")}
-      ${flip([spr(ZIGZAG, 18, 12), spr(BOCA_O, 20, 11), spr(SONRISA_LADO, 18, 12)], ".72s")}
+      ${flip(OJOS_GIRO, ".72s")}
+      ${spr(BOSTEZO, 19, 10)}
+      ${flip(
+        LENGUA_ESTRENO.map(([x, y]) => spr(tint(["XX", "XX"], "p"), x, y)),
+        ".56s",
+      )}
     </g>
     <g class="u-fin">${CARA_REPOSO((m, ox, oy) => spr(m, ox, oy, revelado))}</g>`,
 };
@@ -814,6 +850,142 @@ const BRAZO_ABIERTO = [
   "...XX.",
 ];
 
+/**
+ * El abanico: el brazo baja entero manteniendo el hombro donde está.
+ *
+ * Con las dos poses de saludar no se podía hacer —abrir y cerrar la mano no es
+ * abanicarse—, así que hacen falta dos alturas más. El ciclo va
+ * `ABIERTO → MEDIO → BAJO → MEDIO`, que cierra solo y no da tirones.
+ */
+const ABANICO_MEDIO = [
+  "......",
+  "......",
+  "XXXX..",
+  "XXXX..",
+  ".XX...",
+  "..XX..",
+  "..XX..",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+];
+const ABANICO_BAJO = [
+  "......",
+  "......",
+  "......",
+  "......",
+  "XXXX..",
+  "XXXX..",
+  ".XX...",
+  "..XX..",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+];
+
+/**
+ * La onda de medusa: una cresta que **recorre** el brazo de abajo arriba.
+ *
+ * Éste es el movimiento que no se podía fingir con dos poses. Alternar dos
+ * sprites da una alternancia; una onda necesita que la curva esté en un sitio
+ * distinto en cada cuadro, y por eso son cuatro. La cresta sube una fila por
+ * cuadro y al cuarto vuelve a empezar, así que el bucle cierra exacto.
+ *
+ * La cinta serpentea entre las columnas 1-2, 2-3 y 3-4 — **pasos de una
+ * columna, nunca de dos**. De dos, a este tamaño, deja de ser una curva y se
+ * ve como el dibujo partiéndose.
+ */
+const ONDA = [
+  [
+    "XXXX..",
+    "XXXX..",
+    ".XX...",
+    "..XX..",
+    "...XX.",
+    "..XX..",
+    ".XX...",
+    "..XX..",
+    "...XX.",
+    "..XX..",
+    "...XX.",
+  ],
+  [
+    ".XXXX.",
+    ".XXXX.",
+    "..XX..",
+    "...XX.",
+    "..XX..",
+    ".XX...",
+    "..XX..",
+    "...XX.",
+    "..XX..",
+    "..XX..",
+    "...XX.",
+  ],
+  [
+    "..XXXX",
+    "..XXXX",
+    "...XX.",
+    "..XX..",
+    ".XX...",
+    "..XX..",
+    "...XX.",
+    "..XX..",
+    ".XX...",
+    "..XX..",
+    "...XX.",
+  ],
+  [
+    ".XXXX.",
+    ".XXXX.",
+    "..XX..",
+    ".XX...",
+    "..XX..",
+    "...XX.",
+    "..XX..",
+    ".XX...",
+    "..XX..",
+    "...XX.",
+    "...XX.",
+  ],
+];
+
+/**
+ * La servilleta, ahora **en la mano** y del tamaño que cabe.
+ *
+ * La de 9×9 que volaba sola no sirve aquí: con un brazo debajo, un trapo de ese
+ * tamaño le tapa media cara. Cinco de ancho es lo que queda libre, y la banda
+ * hueca que la identificaba como tela sigue cabiendo en una fila.
+ */
+const SERVILLETA_MANO = [
+  ".XXX.",
+  "XXXXX",
+  "XoooX",
+  "XXXXX",
+  "XXXXX",
+  ".XXX.",
+];
+
+/**
+ * El brazo que cruza la boca con la servilleta.
+ *
+ * Horizontal y no en diagonal, por la regla de siempre: a esta escala una
+ * diagonal es una escalera. Y resulta que además es lo correcto — pasarse el
+ * antebrazo por la boca **es** un gesto horizontal.
+ *
+ * El hombro se queda pegado a la vagoneta y lo que viaja es la mano, igual que
+ * en el saludo y en el abanico.
+ *
+ * @param mano dónde queda la servilleta; el antebrazo rellena hasta el hombro.
+ */
+const brazoConServilleta = (mano: number) =>
+  // El hombro, bajando a la vagoneta.
+  spr(["XX", "XX", "XX"], 12, 12) +
+  // El antebrazo, del hombro a la mano.
+  spr(Array(2).fill("X".repeat(Math.max(1, mano - 12))), 12, 11) +
+  spr(SERVILLETA_MANO, mano, 9);
+
 /** El mismo sprite del revés, para el otro brazo. */
 const espejo = (m: string[]) => m.map((r) => [...r].reverse().join(""));
 
@@ -832,45 +1004,34 @@ const VAGONETA = [
   "...XXX...............XXX...",
 ];
 
+
 /**
- * La servilleta con la que se limpia la boca.
+ * Un par de brazos, ya colocados y con el derecho espejado.
  *
- * Traducida de una toalla de pixel art que eligió el usuario como referencia.
- * De aquella sobreviven tres cosas y el resto no cabe: la silueta de tela, **las
- * dos bandas que la cruzan** y el fleco de abajo. El contorno oscuro de la
- * referencia no se puede traducir — en el aparato todo lo encendido es del mismo
- * color, así que aquí el contorno *es* la silueta.
- *
- * Las bandas van huecas, y no es una licencia: es la misma regla que arregló la
- * bocaza. Un detalle dentro de un bloque macizo tiene que ser una **línea que
- * cruza**; un hueco suelto se lee como un ojo y convierte la tela en una cara.
- *
- * Nueve de ancho a propósito. Con once tapaba el ojo derecho al cruzar, y una
- * servilleta que borra media cara no se lee como que se está limpiando la boca.
- *
- * El borde de abajo va **liso**. Con fleco —dos filas de puntas escalonadas—
- * parecía que la servilleta tenía patitas, y encima la referencia que eligió el
- * usuario no lleva: es una toalla de borde limpio. Lo asimétrico, que es lo que
- * hace que el espejo se note y la tela ondee, se lo da el doblez en diagonal de
- * la esquina de arriba, igual que en la referencia.
- *
- * Antes de esto el gesto lo hacía un antebrazo desnudo, y era mucho más difícil
- * de dibujar: como sprite suelto a la altura de la boca parecía primero una
- * linterna y luego una segunda boca, y sólo funcionaba anclándolo al borde del
- * lienzo. La servilleta no necesita ese truco porque **es un objeto**, no un
- * trozo de cuerpo que tiene que venir de algún sitio.
+ * El izquierdo en x=8 y el derecho en x=31 **no es a ojo**: la cara se centra en
+ * x=22, el espejo de una columna `p` es `44-p`, y un sprite de 6 de ancho que
+ * ocupa 8-13 tiene su espejo ocupando 31-36. Espejar el origen en vez del tramo
+ * —el error fácil— deja un brazo tres píxeles más fuera que el otro, y a este
+ * tamaño eso se ve.
  */
-const SERVILLETA = [
-  "...XXXXXX",
-  ".XXXXXXXX",
-  "XXXXXXXXX",
-  "XoooooooX",
-  "XXXXXXXXX",
-  "XXXXXXXXX",
-  "XoooooooX",
-  "XXXXXXXXX",
-  ".XXXXXXX.",
-];
+const par = (izq: string[], der: string[]) =>
+  spr(izq, 8, 4) + spr(espejo(der), 31, 4);
+
+/**
+ * El escenario que comparten las cuatro escenas del arrastre: la vagoneta y los
+ * brazos, en su propio grupo para que boten como un carrito.
+ *
+ * Antes la vagoneta salía sólo en la primera y desaparecía en las tres del
+ * mareo, y eso rompía la historia: el bicho se subía a un carrito, se mareaba en
+ * el vacío y vomitaba en otro sitio. Lo que cambia entre las cuatro es **la cara
+ * y cómo se mueven los brazos**; el carrito se queda.
+ *
+ * La cara va en su propio grupo con su propia animación, así que el bamboleo del
+ * carrito y el mareo de la cara **no van sincronizados**. Es a propósito: son dos
+ * movimientos distintos —el riel y el estómago— y cuadrarlos los volvería uno.
+ */
+const escenario = (brazos: string) =>
+  `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${brazos}</g>`;
 
 /**
  * Arrastrando la onda: va montada en la vagoneta y lo está pasando bien.
@@ -893,17 +1054,161 @@ export const RODANDO: Variant = {
   // El saludo va **en contrafase**: cuando uno abre, el otro cierra. Los dos a
   // la vez se leen como un dibujo que se estira; alternados se leen como dos
   // manos agitándose, que es lo que hace alguien en una montaña rusa.
-  scene: `<g class="a-vagon">${spr(VAGONETA, 9, 15)}
-    ${flip([eyes(OJO_ANCHO, 3), eyes(OJO_ANCHO, 4)], ".48s")}
-    ${spr(BOCAZA_DIENTES, 17, 9)}
-    ${flip(
-      [
-        spr(BRAZO_ABIERTO, 8, 4) + spr(espejo(BRAZO_RECTO), 31, 4),
-        spr(BRAZO_RECTO, 8, 4) + spr(espejo(BRAZO_ABIERTO), 31, 4),
-      ],
+  // Saludo **en contrafase**: cuando uno abre, el otro cierra. Los dos a la vez
+  // se leen como un dibujo que se estira; alternados, como dos manos agitándose.
+  scene: `${escenario(
+    flip(
+      [par(BRAZO_ABIERTO, BRAZO_RECTO), par(BRAZO_RECTO, BRAZO_ABIERTO)],
       ".3s",
-    )}</g>`,
+    ),
+  )}
+    <g class="a-vagon">${flip([eyes(OJO_ANCHO, 3), eyes(OJO_ANCHO, 4)], ".48s")}
+    ${spr(BOCAZA_DIENTES, 17, 9)}</g>`,
 };
+
+/**
+ * Se limpia y se le pasa: **dos versiones, y sólo se queda una**.
+ *
+ * Se dibujaron las dos a propósito. A 48×16 no se puede saber de antemano cuál
+ * se lee mejor: una se apoya en un **objeto** (la servilleta, que hay que
+ * reconocer) y la otra en el **movimiento** (la lengua dando la vuelta, que no
+ * hay que reconocer pero sí seguir). Son dos apuestas distintas y la única
+ * forma de decidir es verlas.
+ */
+const LIMPIADA_SERVILLETA: Variant = {
+  status: "Ya, ya…",
+  scene: `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${flip(
+    [
+      // Llega con la boca aún sucia.
+      brazoConServilleta(26) +
+        spr(espejo(BRAZO_RECTO), 31, 4) +
+        eyes(OJO_LINEA, 7) +
+        spr(BOCA_CHICA, 21, 12) +
+        spr(tint(["XXX"], "m"), 25, 14),
+      // Cruza y tapa. La mancha ya no está: se la llevó.
+      brazoConServilleta(20) + spr(espejo(BRAZO_RECTO), 31, 4) + eyes(OJO_LINEA, 7),
+      // Vuelve, y la cara está limpia.
+      brazoConServilleta(26) +
+        spr(espejo(BRAZO_RECTO), 31, 4) +
+        eyes(OJO_ARCO, 6) +
+        spr(RAYA, 20, 12),
+    ],
+    ".9s",
+  )}</g>`,
+};
+
+/**
+ * La boca de la lamida: un aro grande y hueco, de 13×7.
+ *
+ * `BOSTEZO` (7×5) se quedaba corta. A esta escena hay que meterle **la lengua
+ * por dentro y los restos por el borde**, y en un aro de 7 de ancho las dos
+ * cosas se tocan y se leen como una mancha.
+ *
+ * El hueco que ocupa no se le quitó a nadie: estaba vacío. El lienzo sigue
+ * siendo el mismo de siempre —tocar el `viewBox` arrastraría `HUD_H`, el divisor
+ * de `--k` y los 26 sprites, que es una remodelación y no un ajuste—.
+ */
+const BOCA_REDONDA = [
+  "...XXXXXXX...",
+  ".XXX.....XXX.",
+  "XX.........XX",
+  "X...........X",
+  "XX.........XX",
+  ".XXX.....XXX.",
+  "...XXXXXXX...",
+];
+
+/**
+ * El brazo doblado hacia abajo, para la lamida.
+ *
+ * Con la mano arriba —la pose de saludar— queda **a la altura de los ojos**, y
+ * entonces brazos y ojos se leen como una fila de cuatro bloques iguales en vez
+ * de como una cara. Doblado despeja el renglón de los ojos, y de paso queda
+ * como agarrándose al carrito, que es lo que toca después de vomitar.
+ */
+const BRAZO_ABAJO = [
+  "......",
+  "......",
+  "......",
+  "......",
+  "XXXX..",
+  "XXXX..",
+  ".XX...",
+  "..XX..",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+];
+
+/** La lengua, rosa, por dentro del aro. */
+const LENGUA = ["XXX", "XXX"];
+/** Lo que quedó del vómito, verde, encima del borde. */
+const RESTO = ["XX"];
+
+/**
+ * La vuelta de la lengua: seis paradas, cada una con **el resto que le toca
+ * borrar** encima del borde y la lengua justo por dentro.
+ *
+ * El aro **no gira**. Lo que viaja es dónde está encendida la lengua, que es el
+ * mismo truco del aro de los ojos en el estreno de versión — y por el mismo
+ * motivo: un círculo girando a esta escala es una mancha.
+ *
+ * Lo que hace que se lea como *limpiar* y no como *sacar la lengua* es dónde va
+ * el verde: **encima del labio**, no al lado de la cara. Un pegote suelto junto a
+ * una cara es una mota; el mismo pegote sobre el borde de la boca es suciedad. Y
+ * en cada cuadro se pintan **sólo los restos que faltan por limpiar**, así que la
+ * cara va quedando limpia a la vista.
+ */
+const VUELTA: { resto: [number, number]; lengua: [number, number] }[] = [
+  { resto: [23, 8], lengua: [22, 9] },
+  { resto: [27, 10], lengua: [24, 10] },
+  { resto: [23, 14], lengua: [22, 12] },
+  { resto: [19, 14], lengua: [19, 12] },
+  { resto: [16, 10], lengua: [18, 10] },
+  { resto: [19, 8], lengua: [19, 9] },
+];
+
+const LIMPIADA_LENGUA: Variant = {
+  status: "Ya, ya…",
+  scene: `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${par(BRAZO_ABAJO, BRAZO_ABAJO)}${flip(
+    [
+      ...VUELTA.map(
+        (paso, k) =>
+          eyes(OJO_ANCHO, 3) +
+          spr(BOCA_REDONDA, 16, 8) +
+          // Los restos que aún no ha limpiado.
+          VUELTA.slice(k + 1)
+            .map((r) => spr(tint(RESTO, "m"), r.resto[0], r.resto[1]))
+            .join("") +
+          spr(tint(LENGUA, "p"), paso.lengua[0], paso.lengua[1]),
+      ),
+      // Se lo traga.
+      eyes(OJO_ANCHO, 3) + spr(BOCA_CHICA, 21, 11),
+      // Y se le pasó: sonríe y suelta el destello de «quedó limpio».
+      eyes(OJO_ARCO, 4) +
+        spr(SONRISA, 18, 11) +
+        spr(tint(CHISPITA, "w"), 31, 3),
+    ],
+    "1.2s",
+  )}</g>`,
+};
+
+/**
+ * Las dos versiones de limpiarse, y **se quedan las dos**.
+ *
+ * Iban a competir y al verlas animadas ganaron las dos, así que el HUD **sortea**
+ * cuál sale cada vez que el bicho acaba de vomitar. Es la misma idea que ya rige
+ * las 26 caritas del dictado —cinco variantes por estado, elegidas al azar— y
+ * por el mismo motivo: lo que hace que una mascota se sienta viva es que no
+ * sepas exactamente qué va a hacer.
+ *
+ * Siempre **después del vómito**, nunca sueltas: son el final de esa historia y
+ * fuera de ella no significan nada.
+ */
+export const LIMPIADAS: { nombre: string; v: Variant }[] = [
+  { nombre: "Con servilleta en la mano", v: LIMPIADA_SERVILLETA },
+  { nombre: "Con la lengua", v: LIMPIADA_LENGUA },
+];
 
 export const MAREO: Variant[] = [
   {
@@ -912,7 +1217,20 @@ export const MAREO: Variant[] = [
     // vueltas"; el espiral clásico a 3 px se convierte en una mancha. La cara
     // entera se bambolea un píxel a cada lado y dos chispas le giran encima.
     status: "Me mareas",
-    scene: `<g class="a-mareo">${flip(
+    // Los brazos suben y bajan **en fase**, como abanicándose. Aquí sí van a la
+    // vez y no en contrafase: abanicarse es un gesto simétrico, y alternarlos
+    // volvería a leerse como saludar, que es lo que hace la carita anterior.
+    scene: `${escenario(
+      flip(
+        [
+          par(BRAZO_ABIERTO, BRAZO_ABIERTO),
+          par(ABANICO_MEDIO, ABANICO_MEDIO),
+          par(ABANICO_BAJO, ABANICO_BAJO),
+          par(ABANICO_MEDIO, ABANICO_MEDIO),
+        ],
+        ".56s",
+      ),
+    )}<g class="a-mareo">${flip(
       [
         spr(OJO, LX, 5) + spr(OJO_MEDIO, RX, 7),
         spr(OJO_MEDIO, LX, 6) + spr(OJO_MEDIO, RX, 6),
@@ -931,7 +1249,15 @@ export const MAREO: Variant[] = [
     // Los ojos pulsan de 3 a 5 px de ancho al doble de ritmo: es el esfuerzo
     // de no soltarlo. La gota de sudor, en la sien, remata la idea.
     status: "¡Aguanta!",
-    scene: `<g class="a-glup">${flip(
+    // La onda de medusa: la pose recorre los dos brazos con un cuadro de desfase,
+    // así que lo que se ve no es un sube-y-baja sino algo que **viaja** de un
+    // lado al otro. Tres cuadros es el mínimo para que una onda se lea como onda.
+    scene: `${escenario(
+      flip(
+        ONDA.map((o) => par(o, o)),
+        ".6s",
+      ),
+    )}<g class="a-glup">${flip(
       [eyes(OJO, 5), eyes(OJO_ANCHO, 5), eyes(OJO, 5), eyes(OJO_ANCHO, 5)],
       ".64s",
     )}${flip(
@@ -954,7 +1280,10 @@ export const MAREO: Variant[] = [
     // Los tamagotchi ponen el significado en el símbolo de al lado y no en la
     // cara: por eso el charco vive fuera, en el suelo, y no encima del bicho.
     status: "¡Blegh!",
-    scene: `<g class="a-arcada">${flip(
+    // Aquí los brazos **no se mueven**: te agarras. Un saludo mientras vomitas
+    // contaría dos cosas a la vez y no se leería ninguna.
+    scene: `${escenario(par(BRAZO_RECTO, BRAZO_RECTO))}
+      <g class="a-arcada">${flip(
       [
         eyes(OJO_ANCHO, 5),
         eyes(OJO_ARCO, 6),
@@ -988,45 +1317,6 @@ export const MAREO: Variant[] = [
       <g class="a-charco1">${spr(tint(CHARCO_CHICO, "m"), 31, 15)}</g>
       <g class="a-charco2">${spr(tint(CHARCO, "m"), 30, 15)}</g>`,
   },
-  {
-    // 4 · Se limpia y se le pasa. No es un escalón más del zarandeo —a éste no
-    // se llega meneando, se llega **después** del vómito— pero vive en la misma
-    // lista porque es el final de la misma historia, y así el HUD sigue
-    // teniendo un solo índice que mover.
-    //
-    // La servilleta cruza la boca en tres tiempos: llega por la derecha con la
-    // boca aún sucia, la tapa y le quita la mancha, y sale por la izquierda
-    // llevándosela puesta. Los ojos van apretados durante la pasada y se abren
-    // al final: es lo que convierte el gesto en "ya está" en vez de en un
-    // trapo que pasa.
-    //
-    // De aquí **no se corta a la carita de siempre**: el HUD funde la pantalla
-    // (`.fundido`) y cambia por debajo. Un corte seco después de vomitar se
-    // veía como un fallo de dibujo, no como que se le pasó.
-    status: "Ya, ya…",
-    scene: `${flip(
-      [
-        eyes(OJO_LINEA, 7) +
-          spr(BOCA_CHICA, 21, 12) +
-          spr(tint(["XXX"], "m"), 24, 14) +
-          spr(SERVILLETA, 35, 8),
-        // Al cruzar va en espejo: el fleco es lo único asimétrico del sprite, y
-        // ese cambio de un cuadro a otro es lo que la hace ondear como tela en
-        // vez de deslizarse como un ladrillo.
-        eyes(OJO_LINEA, 7) +
-          spr(espejo(SERVILLETA), 18, 8) +
-          spr(tint(["XX"], "m"), 19, 9),
-        // Sale con la mancha puesta y la cara ya limpia. La mancha va **encima**
-        // de la servilleta y no entre las bandas: metida dentro volvía a ser un
-        // hueco suelto, o sea otro ojo.
-        eyes(OJO_ARCO, 6) +
-          spr(RAYA, 20, 12) +
-          spr(SERVILLETA, 3, 8) +
-          spr(tint(["XX"], "m"), 4, 9),
-      ],
-      ".9s",
-    )}`,
-  },
 ];
 
 export const MIC_SVG = `<svg viewBox="0 0 7 13">${spr(
@@ -1041,7 +1331,7 @@ export const MIC_SVG = `<svg viewBox="0 0 7 13">${spr(
  * escribirse a mano para que añadir una carita de 8 cuadros no obligue a
  * tocar el CSS (así se quedó la ruedita de "cargando").
  */
-const FLIP_CSS = [2, 3, 4, 5, 6, 7, 8]
+const FLIP_CSS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
   .map((n) => {
     let css = "";
     for (let i = 0; i < n; i++) {
@@ -1306,20 +1596,20 @@ ${FLIP_CSS}
        64-80 %  el blanco se funde con el fondo
        80-100 % la cara se revela píxel a píxel                              */
   .u-ini, .u-carga, .u-fin, .u-barra, .u-blanco, .u-entra {
-    animation-duration: 1.8s;
+    animation-duration: 2.8s;
     animation-iteration-count: 1;
     animation-fill-mode: forwards;
   }
 
   .u-ini { animation-name: u-ini; animation-timing-function: steps(1, end); }
-  @keyframes u-ini { 0%, 10% { opacity: 1; } 11%, 100% { opacity: 0; } }
+  @keyframes u-ini { 0%, 6% { opacity: 1; } 7%, 100% { opacity: 0; } }
 
   .u-carga { opacity: 0; animation-name: u-carga; animation-timing-function: steps(1, end); }
-  @keyframes u-carga { 0%, 9% { opacity: 0; } 10%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  @keyframes u-carga { 0%, 5% { opacity: 0; } 6%, 67% { opacity: 1; } 68%, 100% { opacity: 0; } }
   /* Los dos flipbooks arrancan cuando arranca su tiempo, no cuando se monta la
      escena: si no entran a media vuelta y la tercera boca se queda fuera. Un
      ciclo de bocas y dos de ojos caben justos en los 720 ms. */
-  .u-carga .flip > g { animation-delay: .18s; }
+  .u-carga .flip > g { animation-delay: .17s; }
 
   /* La barra. Molde de .cinta —scaleX con el origen a la izquierda— pero la
      escala la pone un keyframe y no una variable. A tirones y no lisa: un
@@ -1330,14 +1620,15 @@ ${FLIP_CSS}
              opacity: .55; transform-origin: left center; transform: scaleX(0);
              animation-name: u-barra; animation-timing-function: steps(1, end); }
   @keyframes u-barra {
-    0%, 10% { transform: scaleX(0); }
-    16% { transform: scaleX(.14); }
-    22% { transform: scaleX(.22); }
-    29% { transform: scaleX(.48); }
-    36% { transform: scaleX(.55); }
-    43% { transform: scaleX(.84); }
-    50% { transform: scaleX(1); opacity: .55; }
-    52%, 100% { transform: scaleX(1); opacity: 0; }
+    0%, 6% { transform: scaleX(0); }
+    14% { transform: scaleX(.11); }
+    23% { transform: scaleX(.19); }
+    32% { transform: scaleX(.34); }
+    41% { transform: scaleX(.46); }
+    50% { transform: scaleX(.58); }
+    59% { transform: scaleX(.81); }
+    67% { transform: scaleX(1); opacity: .55; }
+    69%, 100% { transform: scaleX(1); opacity: 0; }
   }
 
   /* El destello, con el número dentro: así se funden juntos sin un segundo
@@ -1349,7 +1640,7 @@ ${FLIP_CSS}
               font: 700 24px/1 Consolas, "Cascadia Mono", monospace;
               letter-spacing: .04em;
               animation-name: u-blanco; animation-timing-function: linear; }
-  @keyframes u-blanco { 0%, 49% { opacity: 0; } 50%, 64% { opacity: 1; } 80%, 100% { opacity: 0; } }
+  @keyframes u-blanco { 0%, 66% { opacity: 0; } 68%, 77% { opacity: 1; } 87%, 100% { opacity: 0; } }
 
   /* El revelado: cada píxel se enciende con su propio retraso. Un fundido corto
      y no un salto — a pelo con steps se lee como tartamudeo. */
