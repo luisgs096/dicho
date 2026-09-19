@@ -1226,10 +1226,11 @@ export default function Settings() {
                             )}
                           </span>
                           <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                            Selecciona texto en cualquier programa, pulsa el atajo
-                            y Dicho te lo devuelve corregido con el mismo motor
-                            que usa al dictar. La onda se pone en modo lectura
-                            mientras lo hace: pluma y pergamino, sin micrófono.
+                            Copia un texto en cualquier programa y la onda se
+                            ofrece a corregirlo: un clic encima y lo hace, con el
+                            mismo motor que usa al dictar. Sale una ventanita con
+                            el antes y el después. Si no querías nada, tu tecla
+                            de cancelar la quita de en medio.
                           </span>
                           <span className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
                             <svg

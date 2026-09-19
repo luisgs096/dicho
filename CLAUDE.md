@@ -236,6 +236,15 @@ conocimiento. Y se commitea con el resto.
     pegado a la vagoneta, ya es un brazo. Y necesita el **entalle de muñeca**
     (la mano 2 px más ancha, el brazo estrechando detrás): sin él, mano y brazo
     son una sola barra.
+  - **El espiral no se lee. Punto.** Es la convención universal de «mareado» y se
+    ha intentado **tres veces**: a 3 px sale «una mancha» (`MAREO`), a 5 px «una
+    letra G» (`OJO_ASPA`), y a **7 px** —probado en el banco, dibujándose de
+    fuera hacia dentro y también con un tramo viajando— sale un laberinto roto.
+    El problema no es el tamaño y por eso agrandarlo no lo arregla: **una espiral
+    es una línea de 1 px que se cruza consigo misma**, y sin medios tonos que
+    separen las vueltas, las vueltas se tocan. Lo que sí funciona para «esto está
+    trabajando» es un marco hueco con una barra recorriéndolo — se lee como una
+    pantalla refrescándose, que además es lo que de verdad está pasando.
   - **Un hueco suelto dentro de un bloque macizo se lee como un ojo.** Medido
     probándole un brillo a los ojos anchos: el píxel apagado los convertía en
     gafas huecas, no en ojos con luz. A este tamaño el ojo gana siempre, así que

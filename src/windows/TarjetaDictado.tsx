@@ -174,17 +174,47 @@ export function TarjetaDictado(props: {
   return (
     <li className="group rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/60">
       <div className="flex items-start gap-2">
-        <p className="min-w-0 flex-1 whitespace-pre-wrap text-slate-800 dark:text-slate-100">
-          {tramos(texto, terminosResaltados).map((x, i) =>
-            x.marca ? (
-              <mark key={i} className={`rounded px-0.5 text-inherit ${marca}`}>
-                {x.t}
-              </mark>
-            ) : (
-              <span key={i}>{x.t}</span>
-            ),
+        {/*
+          Los dos textos ocupan **la misma celda** de la rejilla, y el que no se
+          ve sigue ocupando su sitio (`invisible`, no `hidden`). Así el bloque
+          mide siempre lo que el más largo de los dos y **cambiar de uno a otro
+          no mueve nada de lo que hay debajo**.
+
+          No es una floritura, es el arreglo de un bug que hacía vibrar la
+          pantalla entera. Los chips van DEBAJO del texto, y pasarles el ratón
+          cambia el texto —las muletillas sólo existen en el crudo, así que la
+          tarjeta se cambia sola para poder resaltarlas—. Si ese cambio mueve el
+          párrafo, mueve los chips, el ratón deja de estar encima, se deshace el
+          resaltado, el párrafo vuelve a su alto, el chip vuelve bajo el ratón…
+          y otra vez. Medido sobre el historial real: **17 de cada 100 tarjetas**
+          cambian de alto al menos un renglón entre crudo y final, y en ésas
+          entraba en bucle.
+
+          El texto oculto sólo se monta con el panel abierto, que es la única
+          situación en la que hay un chip al que pasarle el ratón. Con el panel
+          cerrado no hace falta pagar el doble de nodos por tarjeta.
+        */}
+        <div className="grid min-w-0 flex-1">
+          <p className="col-start-1 row-start-1 whitespace-pre-wrap text-slate-800 dark:text-slate-100">
+            {tramos(texto, terminosResaltados).map((x, i) =>
+              x.marca ? (
+                <mark key={i} className={`rounded px-0.5 text-inherit ${marca}`}>
+                  {x.t}
+                </mark>
+              ) : (
+                <span key={i}>{x.t}</span>
+              ),
+            )}
+          </p>
+          {abierto && !sinCambios && (
+            <p
+              aria-hidden
+              className="invisible col-start-1 row-start-1 whitespace-pre-wrap"
+            >
+              {cual === "raw" ? h.polished : h.raw}
+            </p>
           )}
-        </p>
+        </div>
         {/* Crudo/final arriba a la derecha, fuera del panel: es lo que estás
             leyendo, no un detalle escondido. */}
         {/* Cuando el pulido no cambió nada, el interruptor no tiene qué

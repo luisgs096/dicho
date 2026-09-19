@@ -28,6 +28,10 @@ export interface Variant {
 // ─── paletas del tamagotchi (mismos colores de Dicho) ───────────────────────
 export const PALETA_CLARA = {
   a: "#2563eb", m: "#17b394", p: "#f06ea9", w: "#ea7317", s: "#38bdf8",
+  // El amarillo entra por el lapiz del dibujante, y en claro va oscurecido
+  // (#ca8a04 y no #facc15): un amarillo puro sobre el LCD claro da 1,6:1 de
+  // contraste y el lapiz desaparece. En oscuro si puede ser amarillo de verdad.
+  y: "#ca8a04",
   face: "#33415c", faint: "#8296b2",
   lcd: "#d7e1f0", lcdBorder: "#bfcde2", grid: "rgba(51,65,92,.07)",
   shellA: "#cdd7e6", shellB: "#aab9d0",
@@ -36,6 +40,7 @@ export const PALETA_CLARA = {
 };
 export const PALETA_OSCURA = {
   a: "#38bdf8", m: "#2dd4b4", p: "#f472b6", w: "#fb923c", s: "#7dd3fc",
+  y: "#facc15",
   face: "#dbe6f6", faint: "#5c6f8f",
   lcd: "#0a1322", lcdBorder: "#223052", grid: "rgba(219,230,246,.05)",
   shellA: "#263450", shellB: "#16223a",
@@ -58,6 +63,7 @@ const PAL: Record<string, string> = {
   p: "var(--p)",
   w: "var(--w)",
   s: "var(--s)",
+  y: "var(--y)",
   o: "var(--lcd)",
 };
 
@@ -84,6 +90,9 @@ export function spr(
 
 /** Tiñe un sprite con otro color de la paleta. */
 const tint = (map: string[], c: string) => map.map((r) => r.replace(/X/g, c));
+
+/** El mismo sprite del revés, para el otro brazo. */
+const espejo = (m: string[]) => m.map((r) => [...r].reverse().join(""));
 
 // ─── rejilla de la cara ─────────────────────────────────────────────────────
 const LX = 15; // ojo izquierdo (3 de ancho → centro en 16)
@@ -214,8 +223,27 @@ const PUFF = [".XX.", "XXXX", "XXXX", ".XX."];
  *  para que se lea como líquido y no como otra burbuja. */
 const CHARCO_CHICO = ["..XX..", ".XXXX."];
 const CHARCO = ["..XXXX..", ".XXXXXX.", "XXXXXXXX"];
-/** Hilo que escurre de la comisura. Un píxel de ancho: más, y es un chorro. */
-const ESCURRE = ["X", "X", "X"];
+/**
+ * Lo que le cuelga de la boca después de la tercera arcada.
+ *
+ * Antes era un hilo de 1 px —`["X","X","X"]`— y a este tamaño un píxel de ancho
+ * no se lee como líquido: se lee como una raya, o como suciedad de la pantalla.
+ * Esto es ancho arriba (pegado al labio), estrecha, y acaba en un goterón. Ese
+ * remate es lo que lo convierte en algo que **pesa**; sin él, cualquier forma
+ * alargada sigue siendo una raya.
+ */
+const PLASTA = [
+  "XXXXX",
+  "XXXXX",
+  ".XXXX",
+  ".XXX.",
+  ".XXX.",
+  "XXXX.",
+  "XXXX.",
+];
+
+/** El charco más grande de los tres, el de la tercera. */
+const CHARCO_GRANDE = ["..XXXXXX..", ".XXXXXXXX.", "XXXXXXXXXX"];
 /** Aspa flotante: en los tamagotchi el significado va en el símbolo de al lado,
  *  no en la cara. Ésta es la de "no, olvídalo". */
 const ASPA = ["X...X", ".X.X.", "..X..", ".X.X.", "X...X"];
@@ -280,46 +308,476 @@ const VU = `<g class="vu">
   <rect class="v3" x="44" y="4" width="2" height="12"/>
 </g>`;
 
+// ─── reposo: el chicle ──────────────────────────────────────────────────────
+//
+// La primera de las caritas de reposo nuevas. No es un gesto, es **una
+// historia**: mete el chicle, masca, infla una bomba que aguanta, masca, infla
+// otra que también aguanta, y a la tercera le revienta en la cara.
+//
+// Que aguante dos veces antes de reventar no es relleno. Si revienta a la
+// primera, el chiste es un golpe y se gasta en cuanto lo has visto una vez; si
+// aguanta dos, la tercera **tiene expectativa** — ya sabes lo que va a pasar y
+// aun así esperas a ver si esta vez sí. Es la diferencia entre un gag y un
+// personaje.
+//
+// # Aquí entra el color, y no rompe nada
+//
+// Hasta ahora las caritas eran de un solo color de tinta. El chicle es **rosa**
+// (`p`), y eso ya existía en el lenguaje: el vómito es menta, la lengua rosa y
+// la barandilla azul. La regla que se mantiene es la de siempre — el color
+// nunca *sustituye* a la forma, sólo la acompaña. Si le quitas el color, la
+// animación se sigue entendiendo.
+
+/** La bolita de chicle antes de entrar en la boca. */
+const CHICLE_BOLA = ["XX", "XX"];
+
+/**
+ * Las tres bombas: **macizas y rosas, con brillo**.
+ *
+ * Macizas y no huecas, al revés que la boca abierta, y por un motivo: aquí hay
+ * color. Un aro rosa de contorno se lee como un anillo; un disco rosa se lee
+ * como un globo. El hueco era la solución cuando sólo había un color y había que
+ * distinguir un volumen de una mancha — con color, la mancha ya está resuelta.
+ *
+ * El brillo es **un hueco de 2×1 arriba a la izquierda**, del color del fondo.
+ * Va descentrado a propósito: centrado se leería como una pupila, y hay una
+ * regla escrita sobre eso —un hueco suelto dentro de un bloque macizo se lee
+ * como un ojo—. Arriba y a un lado, es un reflejo.
+ *
+ * Crecen desde la boca **hacia arriba** y se quedan por debajo de los ojos: el
+ * chicle sale por la boca, y una bomba que tape la cara entera deja de tener
+ * personaje detrás.
+ */
+const BOMBA_CHICA = [
+  ".XXX.",
+  "XooXX",
+  "XXXXX",
+  "XXXXX",
+  ".XXX.",
+];
+const BOMBA_MEDIA = [
+  "..XXX..",
+  ".XXXXX.",
+  "XooXXXX",
+  "XXXXXXX",
+  "XXXXXXX",
+  ".XXXXX.",
+  "..XXX..",
+];
+const BOMBA_GIGANTE = [
+  "...XXXXXXX...",
+  ".XXXXXXXXXXX.",
+  "XXooXXXXXXXXX",
+  "XXooXXXXXXXXX",
+  "XXXXXXXXXXXXX",
+  "XXXXXXXXXXXXX",
+  ".XXXXXXXXXXX.",
+  "...XXXXXXX...",
+];
+
+/**
+ * El reventón: cuatro pares de esquirlas apuntando hacia fuera.
+ *
+ * Pocas y largas. La primera versión era una trama tupida y salía un garabato:
+ * a este tamaño lo que se lee como explosión no es la cantidad de piezas, es que
+ * **apunten todas desde un centro común**.
+ */
+const ESQUIRLAS = [
+  "..X.....X..",
+  "X..X...X..X",
+  "...........",
+  "XX.......XX",
+  "...........",
+  "X..X...X..X",
+  "..X.....X..",
+];
+
+/** El chicle pegado en la cara después del reventón. Rosa, como la bomba. */
+const PEGOTE_IZQ = ["XXX", ".XX"];
+const PEGOTE_DER = ["XX.", "XXX"];
+
+/**
+ * Mascar es **un medio círculo y una raya**, en una sola silueta.
+ *
+ * El carrillo es la curva —redondo por fuera, plano por dentro, que es por donde
+ * se pega a la boca— y la boca es la línea casi recta que sale del otro lado. Se
+ * dibujan juntos a propósito: si van en dos sprites, tarde o temprano alguien los
+ * separa y vuelven a leerse como dos manchas.
+ *
+ * Dos intentos fallidos antes de éste, y el segundo enseñó lo que importa:
+ * - **Separados** (tres columnas de aire entre uno y otro) eran dos manchas
+ *   sueltas, el mismo fallo que ya costó una vuelta en el mareo con los cachetes
+ *   flotando a los lados de la cara.
+ * - **Pegados pero iguales** —un bloque macizo de 3×2 para la boca y otro de 3×3
+ *   para el carrillo— tampoco se entendían, y ése es el hallazgo: el problema no
+ *   era la distancia, era que **los dos eran la misma forma**. Dos rectángulos
+ *   del mismo tamaño no se reparten papeles; uno tiene que ser volumen y el otro
+ *   trazo. Una curva de 4×3 contra una raya de 1 px sí se reparten.
+ *
+ * Y va **bajo**, de tres filas: la bomba mide cinco, así que al inflarla se nota
+ * que crece. Si el carrillo fuera igual de alto que la bomba, inflar no se vería.
+ */
+const MASCA = [
+  ".XXX......",
+  "XXXXXXXXXX",
+  ".XXX......",
+];
+
+/**
+ * El bocado, subiendo y bajando **un píxel**.
+ *
+ * Es un flipbook **dentro** de otro: el de fuera cambia de carrillo cada tiempo,
+ * el de dentro mueve la mandíbula mientras ese tiempo dura. Sin él, mascar eran
+ * dos poses turnándose cada 600 ms y eso no se lee como masticar — se lee como
+ * que el bicho cambia de cara. Lo que dice «está trabajando la boca» es el
+ * movimiento **pequeño y rápido**; el grande y lento sólo dice «ahora el otro
+ * lado».
+ *
+ * Un píxel y ni uno más: a dos deja de ser masticar y pasa a dar botes. Y .3s
+ * contra los .6s que dura un tiempo, o sea **dos mordidas por carrillo**, que es
+ * un número entero a propósito: con una duración que no divida al tiempo, la
+ * mordida cae en un sitio distinto en cada tanda y se ve como un tropiezo.
+ *
+ * Anidar flipbooks es seguro porque el CSS usa hijo directo (`.flip > g`): el
+ * de dentro no es hijo del de fuera, es nieto, así que nadie le pisa la opacidad.
+ */
+const masca = (m: string[], x: number) =>
+  flip([spr(m, x, 11), spr(m, x, 12)], ".3s");
+
+/**
+ * Mascando chicle, versión larga: ocho tiempos.
+ *
+ * Es deliberadamente más larga que el resto de caritas —4,8 s frente a los 1,4 s
+ * de tope habituales— y el tope no aplica aquí: esa regla existe porque las
+ * caritas del dictado salen unos segundos y un gesto que no cierra se ve
+ * cortado. Ésta sale con la onda clavada, mirándola, y lo que hay que evitar es
+ * justo lo contrario, que se sienta repetitiva.
+ */
+export const CHICLE: Variant = {
+  status: "",
+  scene: `${flip(
+    [
+      // 1 · Entra el chicle por la derecha.
+      eyes(OJO, 5) + spr(RAYA, 20, 12) + spr(tint(CHICLE_BOLA, "p"), 30, 11),
+      // 2 · Masca: se hincha el carrillo derecho y la boca se va a la izquierda.
+      eyes(OJO, 5) + masca(espejo(MASCA), 19),
+      // 3 · Y al revés.
+      eyes(OJO, 5) + masca(MASCA, 16),
+      // 4 · Primera bomba: aguanta. Los ojos la miran de reojo.
+      eyes(OJO, 5) + spr(tint(BOMBA_CHICA, "p"), 20, 9),
+      // 5 · Se la vuelve a meter y masca.
+      eyes(OJO, 5) + masca(espejo(MASCA), 19),
+      // 6 · Segunda bomba, más grande: también aguanta.
+      eyes(OJO, 5) + spr(tint(BOMBA_MEDIA, "p"), 19, 7),
+      // 7 · La tercera. Los ojos van DESPUÉS de la bomba, encima: es lo único
+      //     que mantiene al personaje a la vista cuando la bomba le tapa media
+      //     cara, y sin ojos no hay nadie a quien le vaya a reventar.
+      spr(tint(BOMBA_GIGANTE, "p"), 16, 6) + eyes(OJO_ANCHO, 5),
+      // 8 · ¡Pof! Y se queda con el chicle pegado en la cara.
+      spr(tint(ESQUIRLAS, "p"), 17, 6) +
+        spr(tint(PEGOTE_IZQ, "p"), 14, 4) +
+        spr(tint(PEGOTE_DER, "p"), 28, 5) +
+        eyes(OJO_LINEA, 7) +
+        spr(RAYA, 20, 12),
+    ],
+    "4.8s",
+  )}`,
+};
+
+/**
+ * La misma, corta: masca y saca una bomba que aguanta.
+ *
+ * No es la larga recortada: es el mismo personaje haciendo lo mismo sin llegar a
+ * la parte que sorprende. Sale cuando la onda va a estar poco tiempo a la vista,
+ * donde la de ocho tiempos se vería cortada por la mitad.
+ */
+export const CHICLE_CORTO: Variant = {
+  status: "",
+  scene: `${flip(
+    [
+      eyes(OJO, 5) + masca(espejo(MASCA), 19),
+      eyes(OJO, 5) + masca(MASCA, 16),
+      eyes(OJO, 5) + spr(tint(BOMBA_CHICA, "p"), 20, 9),
+      eyes(OJO, 5) + masca(espejo(MASCA), 19),
+    ],
+    "1.4s",
+  )}`,
+};
+
+// -- reposo: silbando -------------------------------------------------------
+
+/**
+ * Los labios de silbar: un aro de 3x3 con el agujero pintado del fondo.
+ *
+ * Hueca y no maciza, como la boca abierta del carrito. Aqui el hueco es el
+ * agujero por donde sale el aire, y sin el son tres pixeles de nada.
+ */
+const LABIOS = ["XXX", "XoX", "XXX"];
+
+/** Nota chica, para cuando hay dos a la vez y la grande las amontona. */
+const NOTA_CHICA = ["..X", "..X", "XX.", "XX."];
+
+/**
+ * La mano que chasquea, **anclada al borde de abajo**.
+ *
+ * Una mano suelta en mitad del lienzo ya fallo dos veces -a la altura de los
+ * ojos se leia como una oreja y a la de la boca como otra boca-. Pegada al
+ * borde se lee como algo que **entra** desde fuera, que es el mismo truco con
+ * el que se resolvio el antebrazo de limpiarse.
+ */
+const MANO_ABRE = ["..X..", "..X..", "XXXXX", "XXXXX", ".XXX."];
+const MANO_CIERRA = [".....", "..XX.", "XXXXX", "XXXXX", ".XXX."];
+
+/**
+ * La cara de silbar, con el cabeceo de un pixel.
+ *
+ * Los ojos van **enteros** y no en arco. Con el arco -dos filas- mas unos
+ * labios de tres, la cara se quedaba en cuatro manchitas sueltas y pesaba menos
+ * que las notas que salen a su lado: parecia otro personaje, mas vacio. El ojo
+ * de cuatro filas es lo que sostiene la cara, y el que se mueve es el cabeceo.
+ */
+const caraSilba = (dy: number) => eyes(OJO, 5 + dy) + spr(LABIOS, 21, 11 + dy);
+
+/** El chasquido: la mano abre y cierra, y las chispas solo en el tiempo fuerte. */
+const chasquido = (cierra: boolean, chispa: boolean) =>
+  spr(cierra ? MANO_CIERRA : MANO_ABRE, 8, 12) +
+  (chispa ? spr(tint(CHISPITA, "w"), 6, 9) : "");
+
+/**
+ * Silbando: ocho tiempos.
+ *
+ * Tres cosas a la vez y cada una hace un trabajo distinto. Los **labios** dicen
+ * que esta haciendo; las **notas de colores** dicen que suena; el **cabeceo** de
+ * un pixel y el **chasquido** dicen a que ritmo. Quitas el cabeceo y sigue
+ * silbando, pero deja de tener compas.
+ *
+ * Las notas suben por la derecha y **alternan de columna** (33 y 34): subir en
+ * linea recta se lee como una barra de carga, y en zigzag se lee como algo que
+ * flota. Cada una lleva su color -rosa, menta, celeste- porque tres notas del
+ * mismo color a distinta altura se leen como una sola nota moviendose, y aqui
+ * la gracia es que sean varias.
+ *
+ * Y las notas **no empiezan todas a la vez**: entra una, sube, y cuando va por
+ * la mitad entra la siguiente. Es lo que hace que se lea como una melodia que
+ * sigue y no como un pitido.
+ */
+export const SILBANDO: Variant = {
+  status: "",
+  scene: `${flip(
+    [
+      caraSilba(0) + chasquido(false, false),
+      caraSilba(1) + chasquido(true, false) + spr(tint(NOTA, "p"), 33, 11),
+      caraSilba(0) + chasquido(false, true) + spr(tint(NOTA, "p"), 34, 8),
+      caraSilba(1) +
+        chasquido(true, false) +
+        spr(tint(NOTA, "p"), 33, 5) +
+        spr(tint(NOTA_CHICA, "m"), 33, 12),
+      caraSilba(0) +
+        chasquido(false, false) +
+        spr(tint(NOTA, "p"), 34, 3) +
+        spr(tint(NOTA_CHICA, "m"), 34, 9),
+      caraSilba(1) +
+        chasquido(true, true) +
+        spr(tint(NOTA_CHICA, "m"), 33, 5) +
+        spr(tint(NOTA, "s"), 33, 11),
+      caraSilba(0) +
+        chasquido(false, false) +
+        spr(tint(NOTA_CHICA, "m"), 34, 3) +
+        spr(tint(NOTA, "s"), 34, 7),
+      caraSilba(1) + chasquido(true, false) + spr(tint(NOTA, "s"), 33, 4),
+    ],
+    "3.2s",
+  )}`,
+};
+
+/** Silbando, corta: cuatro tiempos con una sola nota que sube entera. */
+export const SILBANDO_CORTO: Variant = {
+  status: "",
+  scene: `${flip(
+    [
+      caraSilba(0) + chasquido(false, false),
+      caraSilba(1) + chasquido(true, true) + spr(tint(NOTA, "p"), 33, 11),
+      caraSilba(0) + chasquido(false, false) + spr(tint(NOTA, "p"), 34, 8),
+      caraSilba(1) + chasquido(true, false) + spr(tint(NOTA, "p"), 33, 5),
+    ],
+    "1.6s",
+  )}`,
+};
+
+// -- reposo: dormido --------------------------------------------------------
+
+/**
+ * La burbuja de moco, en tres tamanos y **hueca**.
+ *
+ * Hueca porque una burbuja es transparente: maciza seria una bola de plastilina
+ * pegada a la cara. Crece pegada al lado de la boca -no encima- y a la cuarta
+ * revienta, que es lo que despierta a cualquiera.
+ */
+const BURBUJA_A = [".X.", "X.X", ".X."];
+const BURBUJA_B = [".XX.", "X..X", "X..X", ".XX."];
+const BURBUJA_C = ["..XX..", ".X..X.", "X....X", "X....X", ".X..X.", "..XX.."];
+
+/** La cara dormida, respirando un pixel. */
+const caraDuerme = (dy: number) => eyes(OJO_ARCO, 6 + dy) + spr(RAYA, 20, 12 + dy);
+
+/**
+ * Dormido: ocho tiempos.
+ *
+ * Dos relojes distintos a proposito. Los **ZZZ** suben despacio y se van; la
+ * **burbuja** crece, aguanta y revienta. Que no vayan sincronizados es lo que
+ * hace que parezca que lleva rato dormido y no que ejecuta un bucle.
+ *
+ * La burbuja sale **al lado de la boca y no encima**: encima tapa la cara y se
+ * lee como que esta vomitando otra vez, y eso ya tiene su propia carita.
+ */
+export const DORMIDO: Variant = {
+  status: "",
+  scene: `${flip(
+    [
+      caraDuerme(0),
+      caraDuerme(1) + spr(tint(ZZZ_MINI, "s"), 33, 10),
+      caraDuerme(0) + spr(tint(ZZZ, "s"), 34, 6) + spr(BURBUJA_A, 25, 12),
+      caraDuerme(1) + spr(tint(ZZZ_MINI, "s"), 36, 3) + spr(BURBUJA_B, 25, 11),
+      caraDuerme(0) + spr(BURBUJA_C, 25, 10),
+      caraDuerme(1) + spr(tint(ZZZ_MINI, "s"), 33, 10) + spr(BURBUJA_C, 25, 10),
+      caraDuerme(0) +
+        spr(tint(ZZZ, "s"), 34, 6) +
+        spr(tint(CHISPITA, "s"), 26, 11) +
+        spr(tint(CHISPITA, "s"), 30, 13),
+      caraDuerme(1) + spr(tint(ZZZ_MINI, "s"), 36, 3),
+    ],
+    "4.8s",
+  )}`,
+};
+
+/** Dormido, corta: respira, un ZZZ y una burbuja que asoma. */
+export const DORMIDO_CORTO: Variant = {
+  status: "",
+  scene: `${flip(
+    [
+      caraDuerme(0),
+      caraDuerme(1) + spr(tint(ZZZ_MINI, "s"), 33, 10),
+      caraDuerme(0) + spr(tint(ZZZ, "s"), 34, 6) + spr(BURBUJA_A, 25, 12),
+      caraDuerme(1) + spr(BURBUJA_B, 25, 11),
+    ],
+    "2s",
+  )}`,
+};
+
+// -- reposo: dibujando ------------------------------------------------------
+
+/**
+ * El lapiz: **amarillo con goma rosa**, y por eso entra el amarillo a la paleta.
+ *
+ * Va en dos piezas y no en una porque son dos materiales: la madera amarilla y
+ * la goma rosa. Con un solo color habria que dibujar la juntura, y a cuatro
+ * pixeles de largo no cabe una juntura.
+ *
+ * Apunta **en diagonal**, con la punta abajo-izquierda: es como se sostiene un
+ * lapiz visto de frente. En vertical se lee como un palo y en horizontal como
+ * un subrayado.
+ */
+const LAPIZ_MADERA = ["..XX", ".XX.", "XX.."];
+const GOMA = ["XX", "XX"];
+
+/**
+ * Dibuja **al lado de la cara, no encima**.
+ *
+ * El primer intento ponia el trazo debajo de la boca y el lapiz subiendo en
+ * diagonal desde el: a cinco pixeles de largo el cuerpo del lapiz le cruzaba la
+ * boca por encima, y una carita con un palo atravesado no se lee como que
+ * dibuja, se lee como que esta rota. Moverlo todo al hueco de la derecha
+ * -donde ya viven las notas del silbido y los ZZZ del dormido- resuelve el
+ * choque sin encoger nada.
+ *
+ * El trazo empieza en x=33 y no pasa de diez de largo: con doce, la punta del
+ * lapiz cae en x=47 y el cuerpo se sale del lienzo por la derecha.
+ */
+const TRAZO_X = 33;
+const trazo = (n: number) => spr([Array(n + 1).join("X")], TRAZO_X, 14);
+
+/** El lapiz con la punta apoyada al final de un trazo de `n` de largo. */
+const lapiz = (n: number) =>
+  spr(tint(LAPIZ_MADERA, "y"), TRAZO_X + n, 12) +
+  spr(tint(GOMA, "p"), TRAZO_X + n + 2, 10);
+
+/** El lapiz levantado, mirando lo que lleva hecho. */
+const lapizEnAlto = () =>
+  spr(tint(LAPIZ_MADERA, "y"), 43, 9) + spr(tint(GOMA, "p"), 45, 7);
+
+/** La goma borrando: un bloque rosa apoyado en el final de la linea. */
+const borra = (n: number) => spr(tint(GOMA, "p"), TRAZO_X + n, 13);
+
+/**
+ * Dibujando: ocho tiempos.
+ *
+ * La historia entera de dibujar algo: traza, se pasa, **lo borra con la goma** y
+ * lo vuelve a trazar. Que borre es lo que la separa de una barra de progreso:
+ * una linea que solo crece es una carga; una que retrocede es alguien decidiendo.
+ *
+ * Los ojos miran **abajo** mientras traza (`OJO_MEDIO`, medio cerrados, que es
+ * como se mira lo que tienes en la mesa) y se abren en el tiempo en que levanta
+ * la vista para ver como va. Ese tiempo es el que hace que parezca que piensa, y
+ * es tambien donde la boca se tuerce: no le ha gustado, y por eso borra.
+ */
+export const DIBUJANDO: Variant = {
+  status: "",
+  scene: `${flip(
+    [
+      eyes(OJO, 5) + spr(RAYA, 20, 12) + lapizEnAlto(),
+      eyes(OJO_MEDIO, 7) + spr(BOCA_CHICA, 21, 12) + trazo(3) + lapiz(3),
+      eyes(OJO_MEDIO, 7) + spr(BOCA_CHICA, 21, 12) + trazo(6) + lapiz(6),
+      eyes(OJO_MEDIO, 7) + spr(BOCA_CHICA, 21, 12) + trazo(10) + lapiz(10),
+      eyes(OJO, 5) + spr(LADEADA, 19, 12) + trazo(10) + lapizEnAlto(),
+      eyes(OJO_MEDIO, 7) + spr(LADEADA, 19, 12) + trazo(7) + borra(7),
+      eyes(OJO_MEDIO, 7) + spr(BOCA_CHICA, 21, 12) + trazo(4) + borra(4),
+      eyes(OJO_ARCO, 6) + spr(SONRISA, 18, 12) + trazo(9) + lapiz(9),
+    ],
+    "4.8s",
+  )}`,
+};
+
+/** Dibujando, corta: traza y se queda contento, sin llegar a arrepentirse. */
+export const DIBUJANDO_CORTO: Variant = {
+  status: "",
+  scene: `${flip(
+    [
+      eyes(OJO, 5) + spr(RAYA, 20, 12) + lapizEnAlto(),
+      eyes(OJO_MEDIO, 7) + spr(BOCA_CHICA, 21, 12) + trazo(3) + lapiz(3),
+      eyes(OJO_MEDIO, 7) + spr(BOCA_CHICA, 21, 12) + trazo(7) + lapiz(7),
+      eyes(OJO_ARCO, 6) + spr(SONRISA, 18, 12) + trazo(10) + lapizEnAlto(),
+    ],
+    "2s",
+  )}`,
+};
+
 // ─── 26 caritas: 5 por estado + el eructo, que sólo sale tras la comilona ───
 // Regla nueva (28/08): **ninguna carita tiene los ojos quietos**, y el gesto de
 // los ojos no se repite entre caritas. Es lo que las separa unas de otras
 // cuando el accesorio se parece.
 export const V: Record<FaceState, Variant[]> = {
+  // Las cuatro de reposo son las **versiones cortas** de las caritas de
+  // stand-by. Cortas y no de ocho tiempos porque aquí la onda sale unos
+  // segundos: una historia de 4,8 s se vería siempre cortada por la mitad, que
+  // es peor que no contarla. Las largas salen con la onda clavada, mirándola.
+  //
+  // La quinta sigue siendo la vieja —los ojos paseando dentro de la cuenca— a
+  // propósito: es el hueco de **los ojos que te siguen el cursor**, que necesita
+  // que Rust le mande dónde está el ratón y todavía no existe. Se queda la de
+  // antes en vez de dejar cuatro, que cambiaría el reparto de los cinco estados.
   reposo: [
+    { ...CHICLE_CORTO, status: "Dicho" },
+    { ...SILBANDO_CORTO, status: "Dicho" },
+    { ...DORMIDO_CORTO, status: "Zzz…" },
+    { ...DIBUJANDO_CORTO, status: "Dicho" },
     {
-      // Respira y parpadea, con un destello en el ojo mientras está abierto.
-      status: "Dicho",
-      scene: `<g class="a-resp">${blink(eyes(OJO_BRILLO, 5), eyes(OJO_LINEA, 7))}${spr(SONRISA, 18, 12)}</g>`,
-    },
-    {
+      // El hueco del que te sigue: por ahora, pasea la pupila dentro del ojo.
       status: "Dicho",
       scene: `${spr(CUENCA, 13, 4)}${spr(CUENCA, 25, 4)}
         <g class="a-mira">${spr(PUPILA, 15, 5)}${spr(PUPILA, 27, 5)}</g>
         ${spr(SONRISA, 18, 12)}`,
     },
-    {
-      // Dormido: la línea de los ojos sube y baja un píxel, como respirando.
-      status: "Zzz…",
-      scene: `${flip([eyes(OJO_LINEA, 7), eyes(OJO_LINEA, 8)], "1.8s")}${spr(BOCA_CHICA, 21, 12)}
-        <g class="a-zzz">${spr(ZZZ, 36, 6)}</g>
-        <g class="a-zzz2">${spr(ZZZ_MINI, 42, 10)}</g>`,
-    },
-    {
-      // Tarareando: los arcos de los ojos brincan con la nota.
-      status: "Dicho",
-      scene: `${flip([eyes(OJO_ARCO, 6), eyes(OJO_ARCO, 5)], ".8s")}
-        ${flip([spr(BOCA_CHICA, 21, 12), spr(BOCA_O, 20, 11)], "1s")}
-        <g class="a-nota">${spr(tint(NOTA, "a"), 37, 7)}</g>`,
-    },
-    {
-      // Bostezo: el párpado va cayendo (entrecerrado → línea → apretado) al
-      // mismo ritmo que se abre la boca.
-      status: "Dicho",
-      scene: `${flip([eyes(OJO_MEDIO, 7), eyes(OJO_LINEA, 7), eyes(OJO_ARCO, 6)], "1.4s")}
-        ${flip([spr(BOCA_CHICA, 21, 12), spr(BOCA_O, 20, 11), spr(BOSTEZO, 19, 10)], "1.4s")}`,
-    },
   ],
-
   escuchando: [
     {
       // El DJ: los audífonos y el cabeceo son de la carita, pero las barras
@@ -490,7 +948,7 @@ export const V: Record<FaceState, Variant[]> = {
             spr(BOCA_CHICA, 21, 12),
             spr(BOCA_CHICA, 21, 12),
             spr(BOCA_CHICA, 21, 12),
-            spr(BOSTEZO, 19, 10),
+            spr(BOSTEZO, 19, 7),
           ],
           "1.2s",
         )}
@@ -685,45 +1143,33 @@ export const LEYENDO: Variant = {
 
 
 /**
- * Las doce celdas del aro de 5×5, en orden de reloj.
+ * Los ojos del estreno: dos pantallitas con una línea barriéndolas.
  *
- * El aro de 3×3 tiene sólo cuatro paradas, y con cuatro el giro se ve a
- * tirones: cada cuadro salta un cuarto de vuelta. A 5×5 caben doce, así que el
- * arco avanza de una en una y el giro se lee liso sin dejar de ser pixel art.
+ * # Por qué no son un espiral, habiéndolo intentado tres veces
+ *
+ * El espiral es la convención universal de «mareado» y era lo que se quería.
+ * **No se lee a este tamaño, y ya está medido tres veces**: a 5 px salía «una
+ * letra G» (ver `OJO_ASPA`), a 3 px «una mancha» (ver `MAREO`), y a **7 px**
+ * —probado en el banco, dibujándose de fuera hacia dentro y también con un
+ * tramo viajando— sale un laberinto roto. El problema no es el tamaño: es que
+ * una espiral es una línea de 1 px que se cruza consigo misma, y sin medios
+ * tonos que separen las vueltas, las vueltas se tocan.
+ *
+ * # Y por qué esto sí
+ *
+ * Un marco hueco con una barra recorriéndolo de arriba abajo se lee como **una
+ * pantalla refrescándose**, que es literalmente lo que está pasando: la app se
+ * está actualizando. No es la convención de «mareado» — es la de «máquina
+ * trabajando», y aquí esa es la correcta. Además encaja con el aparato: el
+ * tamagotchi cuenta las cosas con casillas que se llenan, no con dibujos finos.
  */
-const ARO5_CELDAS: [number, number][] = [
-  [1, 0], [2, 0], [3, 0],
-  [4, 1], [4, 2], [4, 3],
-  [3, 4], [2, 4], [1, 4],
-  [0, 3], [0, 2], [0, 1],
-];
-
-/** Un cuadro del aro: `largo` celdas encendidas a partir de `desde`. */
-const aroCuadro = (desde: number, largo: number): string[] => {
-  const m = Array.from({ length: 5 }, () => Array(5).fill("."));
-  for (let k = 0; k < largo; k++) {
-    const [x, y] = ARO5_CELDAS[(desde + k) % ARO5_CELDAS.length];
-    m[y][x] = "X";
-  }
-  return m.map((r) => r.join(""));
-};
-
-/**
- * Los ojos girando del estreno: un arco de cinco celdas dando la vuelta a un
- * aro de 5×5, en doce cuadros.
- *
- * **No es un espiral dibujado**, y no por pereza: ya se probó dos veces y las
- * dos salió mal — en `OJO_ASPA` está escrito que un remolino «a 5 px se leía
- * como una letra G», y en `MAREO` que «el espiral clásico a 3 px se convierte
- * en una mancha». Lo que sí lee como rotación a este tamaño es que el ojo se
- * quede quieto y lo que se mueva sea **dónde está encendido**.
- *
- * Los dos ojos van a media vuelta de diferencia. A la vez y en la misma
- * posición se leen como un desplazamiento lateral, no como un giro: es la misma
- * lección del balancín de `MAREO`.
- */
-const OJOS_GIRO = Array.from({ length: 12 }, (_, i) =>
-  spr(aroCuadro(i, 5), LX - 1, 5) + spr(aroCuadro(i + 6, 5), RX - 1, 5),
+const OJO_PANTALLA = ["XXXXX", "X...X", "X...X", "X...X", "XXXXX"];
+const OJOS_GIRO = [1, 2, 3].map(
+  (fila) =>
+    spr(OJO_PANTALLA, LX - 1, 5) +
+    spr(["XXXXX"], LX - 1, 5 + fila) +
+    spr(OJO_PANTALLA, RX - 1, 5) +
+    spr(["XXXXX"], RX - 1, 5 + fila),
 );
 
 /** La lengua del estreno, dando vueltas dentro de la boca abierta. */
@@ -755,7 +1201,7 @@ export const ACTUALIZADO: Variant = {
   status: "Dicho",
   scene: `<g class="u-ini">${CARA_REPOSO(spr)}</g>
     <g class="u-carga">
-      ${flip(OJOS_GIRO, ".72s")}
+      ${flip(OJOS_GIRO, ".45s")}
       ${spr(BOSTEZO, 19, 10)}
       ${flip(
         LENGUA_ESTRENO.map(([x, y]) => spr(tint(["XX", "XX"], "p"), x, y)),
@@ -791,7 +1237,6 @@ export const ACTUALIZADO: Variant = {
 const BOCAZA_DIENTES = [
   "XXXXXXXXXXX",
   "XXXXXXXXXXX",
-  "XX.......XX",
   "XX.......XX",
   ".XX.....XX.",
   "..XXXXXXX..",
@@ -981,27 +1426,61 @@ const SERVILLETA_MANO = [
  */
 const brazoConServilleta = (mano: number) =>
   // El hombro, bajando a la vagoneta.
-  spr(["XX", "XX", "XX"], 12, 12) +
+  spr(["XX", "XX", "XX"], 12, 9) +
   // El antebrazo, del hombro a la mano.
-  spr(Array(2).fill("X".repeat(Math.max(1, mano - 12))), 12, 11) +
-  spr(SERVILLETA_MANO, mano, 9);
-
-/** El mismo sprite del revés, para el otro brazo. */
-const espejo = (m: string[]) => m.map((r) => [...r].reverse().join(""));
+  spr(Array(2).fill("X".repeat(Math.max(1, mano - 12))), 12, 8) +
+  spr(SERVILLETA_MANO, mano, 6);
 
 /**
- * La vagoneta, a ras de suelo: los costados asomando, el borde y las ruedas.
+ * El brazo doblado hacia abajo: agarrado a la barandilla.
  *
- * Empezó siendo una caja de cinco filas y había que elegir entre el carrito y
- * la cara: con la caja puesta, la cara quedaba aplastada contra ella y el
- * conjunto se leía como una carita encima de una mesa. Tres filas bastan para
- * decir "va montada en algo" y dejan el lienzo para el bicho, que es lo que
- * hay que mirar.
+ * Con la mano arriba —la pose de saludar— queda **a la altura de los ojos**, y
+ * entonces brazos y ojos se leen como una fila de cuatro bloques iguales en vez
+ * de como una cara. Doblado despeja el renglón de los ojos y queda agarrado al
+ * carrito, que es lo que toca cuando no estás saludando: vomitando, bajándote,
+ * o mientras la otra mano te limpia la boca.
+ */
+const BRAZO_ABAJO = [
+  "......",
+  "......",
+  "......",
+  "......",
+  "XXXX..",
+  "XXXX..",
+  ".XX...",
+  "..XX..",
+  "...XX.",
+  "...XX.",
+  "...XX.",
+];
+
+/**
+ * La vagoneta, de frente.
+ *
+ * # Cómo se hace profundidad sin sombras
+ *
+ * En 1 bit no hay medios tonos, así que el truco de sombrear el frente para que
+ * parezca un volumen **no existe**. Tiene que salir de las tres cosas que sí
+ * funcionan a este tamaño, y aquí están las tres:
+ *
+ *  - **El hueco.** Un interior del color del fondo dentro de un borde macizo se
+ *    lee como algo en lo que te puedes meter. Es la misma lección que arregló la
+ *    bocaza: el hueco *es* la abertura.
+ *  - **La silueta que estrecha.** El frente se come una columna por lado según
+ *    baja. Algo que estrecha hacia abajo se aleja, y con eso deja de ser una
+ *    fachada plana.
+ *  - **El tapado.** La barandilla se dibuja después, así que le pisa el borde de
+ *    arriba: lo de delante esconde lo de detrás.
+ *
+ * Antes era una raya con dos muñones y el usuario lo dijo sin rodeos — parecía
+ * una repisa, no un carrito. Las cuatro filas salen de que la cara ya subió a la
+ * mitad de arriba: abajo había sitio y no se estaba usando.
  */
 const VAGONETA = [
-  "X.........................X",
   "XXXXXXXXXXXXXXXXXXXXXXXXXXX",
-  "...XXX...............XXX...",
+  "XX.......................XX",
+  ".XXXXXXXXXXXXXXXXXXXXXXXXX.",
+  "..XXX.................XXX..",
 ];
 
 
@@ -1015,11 +1494,32 @@ const VAGONETA = [
  * tamaño eso se ve.
  */
 const par = (izq: string[], der: string[]) =>
-  spr(izq, 8, 4) + spr(espejo(der), 31, 4);
+  spr(izq, 8, 3) + spr(espejo(der), 31, 3);
 
 /**
- * El escenario que comparten las cuatro escenas del arrastre: la vagoneta y los
- * brazos, en su propio grupo para que boten como un carrito.
+ * La barandilla de seguridad del carrito.
+ *
+ * Va en **azul** —el color de acento de la app— y no en rojo ni amarillo
+ * chillón. No es capricho: a este tamaño, un color de alarma cruzando la cara se
+ * lee como un error, y esto no es un error, es una atracción.
+ *
+ * Es lo único de todo el HUD que no comparte color con la tinta, y por eso
+ * funciona: al levantarse se ve clarísimo qué se está moviendo.
+ *
+ * El centro va **más gordo**, como el acolchado de las de verdad, y engorda
+ * **hacia abajo**: hacia arriba le robaría sitio a la cara, que es lo único que
+ * no puede encogerse.
+ */
+const BARANDILLA = [
+  "XXXXXXXXXXXXXXXXXXXXXXXXX",
+  "X....XXXXXXXXXXXXXXX....X",
+  ".....XXXXXXXXXXXXXXX.....",
+];
+
+/**
+ * El escenario que comparten las escenas del arrastre: la vagoneta, la
+ * barandilla bajada y los brazos, en su propio grupo para que boten como un
+ * carrito.
  *
  * Antes la vagoneta salía sólo en la primera y desaparecía en las tres del
  * mareo, y eso rompía la historia: el bicho se subía a un carrito, se mareaba en
@@ -1031,7 +1531,16 @@ const par = (izq: string[], der: string[]) =>
  * movimientos distintos —el riel y el estómago— y cuadrarlos los volvería uno.
  */
 const escenario = (brazos: string) =>
-  `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${brazos}</g>`;
+  // El orden importa y es el del mundo real: primero el carrito, luego los
+  // brazos, y **la barandilla encima de ellos** — es lo que tienes delante, así
+  // que los brazos se esconden por detrás. La cara va después de todo esto, o
+  // sea por encima de la barandilla: si la barra le tapa la boca, la animación
+  // deja de contarse.
+  `<g class="a-vagon">${spr(VAGONETA, 9, 14)}${brazos}${spr(
+    tint(BARANDILLA, "a"),
+    10,
+    12,
+  )}</g>`;
 
 /**
  * Arrastrando la onda: va montada en la vagoneta y lo está pasando bien.
@@ -1062,8 +1571,8 @@ export const RODANDO: Variant = {
       ".3s",
     ),
   )}
-    <g class="a-vagon">${flip([eyes(OJO_ANCHO, 3), eyes(OJO_ANCHO, 4)], ".48s")}
-    ${spr(BOCAZA_DIENTES, 17, 9)}</g>`,
+    <g class="a-vagon">${flip([eyes(OJO_ANCHO, 2), eyes(OJO_ANCHO, 3)], ".48s")}
+    ${spr(BOCAZA_DIENTES, 17, 7)}</g>`,
 };
 
 /**
@@ -1077,21 +1586,24 @@ export const RODANDO: Variant = {
  */
 const LIMPIADA_SERVILLETA: Variant = {
   status: "Ya, ya…",
-  scene: `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${flip(
+  // El brazo libre va **apoyado**, no en alto. Con la mano arriba mientras la
+  // otra te limpia la boca no se entiende qué está haciendo: parece que saluda
+  // y se limpia a la vez, que son dos cosas y ninguna se lee.
+  scene: `<g class="a-vagon">${spr(VAGONETA, 9, 14)}${flip(
     [
       // Llega con la boca aún sucia.
       brazoConServilleta(26) +
-        spr(espejo(BRAZO_RECTO), 31, 4) +
-        eyes(OJO_LINEA, 7) +
-        spr(BOCA_CHICA, 21, 12) +
-        spr(tint(["XXX"], "m"), 25, 14),
+        spr(espejo(BRAZO_ABAJO), 31, 3) +
+        eyes(OJO_LINEA, 4) +
+        spr(BOCA_CHICA, 21, 9) +
+        spr(tint(["XXX"], "m"), 25, 11),
       // Cruza y tapa. La mancha ya no está: se la llevó.
-      brazoConServilleta(20) + spr(espejo(BRAZO_RECTO), 31, 4) + eyes(OJO_LINEA, 7),
+      brazoConServilleta(20) + spr(espejo(BRAZO_ABAJO), 31, 3) + eyes(OJO_LINEA, 4),
       // Vuelve, y la cara está limpia.
       brazoConServilleta(26) +
-        spr(espejo(BRAZO_RECTO), 31, 4) +
-        eyes(OJO_ARCO, 6) +
-        spr(RAYA, 20, 12),
+        spr(espejo(BRAZO_ABAJO), 31, 3) +
+        eyes(OJO_ARCO, 3) +
+        spr(RAYA, 20, 9),
     ],
     ".9s",
   )}</g>`,
@@ -1118,27 +1630,6 @@ const BOCA_REDONDA = [
   "...XXXXXXX...",
 ];
 
-/**
- * El brazo doblado hacia abajo, para la lamida.
- *
- * Con la mano arriba —la pose de saludar— queda **a la altura de los ojos**, y
- * entonces brazos y ojos se leen como una fila de cuatro bloques iguales en vez
- * de como una cara. Doblado despeja el renglón de los ojos, y de paso queda
- * como agarrándose al carrito, que es lo que toca después de vomitar.
- */
-const BRAZO_ABAJO = [
-  "......",
-  "......",
-  "......",
-  "......",
-  "XXXX..",
-  "XXXX..",
-  ".XX...",
-  "..XX..",
-  "...XX.",
-  "...XX.",
-  "...XX.",
-];
 
 /** La lengua, rosa, por dentro del aro. */
 const LENGUA = ["XXX", "XXX"];
@@ -1160,22 +1651,22 @@ const RESTO = ["XX"];
  * cara va quedando limpia a la vista.
  */
 const VUELTA: { resto: [number, number]; lengua: [number, number] }[] = [
-  { resto: [23, 8], lengua: [22, 9] },
-  { resto: [27, 10], lengua: [24, 10] },
-  { resto: [23, 14], lengua: [22, 12] },
-  { resto: [19, 14], lengua: [19, 12] },
-  { resto: [16, 10], lengua: [18, 10] },
-  { resto: [19, 8], lengua: [19, 9] },
+  { resto: [23, 5], lengua: [22, 6] },
+  { resto: [27, 7], lengua: [24, 7] },
+  { resto: [23, 11], lengua: [22, 9] },
+  { resto: [19, 11], lengua: [19, 9] },
+  { resto: [16, 7], lengua: [18, 7] },
+  { resto: [19, 5], lengua: [19, 6] },
 ];
 
 const LIMPIADA_LENGUA: Variant = {
   status: "Ya, ya…",
-  scene: `<g class="a-vagon">${spr(VAGONETA, 9, 15)}${par(BRAZO_ABAJO, BRAZO_ABAJO)}${flip(
+  scene: `<g class="a-vagon">${spr(VAGONETA, 9, 14)}${par(BRAZO_ABAJO, BRAZO_ABAJO)}${flip(
     [
       ...VUELTA.map(
         (paso, k) =>
-          eyes(OJO_ANCHO, 3) +
-          spr(BOCA_REDONDA, 16, 8) +
+          eyes(OJO_ANCHO, 2) +
+          spr(BOCA_REDONDA, 16, 5) +
           // Los restos que aún no ha limpiado.
           VUELTA.slice(k + 1)
             .map((r) => spr(tint(RESTO, "m"), r.resto[0], r.resto[1]))
@@ -1183,14 +1674,88 @@ const LIMPIADA_LENGUA: Variant = {
           spr(tint(LENGUA, "p"), paso.lengua[0], paso.lengua[1]),
       ),
       // Se lo traga.
-      eyes(OJO_ANCHO, 3) + spr(BOCA_CHICA, 21, 11),
+      eyes(OJO_ANCHO, 2) + spr(BOCA_CHICA, 21, 8),
       // Y se le pasó: sonríe y suelta el destello de «quedó limpio».
-      eyes(OJO_ARCO, 4) +
-        spr(SONRISA, 18, 11) +
+      eyes(OJO_ARCO, 2) +
+        spr(SONRISA, 18, 8) +
         spr(tint(CHISPITA, "w"), 31, 3),
     ],
     "1.2s",
   )}</g>`,
+};
+
+/**
+ * Bajarse del carrito: la barandilla se levanta y el bicho se queda curioseando.
+ *
+ * Existe porque sin ella la transición mentía. Al soltar la onda, la carita
+ * saltaba de golpe a una de reposo —y con frecuencia a la de estar dormido—, o
+ * sea que el bicho pasaba de una montaña rusa a roncar en un fotograma. Esto es
+ * el puente: se levanta la barandilla, se va, y lo que queda es una cara mirando
+ * a los lados como quien acaba de bajarse y no sabe muy bien dónde está.
+ *
+ * La barandilla sube **con las manitas pegadas a ella**, como cuando te quitas
+ * unos audífonos: si sube sola parece que se abre el carrito, y si suben sólo
+ * las manos no se entiende qué empujan. Al llegar arriba se desvanece, y ahí se
+ * queda la cara sola.
+ *
+ * Seis cuadros en 1,2 s, y el HUD la enseña **una sola vuelta**: es una
+ * transición, no un estado.
+ *
+ * La boca va en **todos** los cuadros. En la primera versión sólo la tenía el
+ * último y se veía exactamente como lo que era: una cara sin boca hasta que
+ * terminaba de subir la barandilla.
+ */
+export const BAJANDO: Variant = {
+  status: "Uf…",
+  scene: `${spr(VAGONETA, 9, 14)}${flip(
+    [
+      // Agarrada, todavía abajo.
+      spr(tint(BARANDILLA, "a"), 10, 12) +
+        par(BRAZO_ABAJO, BRAZO_ABAJO) +
+        eyes(OJO, 2) +
+        spr(BOCA_CHICA, 21, 9),
+      // Empieza a subir; las manos van pegadas.
+      spr(tint(BARANDILLA, "a"), 10, 9) +
+        par(ABANICO_MEDIO, ABANICO_MEDIO) +
+        eyes(OJO, 2) +
+        spr(BOCA_CHICA, 21, 9),
+      spr(tint(BARANDILLA, "a"), 10, 6) +
+        par(BRAZO_ABIERTO, BRAZO_ABIERTO) +
+        eyes(OJO, 2) +
+        spr(BOCA_CHICA, 21, 9),
+      // Arriba del todo, a la altura de la cápsula.
+      spr(tint(BARANDILLA, "a"), 10, 2) +
+        par(BRAZO_RECTO, BRAZO_RECTO) +
+        eyes(OJO, 2) +
+        spr(BOCA_CHICA, 21, 9),
+      // Se va, y las manos bajan.
+      par(BRAZO_ABAJO, BRAZO_ABAJO) + eyes(OJO, 2) + spr(BOCA_CHICA, 21, 9),
+      // Y se queda mirando a un lado: ya está en el suelo.
+      eyes(OJO, 2) + spr(RAYA, 20, 9),
+    ],
+    "1.2s",
+  )}`,
+};
+
+/**
+ * En reposo, curioseando: los ojos miran a un lado y a otro.
+ *
+ * Es donde aterriza el bicho después de bajarse del carrito, y por eso mira
+ * alrededor en vez de quedarse quieto: acaba de llegar. La pupila se desplaza
+ * dentro del ojo en lugar de moverse el ojo entero — mover el ojo completo se
+ * lee como que tiembla la cara, mover lo de dentro se lee como que mira.
+ */
+export const CURIOSEANDO: Variant = {
+  status: "",
+  scene: `${flip(
+    [
+      spr(["XXX", "X..", "X..", "XXX"], LX, 2) + spr(["XXX", "X..", "X..", "XXX"], RX, 2),
+      spr(OJO, LX, 2) + spr(OJO, RX, 2),
+      spr(["XXX", "..X", "..X", "XXX"], LX, 2) + spr(["XXX", "..X", "..X", "XXX"], RX, 2),
+      spr(OJO, LX, 2) + spr(OJO, RX, 2),
+    ],
+    "2.4s",
+  )}${spr(RAYA, 20, 9)}`,
 };
 
 /**
@@ -1232,13 +1797,13 @@ export const MAREO: Variant[] = [
       ),
     )}<g class="a-mareo">${flip(
       [
-        spr(OJO, LX, 5) + spr(OJO_MEDIO, RX, 7),
-        spr(OJO_MEDIO, LX, 6) + spr(OJO_MEDIO, RX, 6),
-        spr(OJO_MEDIO, LX, 7) + spr(OJO, RX, 5),
-        spr(OJO_MEDIO, LX, 6) + spr(OJO_MEDIO, RX, 6),
+        spr(OJO, LX, 2) + spr(OJO_MEDIO, RX, 4),
+        spr(OJO_MEDIO, LX, 3) + spr(OJO_MEDIO, RX, 3),
+        spr(OJO_MEDIO, LX, 4) + spr(OJO, RX, 2),
+        spr(OJO_MEDIO, LX, 3) + spr(OJO_MEDIO, RX, 3),
       ],
       "1.28s",
-    )}${spr(ZIGZAG, 18, 12)}</g>
+    )}${spr(ZIGZAG, 18, 9)}</g>
       <g class="a-orb1">${spr(tint(CHISPITA, "w"), 37, 3)}</g>
       <g class="a-orb2">${spr(tint(CHISPITA, "w"), 37, 3)}</g>`,
   },
@@ -1258,46 +1823,57 @@ export const MAREO: Variant[] = [
         ".6s",
       ),
     )}<g class="a-glup">${flip(
-      [eyes(OJO, 5), eyes(OJO_ANCHO, 5), eyes(OJO, 5), eyes(OJO_ANCHO, 5)],
+      [eyes(OJO, 2), eyes(OJO_ANCHO, 2), eyes(OJO, 2), eyes(OJO_ANCHO, 2)],
       ".64s",
     )}${flip(
       [
-        spr(RAYA, 20, 12),
+        spr(RAYA, 20, 9),
         // La raya de la boca sigue dentro del bulto: sin ella el hueco se leía
         // como una bocaza abierta, que es justo lo contrario de aguantarse.
-        spr(CARRILLOS_MEDIO, 17, 11) + spr(RAYA, 20, 12),
-        spr(CARRILLOS_LLENO, 15, 10) + spr(RAYA, 20, 12),
-        spr(BOCA_CHICA, 21, 12),
+        spr(CARRILLOS_MEDIO, 17, 8) + spr(RAYA, 20, 9),
+        spr(CARRILLOS_LLENO, 15, 7) + spr(RAYA, 20, 9),
+        spr(BOCA_CHICA, 21, 9),
       ],
       "1.28s",
     )}</g>
       <g class="a-sudor">${spr(tint(GOTA, "s"), 33, 4)}</g>`,
   },
   {
-    // 3 · Ya no aguantó. Cinco tiempos, que es una historia y no un gesto: el
-    // "ay, no" con los ojos de par en par, la boca abriéndose, el chorro, y al
-    // final **se limpia la boca con la manita** mientras el charco se queda ahí.
-    // Los tamagotchi ponen el significado en el símbolo de al lado y no en la
-    // cara: por eso el charco vive fuera, en el suelo, y no encima del bicho.
+    // 3 · Ya no aguantó, y no una vez: **tres**, cada una peor que la anterior.
+    //
+    // Es la tercera vez que lo mareas, así que la historia no es «vomita», es
+    // «vomita, coge aire, vuelve a vomitar, y la tercera es la mala». Seis
+    // tiempos: tres arcadas y sus tres sueltas, la última con la boca abierta
+    // del todo y la plasta colgando.
+    //
+    // El charco crece en tres escalones y **no se va**: los tamagotchi ponen el
+    // significado en el símbolo de al lado y no en la cara, así que lo que
+    // cuenta cuánto ha vomitado es el charco del suelo, no su expresión.
     status: "¡Blegh!",
     // Aquí los brazos **no se mueven**: te agarras. Un saludo mientras vomitas
     // contaría dos cosas a la vez y no se leería ninguna.
     scene: `${escenario(par(BRAZO_RECTO, BRAZO_RECTO))}
       <g class="a-arcada">${flip(
       [
-        eyes(OJO_ANCHO, 5),
-        eyes(OJO_ARCO, 6),
-        eyes(OJO_ARCO, 6),
-        eyes(OJO_ARCO, 6),
-        eyes(OJO_MEDIO, 7),
+        eyes(OJO_ANCHO, 2),
+        eyes(OJO_ARCO, 3),
+        eyes(OJO_ANCHO, 2),
+        eyes(OJO_ARCO, 3),
+        eyes(OJO_ANCHO, 2),
+        eyes(OJO_MEDIO, 4),
       ],
-      "1.4s",
+      "2.4s",
     )}${flip(
       [
-        spr(BOCA_O, 20, 11),
-        spr(BOSTEZO, 19, 10),
-        spr(BOSTEZO, 19, 10),
-        spr(BOSTEZO, 19, 10),
+        // Arcada 1 y su suelta.
+        spr(BOCA_O, 20, 8),
+        spr(BOSTEZO, 19, 7),
+        // Arcada 2, ya con la boca más abierta.
+        spr(BOCA_O, 20, 8),
+        spr(BOSTEZO, 19, 7),
+        // Arcada 3: la mala. Boca de par en par y la plasta colgando.
+        spr(BOCA_O, 20, 8),
+        spr(BOSTEZO, 19, 7) + spr(tint(PLASTA, "m"), 21, 11),
         // El último cuadro: la boca ya chica, y nada más.
         //
         // Aquí hubo una manita limpiándosela y **se leía como una segunda
@@ -1306,16 +1882,25 @@ export const MAREO: Variant[] = [
         // idénticos separados por un píxel no son una cara limpiándose, son
         // dos bocas. Se quita y ya está: de limpiarse se encarga el cuadro
         // siguiente, que es una escena entera dedicada a eso.
-        spr(BOCA_CHICA, 21, 12),
       ],
-      "1.4s",
+      "2.4s",
     )}</g>
-      <g class="a-vom1">${spr(tint(PUFF, "m"), 26, 12)}</g>
-      <g class="a-vom2">${spr(tint(PUFF, "m"), 26, 12)}</g>
-      <g class="a-vom3">${spr(tint(PUNTO, "m"), 26, 13)}</g>
-      <g class="a-escurre">${spr(tint(ESCURRE, "m"), 25, 14)}</g>
-      <g class="a-charco1">${spr(tint(CHARCO_CHICO, "m"), 31, 15)}</g>
-      <g class="a-charco2">${spr(tint(CHARCO, "m"), 30, 15)}</g>`,
+      <!-- Las tres sueltas. Mismo recorrido, distinto retraso y distinto
+           tamaño: la primera son dos motas, la segunda tres, y la tercera es
+           una sopa. Escalar el tamaño es lo que cuenta que va a peor; repetir
+           lo mismo tres veces sólo contaría que se repite. -->
+      <g class="v-uno">${spr(tint(PUNTO, "m"), 26, 9)}</g>
+      <g class="v-uno dos">${spr(tint(PUNTO, "m"), 26, 10)}</g>
+      <g class="v-dos">${spr(tint(PUFF, "m"), 26, 9)}</g>
+      <g class="v-dos dos">${spr(tint(PUFF, "m"), 26, 10)}</g>
+      <g class="v-dos tres">${spr(tint(PUNTO, "m"), 27, 8)}</g>
+      <g class="v-tres">${spr(tint(PUFF, "m"), 26, 8)}</g>
+      <g class="v-tres dos">${spr(tint(CHARCO_CHICO, "m"), 26, 10)}</g>
+      <g class="v-tres tres">${spr(tint(PUFF, "m"), 27, 11)}</g>
+      <g class="v-tres cuatro">${spr(tint(PUNTO, "m"), 28, 9)}</g>
+      <g class="a-charco1">${spr(tint(CHARCO_CHICO, "m"), 33, 15)}</g>
+      <g class="a-charco2">${spr(tint(CHARCO, "m"), 32, 15)}</g>
+      <g class="a-charco3">${spr(tint(CHARCO_GRANDE, "m"), 31, 15)}</g>`,
   },
 ];
 
@@ -1682,6 +2267,16 @@ ${FLIP_CSS}
      un arco hacia la derecha y abajo. En arco y no en caída recta porque la
      pantalla sólo tiene 16 px de alto (y=2 a 17) y la boca ya acaba en y=14:
      cayendo a plomo se salía del lienzo antes de leerse. */
+  /* Un solo recorrido para las tres sueltas: sale de la boca, describe el arco
+     hacia la derecha y se apaga al llegar al suelo. En arco y no a plomo porque
+     cayendo recto se sale del lienzo — la boca ya acaba en y=14 de 17. */
+  @keyframes chorro { 0%, 6% { transform: translate(0, 0); opacity: 0; }
+                      8% { transform: translate(0, 0); opacity: 1; }
+                      12% { transform: translate(2px, 1px); }
+                      16% { transform: translate(4px, 2px); }
+                      20% { transform: translate(6px, 3px); }
+                      24% { transform: translate(8px, 4px); opacity: 1; }
+                      26%, 100% { opacity: 0; } }
   @keyframes vomito { 0%, 18% { transform: translate(0, 0); opacity: 0; }
                       20% { transform: translate(0, 0); opacity: 1; }
                       32% { transform: translate(2px, 1px); }
@@ -1697,8 +2292,9 @@ ${FLIP_CSS}
                        78%, 100% { transform: scaleY(1); opacity: 0; } }
   /* El charco no se va: aparece cuando aterriza el primer chorro, crece con el
      segundo y se queda hasta el final del ciclo. */
-  @keyframes charco { 0%, 36% { opacity: 0; } 40%, 100% { opacity: 1; } }
-  @keyframes charco2 { 0%, 60% { opacity: 0; } 64%, 100% { opacity: 1; } }
+  @keyframes charco { 0%, 22% { opacity: 0; } 26%, 100% { opacity: 1; } }
+  @keyframes charco2 { 0%, 55% { opacity: 0; } 59%, 100% { opacity: 1; } }
+  @keyframes charco3 { 0%, 88% { opacity: 0; } 92%, 100% { opacity: 1; } }
 
   @keyframes eructo { 0% { transform: translate(0, 0); opacity: 0; }
                       75% { transform: translate(0, 0); opacity: 1; }
@@ -1751,16 +2347,31 @@ ${FLIP_CSS}
   .a-orb2 { opacity: .55; animation: orbita 1.28s steps(1, end) .64s infinite; }
   .a-glup { animation: glup 1.28s steps(1, end) infinite; }
   .a-sudor { opacity: 0; animation: sudor 1.28s steps(1, end) infinite; }
-  .a-arcada { animation: arcada 1.4s steps(1, end) infinite; }
-  .a-vom1, .a-vom2, .a-vom3 { opacity: 0; animation: vomito 1.4s steps(1, end) infinite; }
-  /* Escalonados por medio paso cada uno: se leen como un chorro y no como tres
-     bolas sueltas. */
-  .a-vom2 { animation-delay: .06s; }
-  .a-vom3 { animation-delay: .12s; }
-  .a-escurre { opacity: 0; transform-box: fill-box; transform-origin: center top;
-               animation: escurre 1.4s steps(1, end) infinite; }
-  .a-charco1 { opacity: 0; animation: charco 1.4s steps(1, end) infinite; }
-  .a-charco2 { opacity: 0; animation: charco2 1.4s steps(1, end) infinite; }
+  .a-arcada { animation: arcada 2.4s steps(1, end) infinite; }
+  /* Las tres sueltas comparten recorrido y se separan por el retraso: cada una
+     sale justo cuando su arcada abre la boca (a 1/6, 3/6 y 5/6 del ciclo). */
+  .v-uno, .v-dos, .v-tres {
+    opacity: 0; animation-name: chorro; animation-duration: 2.4s;
+    animation-timing-function: steps(1, end); animation-iteration-count: infinite;
+  }
+  .v-uno { animation-delay: 0s; }
+  .v-dos { animation-delay: .8s; }
+  .v-tres { animation-delay: 1.6s; }
+  /* Dentro de cada suelta, las piezas salen escalonadas: juntas se leen como
+     una bola, escalonadas como un chorro. */
+  .dos { animation-delay: calc(var(--t, 0s) + .07s); }
+  .v-uno.dos { --t: 0s; }
+  .v-dos.dos { --t: .8s; }
+  .v-tres.dos { --t: 1.6s; }
+  .tres { animation-delay: calc(var(--t2, 0s) + .14s); }
+  .v-dos.tres { --t2: .8s; }
+  .v-tres.tres { --t2: 1.6s; }
+  .cuatro { animation-delay: 1.81s; }
+  /* El charco no se va: crece un escalón por arcada y se queda. Es lo que
+     cuenta cuánto ha vomitado — la cara ya no puede contarlo más. */
+  .a-charco1 { opacity: 0; animation: charco 2.4s steps(1, end) infinite; }
+  .a-charco2 { opacity: 0; animation: charco2 2.4s steps(1, end) infinite; }
+  .a-charco3 { opacity: 0; animation: charco3 2.4s steps(1, end) infinite; }
 
   .a-onda > g { opacity: 0; animation: onda 1.4s steps(1, end) infinite; }
   .a-eructo, .a-eructo2 { opacity: 0; animation: eructo 1.2s steps(1, end) infinite; }

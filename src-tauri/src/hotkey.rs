@@ -3,6 +3,7 @@ use crate::settings::SettingsState;
 use rdev::{EventType, Key};
 use std::collections::HashSet;
 use std::sync::mpsc::Sender;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 /// Escucha global de teclado (hook de bajo nivel de Windows vía rdev).
@@ -40,6 +41,18 @@ pub fn spawn(tx: Sender<Cmd>, settings: SettingsState, store: Arc<crate::store::
                         active = false;
                         esperando_soltar = true;
                         let _ = tx.send(Cmd::Cancel);
+                        pressed.insert(k);
+                        return;
+                    }
+                    // Fuera de un dictado, esa misma tecla quita de en medio al
+                    // escribano. Es la tecla que el usuario ya tiene aprendida
+                    // para decir «déjalo», y no tenía sentido que sirviera para
+                    // abandonar un dictado pero no para abandonar esto.
+                    if !active
+                        && Some(k) == cancelar
+                        && crate::escribano::ARMADO.load(Ordering::SeqCst)
+                    {
+                        let _ = tx.send(Cmd::CancelarEscribano);
                         pressed.insert(k);
                         return;
                     }
