@@ -1411,21 +1411,31 @@ const PEGOTE_IZQ = ["XXX", ".XX"];
 const PEGOTE_DER = ["XX.", "XXX"];
 
 /**
- * Los cachetes al mascar: se hincha uno y luego el otro.
+ * Mascar es **un medio círculo y una raya**, en una sola silueta.
  *
- * Van pegados a la boca y no sueltos a los lados de la cara. Sueltos ya se probó
- * en el mareo y se leían como **orejas**: dos bloques flotando lejos de la boca
- * no son carrillos.
+ * El carrillo es la curva —redondo por fuera, plano por dentro, que es por donde
+ * se pega a la boca— y la boca es la línea casi recta que sale del otro lado. Se
+ * dibujan juntos a propósito: si van en dos sprites, tarde o temprano alguien los
+ * separa y vuelven a leerse como dos manchas.
+ *
+ * Dos intentos fallidos antes de éste, y el segundo enseñó lo que importa:
+ * - **Separados** (tres columnas de aire entre uno y otro) eran dos manchas
+ *   sueltas, el mismo fallo que ya costó una vuelta en el mareo con los cachetes
+ *   flotando a los lados de la cara.
+ * - **Pegados pero iguales** —un bloque macizo de 3×2 para la boca y otro de 3×3
+ *   para el carrillo— tampoco se entendían, y ése es el hallazgo: el problema no
+ *   era la distancia, era que **los dos eran la misma forma**. Dos rectángulos
+ *   del mismo tamaño no se reparten papeles; uno tiene que ser volumen y el otro
+ *   trazo. Una curva de 4×3 contra una raya de 1 px sí se reparten.
+ *
+ * Y va **bajo**, de tres filas: la bomba mide cinco, así que al inflarla se nota
+ * que crece. Si el carrillo fuera igual de alto que la bomba, inflar no se vería.
  */
-const CACHETE_IZQ = ["XX.", "XXX", "XX."];
-const CACHETE_DER = [".XX", "XXX", ".XX"];
-// Y **pegados**, sin un pixel de aire. Con tres columnas de hueco entre la boca
-// y el carrillo se ven dos manchas sueltas, que es exactamente el fallo que ya
-// costo una vuelta en el mareo. Juntos son una sola forma de 6 de ancho: una
-// boca empujada a un lado con un bulto al otro.
-
-/** Los labios de mascar: la boca se desplaza al lado contrario del carrillo. */
-const BOCA_MASCA = ["XXX", "XXX"];
+const MASCA = [
+  ".XXX......",
+  "XXXXXXXXXX",
+  ".XXX......",
+];
 
 /**
  * Mascando chicle, versión larga: ocho tiempos.
@@ -1443,13 +1453,13 @@ export const CHICLE: Variant = {
       // 1 · Entra el chicle por la derecha.
       eyes(OJO, 5) + spr(RAYA, 20, 12) + spr(tint(CHICLE_BOLA, "p"), 30, 11),
       // 2 · Masca: se hincha el carrillo derecho y la boca se va a la izquierda.
-      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 22, 11),
+      eyes(OJO, 5) + spr(espejo(MASCA), 19, 11),
       // 3 · Y al revés.
-      eyes(OJO, 5) + spr(CACHETE_IZQ, 20, 11) + spr(BOCA_MASCA, 23, 11),
+      eyes(OJO, 5) + spr(MASCA, 16, 11),
       // 4 · Primera bomba: aguanta. Los ojos la miran de reojo.
       eyes(OJO, 5) + spr(tint(BOMBA_CHICA, "p"), 20, 9),
       // 5 · Se la vuelve a meter y masca.
-      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 22, 11),
+      eyes(OJO, 5) + spr(espejo(MASCA), 19, 11),
       // 6 · Segunda bomba, más grande: también aguanta.
       eyes(OJO, 5) + spr(tint(BOMBA_MEDIA, "p"), 19, 7),
       // 7 · La tercera. Los ojos van DESPUÉS de la bomba, encima: es lo único
@@ -1478,10 +1488,10 @@ export const CHICLE_CORTO: Variant = {
   status: "",
   scene: `${flip(
     [
-      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 22, 11),
-      eyes(OJO, 5) + spr(CACHETE_IZQ, 20, 11) + spr(BOCA_MASCA, 23, 11),
+      eyes(OJO, 5) + spr(espejo(MASCA), 19, 11),
+      eyes(OJO, 5) + spr(MASCA, 16, 11),
       eyes(OJO, 5) + spr(tint(BOMBA_CHICA, "p"), 20, 9),
-      eyes(OJO, 5) + spr(BOCA_MASCA, 19, 11) + spr(CACHETE_DER, 22, 11),
+      eyes(OJO, 5) + spr(espejo(MASCA), 19, 11),
     ],
     "1.4s",
   )}`,
