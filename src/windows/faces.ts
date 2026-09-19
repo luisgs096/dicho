@@ -22,16 +22,15 @@ export interface Variant {
   scene: string;
   sad?: boolean;
   shake?: boolean;
+  /** Vuelve a sortear la escena. Solo lo traen las historias largas de
+   *  stand-by, que cambian de tirada cada vez que el HUD las saca. */
+  fresco?: () => string;
 }
 
 
 // ─── paletas del tamagotchi (mismos colores de Dicho) ───────────────────────
 export const PALETA_CLARA = {
   a: "#2563eb", m: "#17b394", p: "#f06ea9", w: "#ea7317", s: "#38bdf8",
-  // El amarillo entra por el lapiz del dibujante, y en claro va oscurecido
-  // (#ca8a04 y no #facc15): un amarillo puro sobre el LCD claro da 1,6:1 de
-  // contraste y el lapiz desaparece. En oscuro si puede ser amarillo de verdad.
-  y: "#ca8a04",
   face: "#33415c", faint: "#8296b2",
   lcd: "#d7e1f0", lcdBorder: "#bfcde2", grid: "rgba(51,65,92,.07)",
   shellA: "#cdd7e6", shellB: "#aab9d0",
@@ -40,7 +39,6 @@ export const PALETA_CLARA = {
 };
 export const PALETA_OSCURA = {
   a: "#38bdf8", m: "#2dd4b4", p: "#f472b6", w: "#fb923c", s: "#7dd3fc",
-  y: "#facc15",
   face: "#dbe6f6", faint: "#5c6f8f",
   lcd: "#0a1322", lcdBorder: "#223052", grid: "rgba(219,230,246,.05)",
   shellA: "#263450", shellB: "#16223a",
@@ -63,7 +61,6 @@ const PAL: Record<string, string> = {
   p: "var(--p)",
   w: "var(--w)",
   s: "var(--s)",
-  y: "var(--y)",
   o: "var(--lcd)",
 };
 
@@ -276,6 +273,84 @@ const flip = (list: string[], dur: string) =>
   list.map((h) => `<g style="animation-duration:${dur}">${h}</g>`).join("") +
   `</g>`;
 
+/**
+ * # Historias largas de stand-by
+ *
+ * `flip()` reparte el tiempo **en partes iguales** y tiene tope de doce cuadros.
+ * Sirve para un gesto, no para una historia de un minuto: con partes iguales no
+ * puedes mascar cuatro veces de un lado y dos del otro, y con doce cuadros no
+ * llegas ni a la mitad.
+ *
+ * `secuencia()` es lo mismo pero con **duraciones libres por cuadro** y sin
+ * tope. Como cada historia se sortea al vuelo, sus fotogramas no pueden vivir en
+ * `FACE_CSS` -que es fijo-, asi que se generan y viajan en un `<style>` dentro
+ * de la propia escena. Es legal en SVG y cada historia usa nombres propios.
+ *
+ * ## Lo que ensenan los tamagotchi de verdad
+ *
+ * El reposo es **el 90 % del tiempo** que la mascota esta a la vista, asi que es
+ * donde hay que gastar el presupuesto de animacion. Y su idioma no es una
+ * pelicula larga: es **un bucle corto de dos cuadros repetido un numero variable
+ * de veces** -en los originales, la reaccion de "close up" alterna dos cuadros
+ * tres o cuatro veces- interrumpido de vez en cuando por un evento. Los bucles
+ * largos que se ven en las reimplementaciones modernas rondan los 70 s y estan
+ * hechos asi: tramos largos de casi nada con dos o tres sucesos dentro.
+ *
+ * De ahi salen las tres reglas de estas historias:
+ *
+ * 1. **El bucle base es corto y se repite un numero de veces que cambia.** Lo
+ *    que rompe la repeticion no es tener muchos dibujos, es que el mismo dibujo
+ *    dure distinto cada vez.
+ * 2. **Los eventos escalan.** Si el suceso es siempre igual, la tercera vez ya
+ *    no es un suceso. Por eso la bomba crece de nivel en nivel y revienta en el
+ *    tercero.
+ * 3. **El final no siempre es el mismo.** Con un unico desenlace, la historia se
+ *    gasta a la segunda vuelta.
+ */
+type Paso = { v: string; ms: number };
+
+let seqN = 0;
+
+/**
+ * Un flipbook de duraciones libres. Devuelve el `<style>` con sus fotogramas y
+ * el grupo con un `<g>` por paso.
+ *
+ * Igual que `flip()`, usa `steps(1, end)` y longhands, y la duracion viaja
+ * **inline y literal**: en cuanto viva en una variable CSS, escribir cualquier
+ * otra variable en un ancestro -`--lvl`, el volumen de la voz- recrea la
+ * animacion desde cero y la historia vuelve a empezar cada fotograma.
+ */
+const secuencia = (pasos: Paso[]): string => {
+  const total = pasos.reduce((a, x) => a + x.ms, 0);
+  const id = `sq${seqN++}`;
+  const seg = (total / 1000).toFixed(3);
+  let css = "";
+  let t = 0;
+  const cuerpo = pasos
+    .map((paso, i) => {
+      const ini = ((t / total) * 100).toFixed(4);
+      t += paso.ms;
+      const fin = ((t / total) * 100).toFixed(4);
+      const entra = i === 0 ? "0%{opacity:1}" : `0%{opacity:0}${ini}%{opacity:1}`;
+      const sale = i === pasos.length - 1 ? "" : `${fin}%{opacity:0}100%{opacity:0}`;
+      css += `@keyframes ${id}_${i}{${entra}${sale}}`;
+      return (
+        `<g style="animation-name:${id}_${i};animation-duration:${seg}s;` +
+        `animation-timing-function:steps(1,end);animation-iteration-count:infinite">` +
+        `${paso.v}</g>`
+      );
+    })
+    .join("");
+  return `<style>${css}</style><g class="seq">${cuerpo}</g>`;
+};
+
+/** Entero al azar en [0, n). */
+const azar = (n: number) => Math.floor(Math.random() * n);
+/** Entero al azar entre a y b, los dos incluidos. */
+const entre = (a: number, b: number) => a + azar(b - a + 1);
+/** Uno de la lista, al azar. */
+const uno = <T,>(xs: T[]) => xs[azar(xs.length)];
+
 /** Parpadeo: abierto casi todo el ciclo, cerrado un instante. */
 const blink = (open: string, shut: string, dur = "3.2s") =>
   `<g class="blink"><g style="animation-duration:${dur}">${open}</g>` +
@@ -453,49 +528,188 @@ const masca = (m: string[], x: number) =>
  * cortado. Ésta sale con la onda clavada, mirándola, y lo que hay que evitar es
  * justo lo contrario, que se sienta repetitiva.
  */
+/** El chicle pegado encima de un ojo. Uno de los desenlaces posibles. */
+const PEGOTE_OJO = ["XXXXX", "XXXXX", ".XXX."];
+
+/** Cuanto dura una mascada. Todo lo demas se mide en mascadas. */
+const MASCADA_MS = 340;
+
+/**
+ * Una tanda de mascadas de un lado.
+ *
+ * El numero de mascadas cambia cada vez -entre dos y seis- y el lado se
+ * alterna. Eso es lo unico que hace que cuarenta segundos de mascar no se
+ * sientan un bucle: no son dibujos distintos, es el **mismo dibujo durando
+ * distinto**. Es literalmente lo que hacen los tamagotchi originales, que
+ * alternan dos cuadros "tres o cuatro veces" y nunca las mismas.
+ *
+ * Los ojos parpadean con `blink` y no con un flipbook de cuatro poses: un
+ * flipbook por tanda serian cuatro animaciones vivas por cada una de las treinta
+ * y tantas tandas, y esto corre en una ventana que esta siempre encima. Dos
+ * animaciones por tanda hacen el mismo trabajo. Lo que cambia entre tandas es la
+ * pose abierta y el ritmo del parpadeo, para que no se sincronicen nunca.
+ */
+const tanda = (izq: boolean, bocados: number): Paso => {
+  const abierto = uno([OJO, OJO, OJO_MEDIO]);
+  const alto = abierto === OJO_MEDIO ? 7 : 5;
+  return {
+    ms: bocados * MASCADA_MS,
+    v:
+      blink(eyes(abierto, alto), eyes(OJO_LINEA, 7), `${(2.6 + azar(8) * 0.2).toFixed(1)}s`) +
+      (izq ? masca(MASCA, 16) : masca(espejo(MASCA), 19)),
+  };
+};
+
+/** Los destellos del shiny: salen a los lados y nunca encima de la cara. */
+const destellos = (hay: boolean) =>
+  hay ? spr(tint(CHISPA, "s"), 9, 3) + spr(tint(CHISPA, "s"), 33, 9) : "";
+
+/**
+ * La bomba, en tres niveles que **crecen**.
+ *
+ * Cada nivel infla pasando por los tamanos de abajo, asi que inflar se ve como
+ * inflar y no como un cambio de dibujo. El tercero es el unico que revienta: si
+ * reventara el primero, la historia no tendria a donde subir.
+ */
+const bomba = (nivel: number, color: string, shiny: boolean): Paso[] => {
+  const chica = spr(tint(BOMBA_CHICA, color), 20, 9);
+  const media = spr(tint(BOMBA_MEDIA, color), 19, 7);
+  const gigante = spr(tint(BOMBA_GIGANTE, color), 16, 6);
+  const d = destellos(shiny);
+  if (nivel === 1) {
+    return [
+      { ms: 280, v: eyes(OJO_MEDIO, 7) + chica + d },
+      { ms: 760, v: eyes(OJO, 5) + chica + d },
+    ];
+  }
+  if (nivel === 2) {
+    return [
+      { ms: 240, v: eyes(OJO_MEDIO, 7) + chica + d },
+      { ms: 300, v: eyes(OJO_MEDIO, 7) + media + d },
+      { ms: 820, v: eyes(OJO, 5) + media + d },
+    ];
+  }
+  // Los ojos van DESPUES de la bomba gigante, encima: sin eso no queda nadie a
+  // quien le vaya a reventar, solo un globo flotando.
+  return [
+    { ms: 200, v: eyes(OJO_MEDIO, 7) + chica + d },
+    { ms: 220, v: eyes(OJO_MEDIO, 7) + media + d },
+    { ms: 380, v: gigante + eyes(OJO_ANCHO, 5) + d },
+    // El ultimo instante antes del pof: la bomba no cambia y lo que cambia es
+    // la cara, que se aprieta. Dos cuadros identicos seguidos son un cuadro
+    // desperdiciado -y ademas se ven como un tiron, porque el reloj sigue
+    // corriendo y no pasa nada-.
+    { ms: 460, v: gigante + eyes(OJO_LINEA, 7) + d },
+  ];
+};
+
+/**
+ * Como acaba: **nunca dos veces igual**.
+ *
+ * Con un unico desenlace la historia se gasta en la segunda vuelta, que es justo
+ * lo que hay que evitar cuando algo va a estar un minuto a la vista. Son tres, y
+ * el shiny cambia ademas los ojos por estrellas.
+ */
+const desenlace = (color: string, shiny: boolean): Paso[] => {
+  const esquirlas = spr(tint(ESQUIRLAS, color), 17, 6);
+  const d = destellos(shiny);
+  const ojosPremio = shiny ? eyes(OJO_ESTRELLA, 4) : eyes(OJO_LINEA, 7);
+  const pegotes =
+    spr(tint(PEGOTE_IZQ, color), 14, 4) + spr(tint(PEGOTE_DER, color), 28, 5);
+  const pof = { ms: 300, v: esquirlas + eyes(OJO_ANCHO, 5) + d };
+
+  const final = azar(3);
+  if (final === 0) {
+    // Se queda con el chicle pegado por toda la cara.
+    return [
+      pof,
+      { ms: 720, v: pegotes + ojosPremio + spr(RAYA, 20, 12) + d },
+      { ms: 540, v: pegotes + eyes(OJO, 5) + spr(LADEADA, 19, 12) },
+    ];
+  }
+  if (final === 1) {
+    // Le tapa un ojo, y el otro se abre de par en par.
+    return [
+      pof,
+      {
+        ms: 760,
+        v:
+          spr(tint(PEGOTE_OJO, color), 14, 4) +
+          spr(OJO_ANCHO, RX - 1, 5) +
+          spr(BOCA_O, 20, 11) +
+          d,
+      },
+      { ms: 520, v: spr(tint(PEGOTE_OJO, color), 14, 4) + spr(OJO, RX, 5) + spr(RAYA, 20, 12) },
+    ];
+  }
+  // Revienta limpio: susto y se le pasa.
+  return [
+    pof,
+    { ms: 600, v: eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11) + d },
+    { ms: 560, v: ojosPremio + spr(SONRISA, 18, 12) + d },
+  ];
+};
+
+/**
+ * Una historia entera: entra el chicle, masca, tres bombas y un desenlace.
+ *
+ * Dura unos veinte segundos y **ninguna sale igual que la anterior**: cambian
+ * cuantas tandas hay antes de cada bomba, cuantas mascadas tiene cada tanda, por
+ * que lado empieza, el ritmo de los parpadeos y como acaba.
+ *
+ * El **shiny sale una de cada cinco**, como se pidio. Cambia el color del chicle
+ * -de rosa a celeste-, le pone destellos a los lados y le deja ojos de estrella
+ * en el desenlace. Es raro a proposito: si saliera siempre dejaria de ser un
+ * premio y seria solo otro color.
+ */
+const historiaChicle = (): Paso[] => {
+  const shiny = azar(5) === 0;
+  const color = shiny ? "s" : "p";
+  const pasos: Paso[] = [
+    { ms: 520, v: eyes(OJO, 5) + spr(RAYA, 20, 12) + spr(tint(CHICLE_BOLA, color), 30, 11) },
+  ];
+  let izq = azar(2) === 0;
+  for (let nivel = 1; nivel <= 3; nivel++) {
+    for (let t = entre(3, 4); t > 0; t--) {
+      pasos.push(tanda(izq, entre(2, 6)));
+      izq = !izq;
+    }
+    pasos.push(...bomba(nivel, color, shiny));
+  }
+  pasos.push(...desenlace(color, shiny));
+  return pasos;
+};
+
+/** Tres historias seguidas: entre 50 y 70 segundos sin repetirse. */
+const construirChicle = () =>
+  secuencia([...historiaChicle(), ...historiaChicle(), ...historiaChicle()]);
+
+/**
+ * Mascando chicle: la carita de stand-by.
+ *
+ * `fresco` la vuelve a sortear cada vez que el HUD la saca, asi que dos reposos
+ * seguidos no cuentan la misma historia. `scene` es solo la primera tirada, la
+ * que se ve en el catalogo y en el manual.
+ */
 export const CHICLE: Variant = {
   status: "",
-  scene: `${flip(
-    [
-      // 1 · Entra el chicle por la derecha.
-      eyes(OJO, 5) + spr(RAYA, 20, 12) + spr(tint(CHICLE_BOLA, "p"), 30, 11),
-      // 2 · Masca: se hincha el carrillo derecho y la boca se va a la izquierda.
-      eyes(OJO, 5) + masca(espejo(MASCA), 19),
-      // 3 · Y al revés.
-      eyes(OJO, 5) + masca(MASCA, 16),
-      // 4 · Primera bomba: aguanta. Los ojos la miran de reojo.
-      eyes(OJO, 5) + spr(tint(BOMBA_CHICA, "p"), 20, 9),
-      // 5 · Se la vuelve a meter y masca.
-      eyes(OJO, 5) + masca(espejo(MASCA), 19),
-      // 6 · Segunda bomba, más grande: también aguanta.
-      eyes(OJO, 5) + spr(tint(BOMBA_MEDIA, "p"), 19, 7),
-      // 7 · La tercera. Los ojos van DESPUÉS de la bomba, encima: es lo único
-      //     que mantiene al personaje a la vista cuando la bomba le tapa media
-      //     cara, y sin ojos no hay nadie a quien le vaya a reventar.
-      spr(tint(BOMBA_GIGANTE, "p"), 16, 6) + eyes(OJO_ANCHO, 5),
-      // 8 · ¡Pof! Y se queda con el chicle pegado en la cara.
-      spr(tint(ESQUIRLAS, "p"), 17, 6) +
-        spr(tint(PEGOTE_IZQ, "p"), 14, 4) +
-        spr(tint(PEGOTE_DER, "p"), 28, 5) +
-        eyes(OJO_LINEA, 7) +
-        spr(RAYA, 20, 12),
-    ],
-    "4.8s",
-  )}`,
+  scene: construirChicle(),
+  fresco: construirChicle,
 };
 
 /**
  * La misma, corta: masca y saca una bomba que aguanta.
  *
- * No es la larga recortada: es el mismo personaje haciendo lo mismo sin llegar a
- * la parte que sorprende. Sale cuando la onda va a estar poco tiempo a la vista,
- * donde la de ocho tiempos se vería cortada por la mitad.
+ * Se queda para el catalogo y para cualquier sitio donde haga falta un bucle de
+ * los de siempre. En reposo ya no se usa: ahi va la historia larga, que durante
+ * un dictado corto simplemente no llega mas alla de las primeras mascadas -y eso
+ * se ve bien, porque mascar es justo lo que hace cuando no pasa nada-.
  */
 export const CHICLE_CORTO: Variant = {
   status: "",
   scene: `${flip(
     [
-      eyes(OJO, 5) + masca(espejo(MASCA), 19),
+      masca(espejo(MASCA), 19) + eyes(OJO, 5),
       eyes(OJO, 5) + masca(MASCA, 16),
       eyes(OJO, 5) + spr(tint(BOMBA_CHICA, "p"), 20, 9),
       eyes(OJO, 5) + masca(espejo(MASCA), 19),
@@ -517,31 +731,42 @@ const LABIOS = ["XXX", "XoX", "XXX"];
 /** Nota chica, para cuando hay dos a la vez y la grande las amontona. */
 const NOTA_CHICA = ["..X", "..X", "XX.", "XX."];
 
-/**
- * La mano que chasquea, **anclada al borde de abajo**.
- *
- * Una mano suelta en mitad del lienzo ya fallo dos veces -a la altura de los
- * ojos se leia como una oreja y a la de la boca como otra boca-. Pegada al
- * borde se lee como algo que **entra** desde fuera, que es el mismo truco con
- * el que se resolvio el antebrazo de limpiarse.
- */
-const MANO_ABRE = ["..X..", "..X..", "XXXXX", "XXXXX", ".XXX."];
-const MANO_CIERRA = [".....", "..XX.", "XXXXX", "XXXXX", ".XXX."];
+// La mano que chasqueaba se borro el 19/09/2026, y conviene que quede escrito
+// por que: a cinco pixeles, un puno con **un solo dedo levantado** no se lee
+// como un chasquido, se lee como una pena de dedo. Lo vio Luis a la primera.
+//
+// Y no tiene arreglo por refinamiento: a esta escala cualquier silueta con un
+// dedo destacado esta a un pixel del gesto obsceno, porque no hay sitio para
+// dibujar la mano que lo desambigua. La regla que queda: **nada de manos con
+// dedos sueltos en 48x16**; una mano aqui solo puede ser un bloque entero
+// -como la que sostiene la servilleta-.
+//
+// El ritmo lo llevan ahora el **meneo de la cabeza** y la entrada de las notas,
+// que era lo que de verdad hacia falta.
 
 /**
- * La cara de silbar, con el cabeceo de un pixel.
+ * La cara de silbar: **ojos cerrados y la cabeza meneandose al ritmo**.
  *
- * Los ojos van **enteros** y no en arco. Con el arco -dos filas- mas unos
- * labios de tres, la cara se quedaba en cuatro manchitas sueltas y pesaba menos
- * que las notas que salen a su lado: parecia otro personaje, mas vacio. El ojo
- * de cuatro filas es lo que sostiene la cara, y el que se mueve es el cabeceo.
+ * Silbar se hace con los ojos cerrados -el que silba esta escuchandose a si
+ * mismo-, y eso ademas resuelve el problema que tenia la cara: con los ojos
+ * abiertos y quietos parecia que miraba a la nada mientras le salian notas por
+ * un lado.
+ *
+ * El meneo es **horizontal**, de izquierda a derecha, y no vertical. Un
+ * cabeceo arriba-abajo se lee como asentir; el vaiven lateral es el que se lee
+ * como seguir el compas. Va de un pixel a cada lado y se hace con un
+ * `translate` entero del grupo: mover cada sprite por separado deja los ojos y
+ * la boca desalineados medio pixel en algun cuadro.
+ *
+ * Cada pocos tiempos **abre los ojos un instante**: sin eso son cuarenta
+ * segundos de una cara dormida, y la regla de la casa es que ninguna carita
+ * tenga los ojos quietos.
  */
-const caraSilba = (dy: number) => eyes(OJO, 5 + dy) + spr(LABIOS, 21, 11 + dy);
-
-/** El chasquido: la mano abre y cierra, y las chispas solo en el tiempo fuerte. */
-const chasquido = (cierra: boolean, chispa: boolean) =>
-  spr(cierra ? MANO_CIERRA : MANO_ABRE, 8, 12) +
-  (chispa ? spr(tint(CHISPITA, "w"), 6, 9) : "");
+const caraSilba = (dx: number, abre = false) =>
+  `<g transform="translate(${dx} 0)">` +
+  eyes(abre ? OJO : OJO_ARCO, abre ? 5 : 6) +
+  spr(LABIOS, 21, 11) +
+  `</g>`;
 
 /**
  * Silbando: ocho tiempos.
@@ -565,26 +790,22 @@ export const SILBANDO: Variant = {
   status: "",
   scene: `${flip(
     [
-      caraSilba(0) + chasquido(false, false),
-      caraSilba(1) + chasquido(true, false) + spr(tint(NOTA, "p"), 33, 11),
-      caraSilba(0) + chasquido(false, true) + spr(tint(NOTA, "p"), 34, 8),
-      caraSilba(1) +
-        chasquido(true, false) +
+      caraSilba(-1),
+      caraSilba(0) + spr(tint(NOTA, "p"), 33, 11),
+      caraSilba(1) + spr(tint(NOTA, "p"), 34, 8),
+      caraSilba(0, true) +
         spr(tint(NOTA, "p"), 33, 5) +
         spr(tint(NOTA_CHICA, "m"), 33, 12),
-      caraSilba(0) +
-        chasquido(false, false) +
+      caraSilba(-1) +
         spr(tint(NOTA, "p"), 34, 3) +
         spr(tint(NOTA_CHICA, "m"), 34, 9),
-      caraSilba(1) +
-        chasquido(true, true) +
+      caraSilba(0) +
         spr(tint(NOTA_CHICA, "m"), 33, 5) +
         spr(tint(NOTA, "s"), 33, 11),
-      caraSilba(0) +
-        chasquido(false, false) +
+      caraSilba(1) +
         spr(tint(NOTA_CHICA, "m"), 34, 3) +
         spr(tint(NOTA, "s"), 34, 7),
-      caraSilba(1) + chasquido(true, false) + spr(tint(NOTA, "s"), 33, 4),
+      caraSilba(0) + spr(tint(NOTA, "s"), 33, 4),
     ],
     "3.2s",
   )}`,
@@ -595,10 +816,10 @@ export const SILBANDO_CORTO: Variant = {
   status: "",
   scene: `${flip(
     [
-      caraSilba(0) + chasquido(false, false),
-      caraSilba(1) + chasquido(true, true) + spr(tint(NOTA, "p"), 33, 11),
-      caraSilba(0) + chasquido(false, false) + spr(tint(NOTA, "p"), 34, 8),
-      caraSilba(1) + chasquido(true, false) + spr(tint(NOTA, "p"), 33, 5),
+      caraSilba(-1),
+      caraSilba(0) + spr(tint(NOTA, "p"), 33, 11),
+      caraSilba(1) + spr(tint(NOTA, "p"), 34, 8),
+      caraSilba(0, true) + spr(tint(NOTA, "p"), 33, 5),
     ],
     "1.6s",
   )}`,
@@ -664,92 +885,20 @@ export const DORMIDO_CORTO: Variant = {
   )}`,
 };
 
-// -- reposo: dibujando ------------------------------------------------------
-
-/**
- * El lapiz: **amarillo con goma rosa**, y por eso entra el amarillo a la paleta.
- *
- * Va en dos piezas y no en una porque son dos materiales: la madera amarilla y
- * la goma rosa. Con un solo color habria que dibujar la juntura, y a cuatro
- * pixeles de largo no cabe una juntura.
- *
- * Apunta **en diagonal**, con la punta abajo-izquierda: es como se sostiene un
- * lapiz visto de frente. En vertical se lee como un palo y en horizontal como
- * un subrayado.
- */
-const LAPIZ_MADERA = ["..XX", ".XX.", "XX.."];
-const GOMA = ["XX", "XX"];
-
-/**
- * Dibuja **al lado de la cara, no encima**.
- *
- * El primer intento ponia el trazo debajo de la boca y el lapiz subiendo en
- * diagonal desde el: a cinco pixeles de largo el cuerpo del lapiz le cruzaba la
- * boca por encima, y una carita con un palo atravesado no se lee como que
- * dibuja, se lee como que esta rota. Moverlo todo al hueco de la derecha
- * -donde ya viven las notas del silbido y los ZZZ del dormido- resuelve el
- * choque sin encoger nada.
- *
- * El trazo empieza en x=33 y no pasa de diez de largo: con doce, la punta del
- * lapiz cae en x=47 y el cuerpo se sale del lienzo por la derecha.
- */
-const TRAZO_X = 33;
-const trazo = (n: number) => spr([Array(n + 1).join("X")], TRAZO_X, 14);
-
-/** El lapiz con la punta apoyada al final de un trazo de `n` de largo. */
-const lapiz = (n: number) =>
-  spr(tint(LAPIZ_MADERA, "y"), TRAZO_X + n, 12) +
-  spr(tint(GOMA, "p"), TRAZO_X + n + 2, 10);
-
-/** El lapiz levantado, mirando lo que lleva hecho. */
-const lapizEnAlto = () =>
-  spr(tint(LAPIZ_MADERA, "y"), 43, 9) + spr(tint(GOMA, "p"), 45, 7);
-
-/** La goma borrando: un bloque rosa apoyado en el final de la linea. */
-const borra = (n: number) => spr(tint(GOMA, "p"), TRAZO_X + n, 13);
-
-/**
- * Dibujando: ocho tiempos.
- *
- * La historia entera de dibujar algo: traza, se pasa, **lo borra con la goma** y
- * lo vuelve a trazar. Que borre es lo que la separa de una barra de progreso:
- * una linea que solo crece es una carga; una que retrocede es alguien decidiendo.
- *
- * Los ojos miran **abajo** mientras traza (`OJO_MEDIO`, medio cerrados, que es
- * como se mira lo que tienes en la mesa) y se abren en el tiempo en que levanta
- * la vista para ver como va. Ese tiempo es el que hace que parezca que piensa, y
- * es tambien donde la boca se tuerce: no le ha gustado, y por eso borra.
- */
-export const DIBUJANDO: Variant = {
-  status: "",
-  scene: `${flip(
-    [
-      eyes(OJO, 5) + spr(RAYA, 20, 12) + lapizEnAlto(),
-      eyes(OJO_MEDIO, 7) + spr(BOCA_CHICA, 21, 12) + trazo(3) + lapiz(3),
-      eyes(OJO_MEDIO, 7) + spr(BOCA_CHICA, 21, 12) + trazo(6) + lapiz(6),
-      eyes(OJO_MEDIO, 7) + spr(BOCA_CHICA, 21, 12) + trazo(10) + lapiz(10),
-      eyes(OJO, 5) + spr(LADEADA, 19, 12) + trazo(10) + lapizEnAlto(),
-      eyes(OJO_MEDIO, 7) + spr(LADEADA, 19, 12) + trazo(7) + borra(7),
-      eyes(OJO_MEDIO, 7) + spr(BOCA_CHICA, 21, 12) + trazo(4) + borra(4),
-      eyes(OJO_ARCO, 6) + spr(SONRISA, 18, 12) + trazo(9) + lapiz(9),
-    ],
-    "4.8s",
-  )}`,
-};
-
-/** Dibujando, corta: traza y se queda contento, sin llegar a arrepentirse. */
-export const DIBUJANDO_CORTO: Variant = {
-  status: "",
-  scene: `${flip(
-    [
-      eyes(OJO, 5) + spr(RAYA, 20, 12) + lapizEnAlto(),
-      eyes(OJO_MEDIO, 7) + spr(BOCA_CHICA, 21, 12) + trazo(3) + lapiz(3),
-      eyes(OJO_MEDIO, 7) + spr(BOCA_CHICA, 21, 12) + trazo(7) + lapiz(7),
-      eyes(OJO_ARCO, 6) + spr(SONRISA, 18, 12) + trazo(10) + lapizEnAlto(),
-    ],
-    "2s",
-  )}`,
-};
+// La carita de dibujar se borro el 19/09/2026, el mismo dia que nacio. Dos
+// motivos y los dos de Luis:
+//
+// - **Se pisaba con el escribano.** Ya hay una carita de pluma y pergamino
+//   para corregir texto, y otra de manos tecleando para escribir. Una tercera
+//   de lapiz no anade un gesto, anade una duda: el usuario no sabe si la onda
+//   esta en reposo o esta haciendo algo con su texto. Una mascota puede tener
+//   muchos gestos, pero no dos que signifiquen lo mismo.
+// - **Y el lapiz no se leia.** Dibujado en diagonal a cuatro pixeles no
+//   parecia un lapiz sino un espagueti con la punta rosa, porque un lapiz es
+//   recto y una diagonal en pixel-art es una escalera. Es el mismo aprendizaje
+//   que ya estaba escrito para el brazo levantado: **a esta escala la diagonal
+//   no es una linea inclinada, es una escalera**, y un objeto que se reconoce
+//   por ser recto no puede dibujarse en diagonal.
 
 // ─── 26 caritas: 5 por estado + el eructo, que sólo sale tras la comilona ───
 // Regla nueva (28/08): **ninguna carita tiene los ojos quietos**, y el gesto de
@@ -766,10 +915,19 @@ export const V: Record<FaceState, Variant[]> = {
   // que Rust le mande dónde está el ratón y todavía no existe. Se queda la de
   // antes en vez de dejar cuatro, que cambiaría el reparto de los cinco estados.
   reposo: [
-    { ...CHICLE_CORTO, status: "Dicho" },
+    // La larga, no la corta: en reposo es donde vive el stand-by. Durante un
+    // dictado sale unos segundos y sólo se ve el principio -mascando-, que es
+    // exactamente lo que tiene que estar haciendo cuando no pasa nada.
+    { ...CHICLE, status: "Dicho" },
     { ...SILBANDO_CORTO, status: "Dicho" },
     { ...DORMIDO_CORTO, status: "Zzz…" },
-    { ...DIBUJANDO_CORTO, status: "Dicho" },
+    {
+      // Hueco: aqui iba el dibujante, que se borro por pisarse con el
+      // escribano. Mientras no haya quinta idea, la de siempre: respira y
+      // parpadea, con un destello en el ojo mientras esta abierto.
+      status: "Dicho",
+      scene: `<g class="a-resp">${blink(eyes(OJO_BRILLO, 5), eyes(OJO_LINEA, 7))}${spr(SONRISA, 18, 12)}</g>`,
+    },
     {
       // El hueco del que te sigue: por ahora, pasea la pupila dentro del ojo.
       status: "Dicho",
@@ -2060,6 +2218,10 @@ export const FACE_CSS = `
     72%, 100% { transform: translateX(0); } }
 
   .flip > g { opacity: 0; }
+  /* Igual que el flipbook: los pasos de una historia nacen apagados y los
+     enciende su propio fotograma. Sin esto se ven todos encimados el
+     instante que va entre que se pinta el SVG y arranca la animacion. */
+  .seq > g { opacity: 0; }
 ${FLIP_CSS}
   .blink > g { animation-duration: 3.2s; animation-timing-function: steps(1, end); animation-iteration-count: infinite; }
   .blink > g:nth-child(1) { animation-name: blinkA; }

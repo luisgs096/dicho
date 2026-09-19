@@ -854,13 +854,22 @@ export default function Hud() {
   const version = rec.state === "actualizado" ? rec.version : "";
   const estrenada = rec.state === "actualizado" ? ACTUALIZADO : null;
   // En error se reutiliza la carita de "señal perdida" con el mensaje real.
+  const sorteada = isError ? V["no-entendi"][3] : (V[face][variant] ?? V[face][0]);
+  // Las historias largas de stand-by traen `fresco`: una tirada nueva cada vez
+  // que salen, para que dos reposos seguidos no cuenten lo mismo.
+  //
+  // Va en un `useMemo` y no suelto, y eso NO es una optimización: la escena
+  // entra por `dangerouslySetInnerHTML`, así que si cambiara en cada render
+  // React reescribiría el interior del `<svg>` sesenta veces por segundo y la
+  // historia volvería a empezar en cada fotograma. Se vuelve a tirar sólo
+  // cuando de verdad cambia la carita.
+  const fresca = useMemo(
+    () => (sorteada.fresco ? { ...sorteada, scene: sorteada.fresco() } : sorteada),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [face, variant, isError],
+  );
   const v =
-    mareada ??
-    encarrito ??
-    cancelada ??
-    corrigiendo ??
-    estrenada ??
-    (isError ? V["no-entendi"][3] : (V[face][variant] ?? V[face][0]));
+    mareada ?? encarrito ?? cancelada ?? corrigiendo ?? estrenada ?? fresca;
   const sad =
     (isError && !mareada && !cancelada && !corrigiendo && !estrenada) || v.sad;
   const porLimite = rec.state === "processing" && rec.motivo === "limite";
