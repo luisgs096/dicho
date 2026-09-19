@@ -5,11 +5,17 @@ import {
   BAJANDO,
   CHICLE,
   CHICLE_CORTO,
+  DIBUJANDO,
+  DIBUJANDO_CORTO,
+  DORMIDO,
+  DORMIDO_CORTO,
   CURIOSEANDO,
   LIMPIADAS,
   MAREO,
   MIC_SVG,
   RODANDO,
+  SILBANDO,
+  SILBANDO_CORTO,
   V,
   cssVars,
   type Variant,
@@ -161,7 +167,9 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
               sorteadas: con la servilleta o con la lengua.
             </p>
             <div className="flex flex-col gap-2.5">
-              {[RODANDO, ...MAREO, ...LIMPIADAS.map((l) => l.v), BAJANDO, CURIOSEANDO, CHICLE, CHICLE_CORTO].map(
+              {[RODANDO, ...MAREO, ...LIMPIADAS.map((l) => l.v), BAJANDO, CURIOSEANDO,
+                CHICLE, CHICLE_CORTO, SILBANDO, SILBANDO_CORTO,
+                DORMIDO, DORMIDO_CORTO, DIBUJANDO, DIBUJANDO_CORTO].map(
                 (v, i) => (
                 <div
                   key={i}
