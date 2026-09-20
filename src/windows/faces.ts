@@ -739,7 +739,7 @@ export const CHICLE_CORTO: Variant = {
   )}`,
 };
 
-// -- reposo: silbando -------------------------------------------------------
+// ─── reposo: silbando ───────────────────────────────────────────────────────
 
 /**
  * Los labios de silbar: un aro de 3x3 con el agujero pintado del fondo.
@@ -749,7 +749,7 @@ export const CHICLE_CORTO: Variant = {
  */
 const LABIOS = ["XXX", "XoX", "XXX"];
 
-/** Nota chica, para cuando hay dos a la vez y la grande las amontona. */
+/** Nota chica, para cuando hay tres a la vez y las grandes se amontonan. */
 const NOTA_CHICA = ["..X", "..X", "XX.", "XX."];
 
 // La mano que chasqueaba se borro el 19/09/2026, y conviene que quede escrito
@@ -762,134 +762,276 @@ const NOTA_CHICA = ["..X", "..X", "XX.", "XX."];
 // dedos sueltos en 48x16**; una mano aqui solo puede ser un bloque entero
 // -como la que sostiene la servilleta-.
 //
-// El ritmo lo llevan ahora el **meneo de la cabeza** y la entrada de las notas,
-// que era lo que de verdad hacia falta.
+// El ritmo lo llevan ahora el **meneo de la cabeza** y la entrada de las notas.
+
+/**
+ * Algo que sube y se va, con su propio ritmo.
+ *
+ * La duracion y el retraso van **inline** para que cada nota vuele distinto: si
+ * fueran una clase de CSS, todas subirian a la vez y en fila, que es justo lo
+ * que hace que una melodia parezca una barra de carga.
+ */
+const flota = (html: string, dur: string, retraso: string) =>
+  `<g style="animation-name:vuela;animation-duration:${dur};animation-delay:${retraso};` +
+  `animation-timing-function:linear;animation-iteration-count:infinite">${html}</g>`;
+
+const COLORES_NOTA = ["p", "m", "s", "w", "a"];
+
+/** Una nota suelta: color, tamano, columna y ritmo, todo al azar. */
+const nota = (i: number) =>
+  flota(
+    spr(tint(azar(2) ? NOTA : NOTA_CHICA, uno(COLORES_NOTA)), 32 + azar(4), 9),
+    `${(1.5 + i * 0.3).toFixed(2)}s`,
+    `${(i * 0.43).toFixed(2)}s`,
+  );
 
 /**
  * La cara de silbar: **ojos cerrados y la cabeza meneandose al ritmo**.
  *
- * Silbar se hace con los ojos cerrados -el que silba esta escuchandose a si
+ * Silbar se hace con los ojos cerrados -el que silba se esta escuchando a si
  * mismo-, y eso ademas resuelve el problema que tenia la cara: con los ojos
- * abiertos y quietos parecia que miraba a la nada mientras le salian notas por
- * un lado.
+ * abiertos y quietos parecia que miraba a la nada mientras le salian notas.
  *
- * El meneo es **horizontal**, de izquierda a derecha, y no vertical. Un
- * cabeceo arriba-abajo se lee como asentir; el vaiven lateral es el que se lee
- * como seguir el compas. Va de un pixel a cada lado y se hace con un
- * `translate` entero del grupo: mover cada sprite por separado deja los ojos y
- * la boca desalineados medio pixel en algun cuadro.
- *
- * Cada pocos tiempos **abre los ojos un instante**: sin eso son cuarenta
- * segundos de una cara dormida, y la regla de la casa es que ninguna carita
- * tenga los ojos quietos.
+ * El meneo es **horizontal** y no vertical. Un cabeceo arriba-abajo se lee como
+ * asentir; el vaiven lateral es el que se lee como seguir el compas. Va de un
+ * pixel a cada lado y con un `translate` entero del grupo: mover cada sprite por
+ * separado deja los ojos y la boca desalineados medio pixel en algun cuadro.
  */
-const caraSilba = (dx: number, abre = false) =>
+const caraSilba = (dx: number, abre: boolean) =>
   `<g transform="translate(${dx} 0)">` +
   eyes(abre ? OJO : OJO_ARCO, abre ? 5 : 6) +
   spr(LABIOS, 21, 11) +
   `</g>`;
 
 /**
- * Silbando: ocho tiempos.
+ * El meneo: cuatro posiciones en bucle dentro de un solo paso.
  *
- * Tres cosas a la vez y cada una hace un trabajo distinto. Los **labios** dicen
- * que esta haciendo; las **notas de colores** dicen que suena; el **cabeceo** de
- * un pixel y el **chasquido** dicen a que ritmo. Quitas el cabeceo y sigue
- * silbando, pero deja de tener compas.
+ * Va anidado a proposito. Si el vaiven fuera pasos de la secuencia, un minuto de
+ * silbido serian trescientos pasos; asi son treinta y pico. Y como todos los
+ * pasos llevan el mismo bucle a la misma duracion, **el meneo no se corta al
+ * cambiar de paso**: las animaciones de CSS arrancan todas a la vez, asi que van
+ * en fase aunque esten en grupos distintos.
  *
- * Las notas suben por la derecha y **alternan de columna** (33 y 34): subir en
- * linea recta se lee como una barra de carga, y en zigzag se lee como algo que
- * flota. Cada una lleva su color -rosa, menta, celeste- porque tres notas del
- * mismo color a distinta altura se leen como una sola nota moviendose, y aqui
- * la gracia es que sean varias.
- *
- * Y las notas **no empiezan todas a la vez**: entra una, sube, y cuando va por
- * la mitad entra la siguiente. Es lo que hace que se lea como una melodia que
- * sigue y no como un pitido.
+ * `abre` le mete un instante con los ojos abiertos: sin eso son cuarenta
+ * segundos de una cara dormida, y la regla de la casa es que ninguna carita
+ * tenga los ojos quietos.
  */
-export const SILBANDO: Variant = {
-  status: "",
-  scene: `${flip(
-    [
-      caraSilba(-1),
-      caraSilba(0) + spr(tint(NOTA, "p"), 33, 11),
-      caraSilba(1) + spr(tint(NOTA, "p"), 34, 8),
-      caraSilba(0, true) +
-        spr(tint(NOTA, "p"), 33, 5) +
-        spr(tint(NOTA_CHICA, "m"), 33, 12),
-      caraSilba(-1) +
-        spr(tint(NOTA, "p"), 34, 3) +
-        spr(tint(NOTA_CHICA, "m"), 34, 9),
-      caraSilba(0) +
-        spr(tint(NOTA_CHICA, "m"), 33, 5) +
-        spr(tint(NOTA, "s"), 33, 11),
-      caraSilba(1) +
-        spr(tint(NOTA_CHICA, "m"), 34, 3) +
-        spr(tint(NOTA, "s"), 34, 7),
-      caraSilba(0) + spr(tint(NOTA, "s"), 33, 4),
-    ],
-    "3.2s",
-  )}`,
+const meneo = (abre: boolean) =>
+  flip(
+    [caraSilba(-1, false), caraSilba(0, false), caraSilba(1, false), caraSilba(0, abre)],
+    "0.84s",
+  );
+
+/** Una frase: entre dos y cuatro notas volando a ritmos distintos. */
+const frase = (): Paso => {
+  let notas = "";
+  for (let i = 0, n = entre(2, 4); i < n; i++) notas += nota(i);
+  return { ms: entre(2400, 4200), v: meneo(azar(3) === 0) + notas };
 };
 
-/** Silbando, corta: cuatro tiempos con una sola nota que sube entera. */
+/** Coge aire entre frase y frase: abre los ojos y deja de silbar un momento. */
+const tomaAire = (): Paso => ({
+  ms: entre(700, 1300),
+  v: eyes(OJO, 5) + spr(uno([RAYA, SONRISA]), 20, 12),
+});
+
+/**
+ * La rara: **va a por la nota larga**.
+ *
+ * Una de cada seis frases. Se para el meneo -que es lo que la marca como momento
+ * especial-, coge aire, aprieta los ojos y la suelta. Y hay dos finales: o le
+ * sale y acaba con ojos de estrella, o **le gallea** y la nota sale torcida, en
+ * naranja y en zigzag, y disimula mirando a otro lado.
+ *
+ * Que a veces falle es lo que hace que la otra vez valga algo.
+ */
+const notaLarga = (): Paso[] => {
+  const logra = azar(2) === 0;
+  const pasos: Paso[] = [
+    { ms: 620, v: eyes(OJO_MEDIO, 7) + spr(BOCA_O, 20, 11) },
+    {
+      ms: 760,
+      v:
+        eyes(OJO_LINEA, 7) +
+        spr(BOCA_O, 20, 11) +
+        flota(spr(tint(NOTA, "a"), 33, 9), "1.9s", "0s"),
+    },
+  ];
+  if (logra) {
+    pasos.push({
+      ms: 980,
+      v:
+        eyes(OJO_ESTRELLA, 4) +
+        spr(SONRISOTA, 19, 11) +
+        flota(spr(tint(NOTA, "p"), 32, 9), "1.3s", "0s") +
+        flota(spr(tint(NOTA_CHICA, "m"), 36, 9), "1.6s", ".2s"),
+    });
+    pasos.push({ ms: 640, v: eyes(OJO_ARCO, 6) + spr(SONRISA, 18, 12) });
+  } else {
+    pasos.push({
+      ms: 700,
+      v: eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11) + spr(tint(ZIGZAG, "w"), 32, 8),
+    });
+    pasos.push({ ms: 900, v: eyes(OJO_MEDIO, 7) + spr(LADEADA, 19, 12) });
+  }
+  return pasos;
+};
+
+/** Un minuto silbando, y ninguna vuelta igual. */
+const construirSilbando = () => {
+  const pasos: Paso[] = [];
+  let total = 0;
+  while (total < 55000) {
+    const f = frase();
+    pasos.push(f);
+    total += f.ms;
+    const sigue = azar(6) === 0 ? notaLarga() : [tomaAire()];
+    sigue.forEach((x) => (total += x.ms));
+    pasos.push(...sigue);
+  }
+  return secuencia(pasos);
+};
+
+export const SILBANDO: Variant = {
+  status: "",
+  scene: construirSilbando(),
+  fresco: construirSilbando,
+};
+
+/** Silbando, corta: cuatro tiempos con una nota que sube entera. */
 export const SILBANDO_CORTO: Variant = {
   status: "",
   scene: `${flip(
     [
-      caraSilba(-1),
-      caraSilba(0) + spr(tint(NOTA, "p"), 33, 11),
-      caraSilba(1) + spr(tint(NOTA, "p"), 34, 8),
+      caraSilba(-1, false),
+      caraSilba(0, false) + spr(tint(NOTA, "p"), 33, 11),
+      caraSilba(1, false) + spr(tint(NOTA, "p"), 34, 8),
       caraSilba(0, true) + spr(tint(NOTA, "p"), 33, 5),
     ],
     "1.6s",
   )}`,
 };
 
-// -- reposo: dormido --------------------------------------------------------
+// ─── reposo: dormido ────────────────────────────────────────────────────────
 
 /**
- * La burbuja de moco, en tres tamanos y **hueca**.
+ * La burbuja de moco, en cuatro tamanos y **hueca**.
  *
  * Hueca porque una burbuja es transparente: maciza seria una bola de plastilina
- * pegada a la cara. Crece pegada al lado de la boca -no encima- y a la cuarta
- * revienta, que es lo que despierta a cualquiera.
+ * pegada a la cara. Y sin tenir, al reves que la del chicle: la del chicle es
+ * rosa porque es chicle, esta es aire y va en la tinta de la cara. Dos burbujas
+ * del mismo color en dos caritas distintas se leerian como la misma cosa.
+ *
+ * Crece pegada al lado de la boca -no encima-: encima tapa la cara y se lee como
+ * que esta vomitando otra vez, y eso ya tiene su propia carita.
  */
 const BURBUJA_A = [".X.", "X.X", ".X."];
 const BURBUJA_B = [".XX.", "X..X", "X..X", ".XX."];
 const BURBUJA_C = ["..XX..", ".X..X.", "X....X", "X....X", ".X..X.", "..XX.."];
+const BURBUJA_D = [
+  "..XXXX..",
+  ".X....X.",
+  "X......X",
+  "X......X",
+  "X......X",
+  "X......X",
+  ".X....X.",
+  "..XXXX..",
+];
 
-/** La cara dormida, respirando un pixel. */
-const caraDuerme = (dy: number) => eyes(OJO_ARCO, 6 + dy) + spr(RAYA, 20, 12 + dy);
+/** Cada tamano con su sitio, todos apoyados en el lado de la boca. */
+const MOCO: [string[], number, number][] = [
+  [BURBUJA_A, 25, 12],
+  [BURBUJA_B, 25, 11],
+  [BURBUJA_C, 25, 9],
+  [BURBUJA_D, 25, 7],
+];
 
 /**
- * Dormido: ocho tiempos.
+ * La cara dormida, respirando.
  *
- * Dos relojes distintos a proposito. Los **ZZZ** suben despacio y se van; la
- * **burbuja** crece, aguanta y revienta. Que no vayan sincronizados es lo que
- * hace que parezca que lleva rato dormido y no que ejecuta un bucle.
- *
- * La burbuja sale **al lado de la boca y no encima**: encima tapa la cara y se
- * lee como que esta vomitando otra vez, y eso ya tiene su propia carita.
+ * La respiracion es **lenta** -dos segundos y medio por ciclo- y ese numero es
+ * la mitad del personaje: a un segundo parecia que jadeaba. Va anidada dentro
+ * del paso, igual que el meneo del silbido, para que no se corte al cambiar de
+ * paso.
  */
+const respira = (ojos = OJO_ARCO) =>
+  flip(
+    [
+      `<g transform="translate(0 0)">${eyes(ojos, 6)}${spr(RAYA, 20, 12)}</g>`,
+      `<g transform="translate(0 1)">${eyes(ojos, 6)}${spr(RAYA, 20, 12)}</g>`,
+    ],
+    "2.6s",
+  );
+
+/** Un ZZZ que se va flotando, cada uno a su aire. */
+const ronquido = (i: number) =>
+  flota(
+    spr(tint(i % 2 ? ZZZ_MINI : ZZZ, "s"), 33 + azar(3), 8),
+    `${(2.4 + i * 0.5).toFixed(1)}s`,
+    `${(i * 0.9).toFixed(1)}s`,
+  );
+
+/** Una respiracion, con o sin burbuja. */
+const sueno = (nivel: number, zzz: number): Paso => {
+  let extra = "";
+  for (let i = 0; i < zzz; i++) extra += ronquido(i);
+  if (nivel >= 0) {
+    const [m, x, y] = MOCO[nivel];
+    extra += spr(m, x, y);
+  }
+  return { ms: entre(2300, 3200), v: respira() + extra };
+};
+
+/**
+ * La rara: **la burbuja lo despierta**.
+ *
+ * Una de cada siete. Casi siempre el moco crece, aguanta y se deshincha solo
+ * -eso es dormir-. Una de cada siete llega al tamano grande y **revienta**: se
+ * despierta de golpe, tarda un momento en entender donde esta, bosteza y se
+ * vuelve a dormir. Ese es el unico momento en el que abre los ojos, y por eso
+ * vale la pena esperarlo.
+ */
+const despierta = (): Paso[] => [
+  { ms: 900, v: respira() + spr(MOCO[3][0], MOCO[3][1], MOCO[3][2]) },
+  { ms: 280, v: spr(ESQUIRLAS_MINI, 26, 9) + eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11) },
+  { ms: 820, v: eyes(OJO_ANCHO, 5) + spr(BOCA_CHICA, 21, 12) },
+  { ms: 940, v: eyes(OJO_MEDIO, 7) + spr(BOSTEZO, 19, 10) },
+  { ms: 760, v: eyes(OJO_LINEA, 7) + spr(RAYA, 20, 12) },
+];
+
+/** Un minuto durmiendo. */
+const construirDormido = () => {
+  const pasos: Paso[] = [];
+  let total = 0;
+  while (total < 55000) {
+    // Un rato respirando a secas, con algun ZZZ.
+    for (let n = entre(1, 3); n > 0; n--) {
+      const p = sueno(-1, azar(3));
+      pasos.push(p);
+      total += p.ms;
+    }
+    // Y el moco, que sube y baja con la respiracion.
+    if (azar(7) === 0) {
+      const sube = [sueno(0, 1), sueno(1, 1), sueno(2, 2), ...despierta()];
+      sube.forEach((x) => (total += x.ms));
+      pasos.push(...sube);
+    } else {
+      const tope = entre(1, 2);
+      const ciclo: Paso[] = [];
+      for (let n = 0; n <= tope; n++) ciclo.push(sueno(n, azar(2)));
+      for (let n = tope - 1; n >= 0; n--) ciclo.push(sueno(n, azar(2)));
+      ciclo.forEach((x) => (total += x.ms));
+      pasos.push(...ciclo);
+    }
+  }
+  return secuencia(pasos);
+};
+
 export const DORMIDO: Variant = {
   status: "",
-  scene: `${flip(
-    [
-      caraDuerme(0),
-      caraDuerme(1) + spr(tint(ZZZ_MINI, "s"), 33, 10),
-      caraDuerme(0) + spr(tint(ZZZ, "s"), 34, 6) + spr(BURBUJA_A, 25, 12),
-      caraDuerme(1) + spr(tint(ZZZ_MINI, "s"), 36, 3) + spr(BURBUJA_B, 25, 11),
-      caraDuerme(0) + spr(BURBUJA_C, 25, 10),
-      caraDuerme(1) + spr(tint(ZZZ_MINI, "s"), 33, 10) + spr(BURBUJA_C, 25, 10),
-      caraDuerme(0) +
-        spr(tint(ZZZ, "s"), 34, 6) +
-        spr(tint(CHISPITA, "s"), 26, 11) +
-        spr(tint(CHISPITA, "s"), 30, 13),
-      caraDuerme(1) + spr(tint(ZZZ_MINI, "s"), 36, 3),
-    ],
-    "4.8s",
-  )}`,
+  scene: construirDormido(),
+  fresco: construirDormido,
 };
 
 /** Dormido, corta: respira, un ZZZ y una burbuja que asoma. */
@@ -897,10 +1039,10 @@ export const DORMIDO_CORTO: Variant = {
   status: "",
   scene: `${flip(
     [
-      caraDuerme(0),
-      caraDuerme(1) + spr(tint(ZZZ_MINI, "s"), 33, 10),
-      caraDuerme(0) + spr(tint(ZZZ, "s"), 34, 6) + spr(BURBUJA_A, 25, 12),
-      caraDuerme(1) + spr(BURBUJA_B, 25, 11),
+      eyes(OJO_ARCO, 6) + spr(RAYA, 20, 12),
+      eyes(OJO_ARCO, 7) + spr(RAYA, 20, 13) + spr(tint(ZZZ_MINI, "s"), 33, 10),
+      eyes(OJO_ARCO, 6) + spr(RAYA, 20, 12) + spr(tint(ZZZ, "s"), 34, 6) + spr(BURBUJA_A, 25, 12),
+      eyes(OJO_ARCO, 7) + spr(RAYA, 20, 13) + spr(BURBUJA_B, 25, 11),
     ],
     "2s",
   )}`,
@@ -940,8 +1082,8 @@ export const V: Record<FaceState, Variant[]> = {
     // dictado sale unos segundos y sólo se ve el principio -mascando-, que es
     // exactamente lo que tiene que estar haciendo cuando no pasa nada.
     { ...CHICLE, status: "Dicho" },
-    { ...SILBANDO_CORTO, status: "Dicho" },
-    { ...DORMIDO_CORTO, status: "Zzz…" },
+    { ...SILBANDO, status: "Dicho" },
+    { ...DORMIDO, status: "Zzz…" },
     {
       // Hueco: aqui iba el dibujante, que se borro por pisarse con el
       // escribano. Mientras no haya quinta idea, la de siempre: respira y
@@ -2285,6 +2427,16 @@ ${FLIP_CSS}
   @keyframes sube { 0% { transform: translate(0, 3px); opacity: 0; }
                     20%, 80% { opacity: 1; }
                     100% { transform: translate(2px, -6px); opacity: 0; } }
+  /* Como el de arriba pero con mas recorrido: sale de la boca y se va por
+     encima del lienzo. El otro se queda en nueve pixeles, que para un ZZZ
+     pegado a la cara valia, pero una nota tiene que irse de verdad. La
+     duracion y el retraso NO van aqui: viajan inline en cada nota, que es lo
+     que permite que tres notas suban a ritmos distintos sin tres clases.
+     (Y ni un acento grave en estos comentarios: FACE_CSS es un template
+     literal de JavaScript y un acento grave lo cierra ahi mismo. Van cinco.) */
+  @keyframes vuela { 0% { transform: translate(0, 4px); opacity: 0; }
+                     15%, 75% { opacity: 1; }
+                     100% { transform: translate(4px, -12px); opacity: 0; } }
   @keyframes lapiz { 0% { transform: translate(0, 0); } 50% { transform: translate(-1px, 1px); } }
   @keyframes renglon { 0% { transform: scaleX(0); } 20% { transform: scaleX(.25); }
                        40% { transform: scaleX(.5); } 60% { transform: scaleX(.75); }
