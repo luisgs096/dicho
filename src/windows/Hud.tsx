@@ -7,6 +7,7 @@ import {
   CARITA_ERUCTO,
   ACTUALIZADO,
   LEYENDO,
+  OJOS_MAREADOS,
   CARITA_CANCELADO,
   FACE_CSS,
   BAJANDO,
@@ -868,8 +869,63 @@ export default function Hud() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [face, variant, isError],
   );
+  // Los ojos que siguen al cursor. Se pregunta a Rust cada 70 ms y SOLO
+  // mientras esa carita esta a la vista: desde el webview no se puede saber
+  // donde esta el raton -el HUD solo recibe eventos cuando esta encima de el- y
+  // preguntarlo todo el rato para las otras cuatro caritas seria pagar por nada.
+  //
+  // El valor se escribe directo en el DOM, como `--lvl`: pasarlo por el estado
+  // de React repintaria la escena quince veces por segundo y se llevaria por
+  // delante las animaciones, que es el gotcha de siempre.
+  const [mareoCursor, setMareoCursor] = useState(false);
+  useEffect(() => {
+    if (!fresca.sigue) return;
+    const caja = tamaRef.current;
+    let vivo = true;
+    let t = 0;
+    let ult: [number, number] | null = null;
+    let seguidos = 0;
+    const tick = () => {
+      invoke<[number, number] | null>("hud_cursor")
+        .then((r) => {
+          if (!vivo || !r) return;
+          caja?.style.setProperty("--mx", r[0].toFixed(2));
+          caja?.style.setProperty("--my", r[1].toFixed(2));
+          if (ult) {
+            // Tres saltos grandes seguidos y se marea. Uno solo no vale: al
+            // cambiar de ventana el cursor aparece lejos de golpe y eso no es
+            // que lo esten zarandeando.
+            const salto = Math.hypot(r[0] - ult[0], r[1] - ult[1]);
+            seguidos = salto > 0.3 ? seguidos + 1 : 0;
+            if (seguidos >= 3) {
+              seguidos = 0;
+              setMareoCursor(true);
+              window.setTimeout(() => vivo && setMareoCursor(false), 1500);
+            }
+          }
+          ult = r;
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (vivo) t = window.setTimeout(tick, 70);
+        });
+    };
+    t = window.setTimeout(tick, 70);
+    return () => {
+      vivo = false;
+      window.clearTimeout(t);
+      caja?.style.removeProperty("--mx");
+      caja?.style.removeProperty("--my");
+    };
+  }, [fresca]);
+
   const v =
-    mareada ?? encarrito ?? cancelada ?? corrigiendo ?? estrenada ?? fresca;
+    mareada ??
+    encarrito ??
+    cancelada ??
+    corrigiendo ??
+    estrenada ??
+    (mareoCursor && fresca.sigue ? OJOS_MAREADOS : fresca);
   const sad =
     (isError && !mareada && !cancelada && !corrigiendo && !estrenada) || v.sad;
   const porLimite = rec.state === "processing" && rec.motivo === "limite";

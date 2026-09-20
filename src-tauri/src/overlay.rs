@@ -391,6 +391,27 @@ pub fn assert_topmost(_hwnd: isize) {}
 /// la ventana, así que el clic llega limpio a lo que haya dentro.
 const UMBRAL_ARRASTRE: i32 = 6;
 
+/// Dónde está el cursor, en píxeles de pantalla.
+///
+/// Existe porque **desde el webview no se puede saber**: el HUD sólo recibe
+/// eventos de ratón cuando el cursor está encima de él, y la carita que sigue al
+/// cursor tiene que seguirlo por toda la pantalla. Es la misma razón por la que
+/// el detector de zarandeo vive aquí y no en JavaScript.
+#[cfg(windows)]
+pub fn cursor_pos() -> Option<(i32, i32)> {
+    use windows_sys::Win32::Foundation::POINT;
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+    unsafe {
+        let mut pt = POINT { x: 0, y: 0 };
+        (GetCursorPos(&mut pt) != 0).then_some((pt.x, pt.y))
+    }
+}
+
+#[cfg(not(windows))]
+pub fn cursor_pos() -> Option<(i32, i32)> {
+    None
+}
+
 /// Pega la ventana al cursor hasta que se suelte el botón.
 ///
 /// `al_arrancar` se llama **una sola vez**, al cruzar el umbral: es lo que le

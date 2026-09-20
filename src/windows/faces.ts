@@ -25,6 +25,10 @@ export interface Variant {
   /** Vuelve a sortear la escena. Solo lo traen las historias largas de
    *  stand-by, que cambian de tirada cada vez que el HUD las saca. */
   fresco?: () => string;
+  /** Pide que el HUD le mande donde esta el cursor en `--mx` y `--my`. Solo lo
+   *  trae la carita de los ojos que te siguen: mientras no este a la vista, no
+   *  se le pregunta a Windows nada. */
+  sigue?: boolean;
 }
 
 
@@ -915,53 +919,37 @@ export const SILBANDO_CORTO: Variant = {
 // ─── reposo: dormido ────────────────────────────────────────────────────────
 
 /**
- * La burbuja de moco, en cuatro tamanos y **hueca**.
+ * Un ZZZ grande, para el ronquido que lo despierta.
  *
- * Hueca porque una burbuja es transparente: maciza seria una bola de plastilina
- * pegada a la cara. Y sin tenir, al reves que la del chicle: la del chicle es
- * rosa porque es chicle, esta es aire y va en la tinta de la cara. Dos burbujas
- * del mismo color en dos caritas distintas se leerian como la misma cosa.
- *
- * Crece pegada al lado de la boca -no encima-: encima tapa la cara y se lee como
- * que esta vomitando otra vez, y eso ya tiene su propia carita.
+ * El mismo dibujo que el normal pero de 6x6: lo que dice que ese ronquido fue
+ * mas fuerte no es que suene distinto -no suena-, es que **se ve mas grande**.
  */
-const BURBUJA_A = [".X.", "X.X", ".X."];
-const BURBUJA_B = [".XX.", "X..X", "X..X", ".XX."];
-const BURBUJA_C = ["..XX..", ".X..X.", "X....X", "X....X", ".X..X.", "..XX.."];
-const BURBUJA_D = [
-  "..XXXX..",
-  ".X....X.",
-  "X......X",
-  "X......X",
-  "X......X",
-  "X......X",
-  ".X....X.",
-  "..XXXX..",
-];
-
-/** Cada tamano con su sitio, todos apoyados en el lado de la boca. */
-const MOCO: [string[], number, number][] = [
-  [BURBUJA_A, 25, 12],
-  [BURBUJA_B, 25, 11],
-  [BURBUJA_C, 25, 9],
-  [BURBUJA_D, 25, 7],
-];
+const ZZZ_GRANDE = ["XXXXXX", "....XX", "...XX.", "..XX..", ".XX...", "XXXXXX"];
 
 /**
- * La cara dormida, respirando.
+ * Durmiendo: **la boca respira**.
  *
- * La respiracion es **lenta** -dos segundos y medio por ciclo- y ese numero es
- * la mitad del personaje: a un segundo parecia que jadeaba. Va anidada dentro
- * del paso, igual que el meneo del silbido, para que no se corte al cambiar de
- * paso.
+ * La burbuja de moco se borro el 20/09/2026. Era una buena idea y el problema no
+ * era el dibujo: es que **salia por el mismo lado que los ZZZ** y a esa escala
+ * dos cosas creciendo en el mismo rincon se leen como una sola mancha. Cuando
+ * dos elementos compiten por el mismo sitio, el que se va es el que menos dice
+ * -y lo que dice que esta dormido son los ZZZ, no el moco-.
+ *
+ * En su lugar respira con la boca, que ademas es donde tiene que estar la
+ * atencion: la cara. Cuatro tiempos, de cerrada a abierta y vuelta, con la
+ * cabeza subiendo y bajando un pixel. Lento a proposito -3,2 s el ciclo
+ * entero-: a un segundo parecia que jadeaba, y ese numero es la mitad del
+ * personaje.
  */
-const respira = (ojos = OJO_ARCO) =>
+const durmiendo = () =>
   flip(
     [
-      `<g transform="translate(0 0)">${eyes(ojos, 6)}${spr(RAYA, 20, 12)}</g>`,
-      `<g transform="translate(0 1)">${eyes(ojos, 6)}${spr(RAYA, 20, 12)}</g>`,
+      `<g transform="translate(0 0)">${eyes(OJO_ARCO, 6)}${spr(RAYA, 20, 12)}</g>`,
+      `<g transform="translate(0 1)">${eyes(OJO_ARCO, 6)}${spr(BOCA_CHICA, 21, 12)}</g>`,
+      `<g transform="translate(0 1)">${eyes(OJO_ARCO, 6)}${spr(BOCA_O, 20, 11)}</g>`,
+      `<g transform="translate(0 0)">${eyes(OJO_ARCO, 6)}${spr(BOCA_CHICA, 21, 12)}</g>`,
     ],
-    "2.6s",
+    "3.2s",
   );
 
 /** Un ZZZ que se va flotando, cada uno a su aire. */
@@ -972,58 +960,75 @@ const ronquido = (i: number) =>
     `${(i * 0.9).toFixed(1)}s`,
   );
 
-/** Una respiracion, con o sin burbuja. */
-const sueno = (nivel: number, zzz: number): Paso => {
+/** Un rato durmiendo, con los ZZZ que le toquen. */
+const sueno = (zzz: number): Paso => {
   let extra = "";
-  for (let i = 0; i < zzz; i++) extra += ronquido(i);
-  if (nivel >= 0) {
-    const [m, x, y] = MOCO[nivel];
-    extra += spr(m, x, y);
-  }
-  return { ms: entre(2300, 3200), v: respira() + extra };
+  for (let k = 0; k < zzz; k++) extra += ronquido(k);
+  return { ms: entre(2600, 4200), v: durmiendo() + extra };
 };
 
 /**
- * La rara: **la burbuja lo despierta**.
+ * Chasquea los labios en sueños.
  *
- * Una de cada siete. Casi siempre el moco crece, aguanta y se deshincha solo
- * -eso es dormir-. Una de cada siete llega al tamano grande y **revienta**: se
- * despierta de golpe, tarda un momento en entender donde esta, bosteza y se
- * vuelve a dormir. Ese es el unico momento en el que abre los ojos, y por eso
+ * Es el suceso pequeño, el que rompe el ritmo sin despertarlo: la boca se va a
+ * un lado, al otro y se queda quieta. Dura poco y pasa a menudo, que es
+ * justamente lo contrario que el ronquido gordo.
+ */
+const chasquea = (): Paso => ({
+  ms: entre(900, 1400),
+  v: flip(
+    [
+      eyes(OJO_ARCO, 6) + spr(BOCA_CHICA, 20, 12),
+      eyes(OJO_ARCO, 6) + spr(BOCA_CHICA, 22, 12),
+      eyes(OJO_ARCO, 6) + spr(RAYA, 20, 12),
+    ],
+    "0.66s",
+  ),
+});
+
+/**
+ * La rara: **se despierta con su propio ronquido**.
+ *
+ * Una de cada siete. El ZZZ sale de 6x6 en vez de 4x4, la boca se abre del todo,
+ * y se despierta de golpe: tarda un momento en entender donde esta, bosteza y se
+ * vuelve a dormir. Es el **unico** momento en el que abre los ojos, y por eso
  * vale la pena esperarlo.
  */
-const despierta = (): Paso[] => [
-  { ms: 900, v: respira() + spr(MOCO[3][0], MOCO[3][1], MOCO[3][2]) },
-  { ms: 280, v: spr(ESQUIRLAS_MINI, 26, 9) + eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11) },
-  { ms: 820, v: eyes(OJO_ANCHO, 5) + spr(BOCA_CHICA, 21, 12) },
-  { ms: 940, v: eyes(OJO_MEDIO, 7) + spr(BOSTEZO, 19, 10) },
-  { ms: 760, v: eyes(OJO_LINEA, 7) + spr(RAYA, 20, 12) },
+const ronquidoGordo = (): Paso[] => [
+  {
+    ms: 820,
+    v:
+      eyes(OJO_ARCO, 6) +
+      spr(BOSTEZO, 19, 10) +
+      flota(spr(tint(ZZZ_GRANDE, "s"), 33, 7), "1.4s", "0s"),
+  },
+  { ms: 300, v: eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11) },
+  { ms: 840, v: eyes(OJO_ANCHO, 5) + spr(BOCA_CHICA, 21, 12) },
+  { ms: 960, v: eyes(OJO_MEDIO, 7) + spr(BOSTEZO, 19, 10) },
+  { ms: 780, v: eyes(OJO_LINEA, 7) + spr(RAYA, 20, 12) },
 ];
 
 /** Un minuto durmiendo. */
 const construirDormido = () => {
   const pasos: Paso[] = [];
   let total = 0;
+  let ultZzz = -1;
   while (total < 55000) {
-    // Un rato respirando a secas, con algun ZZZ.
+    // Dos respiraciones seguidas no pueden salir iguales, y con ZZZ al azar
+    // pasaba: `sueno(0)` dos veces es el mismo dibujo durante siete segundos, y
+    // eso no se lee como respirar despacio, se lee como que se colgo. Basta con
+    // obligar a que el numero de ZZZ cambie de un paso al siguiente.
     for (let n = entre(1, 3); n > 0; n--) {
-      const p = sueno(-1, azar(3));
+      let z = azar(3);
+      while (z === ultZzz) z = azar(3);
+      ultZzz = z;
+      const p = sueno(z);
       pasos.push(p);
       total += p.ms;
     }
-    // Y el moco, que sube y baja con la respiracion.
-    if (azar(7) === 0) {
-      const sube = [sueno(0, 1), sueno(1, 1), sueno(2, 2), ...despierta()];
-      sube.forEach((x) => (total += x.ms));
-      pasos.push(...sube);
-    } else {
-      const tope = entre(1, 2);
-      const ciclo: Paso[] = [];
-      for (let n = 0; n <= tope; n++) ciclo.push(sueno(n, azar(2)));
-      for (let n = tope - 1; n >= 0; n--) ciclo.push(sueno(n, azar(2)));
-      ciclo.forEach((x) => (total += x.ms));
-      pasos.push(...ciclo);
-    }
+    const sigue = azar(7) === 0 ? ronquidoGordo() : [chasquea()];
+    sigue.forEach((x) => (total += x.ms));
+    pasos.push(...sigue);
   }
   return secuencia(pasos);
 };
@@ -1034,17 +1039,17 @@ export const DORMIDO: Variant = {
   fresco: construirDormido,
 };
 
-/** Dormido, corta: respira, un ZZZ y una burbuja que asoma. */
+/** Dormido, corta: respira con la boca y suelta un ZZZ. */
 export const DORMIDO_CORTO: Variant = {
   status: "",
   scene: `${flip(
     [
       eyes(OJO_ARCO, 6) + spr(RAYA, 20, 12),
-      eyes(OJO_ARCO, 7) + spr(RAYA, 20, 13) + spr(tint(ZZZ_MINI, "s"), 33, 10),
-      eyes(OJO_ARCO, 6) + spr(RAYA, 20, 12) + spr(tint(ZZZ, "s"), 34, 6) + spr(BURBUJA_A, 25, 12),
-      eyes(OJO_ARCO, 7) + spr(RAYA, 20, 13) + spr(BURBUJA_B, 25, 11),
+      eyes(OJO_ARCO, 7) + spr(BOCA_CHICA, 21, 13) + spr(tint(ZZZ_MINI, "s"), 33, 10),
+      eyes(OJO_ARCO, 7) + spr(BOCA_O, 20, 12) + spr(tint(ZZZ, "s"), 34, 6),
+      eyes(OJO_ARCO, 6) + spr(BOCA_CHICA, 21, 12),
     ],
-    "2s",
+    "2.4s",
   )}`,
 };
 
@@ -1062,6 +1067,67 @@ export const DORMIDO_CORTO: Variant = {
 //   que ya estaba escrito para el brazo levantado: **a esta escala la diagonal
 //   no es una linea inclinada, es una escalera**, y un objeto que se reconoce
 //   por ser recto no puede dibujarse en diagonal.
+
+// ─── reposo: los ojos que te siguen ───────────────────────────────────────
+
+/**
+ * La cuenca grande, de 7x7.
+ *
+ * La normal es de 7x5 y su hueco mide 5x3: con una pupila de 3x2 dentro solo
+ * queda sitio para moverse a los lados, no arriba y abajo. Esta tiene el hueco
+ * de 5x5, asi que la pupila se mueve **un pixel en las cuatro direcciones** y el
+ * ojo puede mirar a una esquina. Un ojo que solo mira a izquierda y derecha no
+ * sigue a nadie: barre.
+ */
+const CUENCA_GRANDE = [
+  "XXXXXXX",
+  "X.....X",
+  "X.....X",
+  "X.....X",
+  "X.....X",
+  "X.....X",
+  "XXXXXXX",
+];
+
+/**
+ * Los ojos que te siguen el cursor.
+ *
+ * La pupila no se dibuja en un sitio distinto por cada direccion: se dibuja una
+ * vez y **se mueve con un `translate` que lee `--mx` y `--my`**, dos variables
+ * que el HUD actualiza quince veces por segundo con lo que le dice Windows. Es
+ * el mismo mecanismo con el que el volumen de tu voz mueve las barras del DJ.
+ *
+ * Desde el webview no se puede saber donde esta el cursor -el HUD solo recibe
+ * eventos de raton cuando esta encima de el-, asi que la posicion viene de Rust.
+ * Y solo se pregunta **mientras esta carita esta a la vista**: las otras cuatro
+ * de reposo no gastan nada.
+ */
+export const OJOS_SIGUEN: Variant = {
+  status: "",
+  sigue: true,
+  scene: `${spr(CUENCA_GRANDE, 13, 3)}${spr(CUENCA_GRANDE, 25, 3)}
+    <g class="a-pupila">${spr(PUPILA, 15, 5)}${spr(PUPILA, 27, 5)}</g>
+    ${spr(SONRISA, 18, 12)}`,
+};
+
+/**
+ * Y si mueves el raton como un loco, se marea.
+ *
+ * Aspas en vez de pupilas y la cabeza dando tumbos. No lleva espiral **a
+ * proposito**: el espiral ya ha fallado tres veces -a 3 px es una mancha, a 5 px
+ * una letra G y a 7 px un laberinto roto- porque una espiral es una linea de
+ * 1 px que se cruza consigo misma y sin medios tonos las vueltas se tocan.
+ */
+export const OJOS_MAREADOS: Variant = {
+  status: "",
+  scene: `${flip(
+    [
+      `<g transform="translate(-1 0)">${eyes(OJO_ASPA, 4)}${spr(ZIGZAG, 19, 12)}</g>`,
+      `<g transform="translate(1 0)">${eyes(OJO_ASPA, 5)}${spr(ZIGZAG, 20, 12)}</g>`,
+    ],
+    ".26s",
+  )}`,
+};
 
 // ─── 26 caritas: 5 por estado + el eructo, que sólo sale tras la comilona ───
 // Regla nueva (28/08): **ninguna carita tiene los ojos quietos**, y el gesto de
@@ -1091,13 +1157,7 @@ export const V: Record<FaceState, Variant[]> = {
       status: "Dicho",
       scene: `<g class="a-resp">${blink(eyes(OJO_BRILLO, 5), eyes(OJO_LINEA, 7))}${spr(SONRISA, 18, 12)}</g>`,
     },
-    {
-      // El hueco del que te sigue: por ahora, pasea la pupila dentro del ojo.
-      status: "Dicho",
-      scene: `${spr(CUENCA, 13, 4)}${spr(CUENCA, 25, 4)}
-        <g class="a-mira">${spr(PUPILA, 15, 5)}${spr(PUPILA, 27, 5)}</g>
-        ${spr(SONRISA, 18, 12)}`,
-    },
+    { ...OJOS_SIGUEN, status: "Dicho" },
   ],
   escuchando: [
     {
@@ -2640,6 +2700,12 @@ ${FLIP_CSS}
 
   .a-resp { animation: resp 2s steps(1, end) infinite; }
   .a-mira { animation: mira 2.4s steps(1, end) infinite; }
+  /* La pupila que sigue al cursor. Va con TRANSICION y no con animacion porque
+     lo que manda es una posicion, no un ciclo. Y la transicion corta no es
+     decoracion: hace que el ojo llegue con un pelin de retraso, que es lo que lo
+     hace parecer vivo en vez de pegado al raton. */
+  .a-pupila { transform: translate(calc(var(--mx, 0) * 1px), calc(var(--my, 0) * 1px));
+              transition: transform .12s linear; }
   .a-asiente { animation: asiente .8s steps(1, end) infinite; }
   .a-atento { animation: atento .9s steps(1, end) infinite; }
   .a-busca { animation: busca 1.2s steps(1, end) infinite; }

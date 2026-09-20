@@ -11,6 +11,8 @@ import {
   LIMPIADAS,
   MAREO,
   MIC_SVG,
+  OJOS_MAREADOS,
+  OJOS_SIGUEN,
   RODANDO,
   SILBANDO,
   SILBANDO_CORTO,
@@ -167,7 +169,7 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
             <div className="flex flex-col gap-2.5">
               {[RODANDO, ...MAREO, ...LIMPIADAS.map((l) => l.v), BAJANDO, CURIOSEANDO,
                 CHICLE, CHICLE_CORTO, SILBANDO, SILBANDO_CORTO,
-                DORMIDO, DORMIDO_CORTO].map(
+                DORMIDO, DORMIDO_CORTO, OJOS_SIGUEN, OJOS_MAREADOS].map(
                 (v, i) => (
                 <div
                   key={i}
