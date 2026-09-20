@@ -385,52 +385,48 @@ const VU = `<g class="vu">
 
 // ─── reposo: el chicle ──────────────────────────────────────────────────────
 //
-// La primera de las caritas de reposo nuevas. No es un gesto, es **una
-// historia**: mete el chicle, masca, infla una bomba que aguanta, masca, infla
-// otra que también aguanta, y a la tercera le revienta en la cara.
+// La carita de stand-by. No es un gesto, es **lo que hace cuando no pasa nada**,
+// y por eso tiene que aguantar un minuto sin que se note el bucle.
 //
-// Que aguante dos veces antes de reventar no es relleno. Si revienta a la
-// primera, el chiste es un golpe y se gasta en cuanto lo has visto una vez; si
-// aguanta dos, la tercera **tiene expectativa** — ya sabes lo que va a pasar y
-// aun así esperas a ver si esta vez sí. Es la diferencia entre un gag y un
-// personaje.
+// El ciclo es siempre el mismo y aun asi no se repite: masca una temporada,
+// infla una bomba **que se ve crecer**, la revienta sin despeinarse y vuelve a
+// mascar, cada vez un poco mas. Una de cada siete veces la bomba no para de
+// crecer y **le revienta en la cara**: esa es la rara, la que se cuenta.
 //
-// # Aquí entra el color, y no rompe nada
+// # Aqui entra el color, y no rompe nada
 //
-// Hasta ahora las caritas eran de un solo color de tinta. El chicle es **rosa**
-// (`p`), y eso ya existía en el lenguaje: el vómito es menta, la lengua rosa y
-// la barandilla azul. La regla que se mantiene es la de siempre — el color
-// nunca *sustituye* a la forma, sólo la acompaña. Si le quitas el color, la
-// animación se sigue entendiendo.
+// El chicle es **rosa** (`p`), y eso ya existia en el lenguaje: el vomito es
+// menta, la lengua rosa y la barandilla azul. La regla que se mantiene es la de
+// siempre: el color nunca *sustituye* a la forma, solo la acompana. Si le quitas
+// el color, la animacion se sigue entendiendo.
 
 /** La bolita de chicle antes de entrar en la boca. */
 const CHICLE_BOLA = ["XX", "XX"];
 
 /**
- * Las tres bombas: **macizas y rosas, con brillo**.
+ * La escalera de la bomba: **cinco tamanos**, todos apoyados en la boca.
  *
- * Macizas y no huecas, al revés que la boca abierta, y por un motivo: aquí hay
- * color. Un aro rosa de contorno se lee como un anillo; un disco rosa se lee
- * como un globo. El hueco era la solución cuando sólo había un color y había que
- * distinguir un volumen de una mancha — con color, la mancha ya está resuelta.
+ * Cinco y no tres porque inflar tiene que **verse**. Con tres saltos, la bomba
+ * aparecia casi hecha y el crecimiento se leia como un cambio de dibujo; con
+ * cinco, cada salto es pequeno y lo que se lee es que se esta inflando. Es la
+ * misma razon por la que los brazos pasaron de dos poses a ocho: **una
+ * alternancia no es un movimiento**.
  *
- * El brillo es **un hueco de 2×1 arriba a la izquierda**, del color del fondo.
- * Va descentrado a propósito: centrado se leería como una pupila, y hay una
- * regla escrita sobre eso —un hueco suelto dentro de un bloque macizo se lee
- * como un ojo—. Arriba y a un lado, es un reflejo.
+ * Van **macizas**, al reves que la boca abierta, y eso es por el color: sin
+ * color, el hueco era lo unico que distinguia un volumen de una mancha; con
+ * color, un aro rosa se lee como un anillo y un disco rosa como un globo.
  *
- * Crecen desde la boca **hacia arriba** y se quedan por debajo de los ojos: el
- * chicle sale por la boca, y una bomba que tape la cara entera deja de tener
- * personaje detrás.
+ * El brillo es un hueco de 2x1 **arriba y a la izquierda**, descentrado a
+ * proposito: centrado se leeria como una pupila, que es una regla ya escrita.
+ * En la mas chica no cabe y no lleva.
+ *
+ * Todas crecen **hacia arriba** desde la boca, porque debajo de la boca solo
+ * quedan cuatro filas de lienzo y no cabe nada. Las dos mayores tapan los ojos,
+ * asi que en esas los ojos se dibujan **encima**.
  */
-const BOMBA_CHICA = [
-  ".XXX.",
-  "XooXX",
-  "XXXXX",
-  "XXXXX",
-  ".XXX.",
-];
-const BOMBA_MEDIA = [
+const BOMBA_1 = [".X.", "XXX", ".X."];
+const BOMBA_2 = [".XXX.", "XooXX", "XXXXX", "XXXXX", ".XXX."];
+const BOMBA_3 = [
   "..XXX..",
   ".XXXXX.",
   "XooXXXX",
@@ -439,23 +435,46 @@ const BOMBA_MEDIA = [
   ".XXXXX.",
   "..XXX..",
 ];
-const BOMBA_GIGANTE = [
-  "...XXXXXXX...",
+const BOMBA_4 = [
+  "...XXX...",
+  ".XXXXXXX.",
+  ".XooXXXX.",
+  "XXXXXXXXX",
+  "XXXXXXXXX",
+  "XXXXXXXXX",
+  ".XXXXXXX.",
+  ".XXXXXXX.",
+  "...XXX...",
+];
+const BOMBA_5 = [
+  "....XXXXX....",
+  "..XXXXXXXXX..",
   ".XXXXXXXXXXX.",
-  "XXooXXXXXXXXX",
-  "XXooXXXXXXXXX",
+  ".XXooXXXXXXX.",
   "XXXXXXXXXXXXX",
   "XXXXXXXXXXXXX",
+  "XXXXXXXXXXXXX",
   ".XXXXXXXXXXX.",
-  "...XXXXXXX...",
+  ".XXXXXXXXXXX.",
+  "..XXXXXXXXX..",
+  "....XXXXX....",
+];
+
+/** Cada peldano con su sitio: centrados en x=22 y apoyados en la boca (y=13). */
+const ESCALERA: [string[], number, number][] = [
+  [BOMBA_1, 21, 11],
+  [BOMBA_2, 20, 9],
+  [BOMBA_3, 19, 7],
+  [BOMBA_4, 18, 5],
+  [BOMBA_5, 16, 3],
 ];
 
 /**
- * El reventón: cuatro pares de esquirlas apuntando hacia fuera.
+ * El reventon limpio: cuatro pares de esquirlas apuntando hacia fuera.
  *
- * Pocas y largas. La primera versión era una trama tupida y salía un garabato:
- * a este tamaño lo que se lee como explosión no es la cantidad de piezas, es que
- * **apunten todas desde un centro común**.
+ * Pocas y largas. La primera version era una trama tupida y salia un garabato: a
+ * este tamano lo que se lee como explosion no es la cantidad de piezas, es que
+ * **apunten todas desde un centro comun**.
  */
 const ESQUIRLAS = [
   "..X.....X..",
@@ -467,30 +486,28 @@ const ESQUIRLAS = [
   "..X.....X..",
 ];
 
-/** El chicle pegado en la cara después del reventón. Rosa, como la bomba. */
+/** Esquirlas chicas, para cuando revienta una bomba de las pequenas. */
+const ESQUIRLAS_MINI = ["X..X..X", ".......", "X.....X", ".......", "X..X..X"];
+
+/** El chicle pegado en la cara: solo sale cuando revienta la gigante. */
 const PEGOTE_IZQ = ["XXX", ".XX"];
 const PEGOTE_DER = ["XX.", "XXX"];
+const PEGOTE_OJO = ["XXXXX", "XXXXX", ".XXX."];
 
 /**
- * Mascar es **un medio círculo y una raya**, en una sola silueta.
+ * Mascar es **un medio circulo y una raya**, en una sola silueta.
  *
- * El carrillo es la curva —redondo por fuera, plano por dentro, que es por donde
- * se pega a la boca— y la boca es la línea casi recta que sale del otro lado. Se
- * dibujan juntos a propósito: si van en dos sprites, tarde o temprano alguien los
+ * El carrillo es la curva -redondo por fuera, plano por dentro, que es por donde
+ * se pega a la boca- y la boca es la linea casi recta que sale del otro lado. Se
+ * dibujan juntos a proposito: si van en dos sprites, tarde o temprano alguien los
  * separa y vuelven a leerse como dos manchas.
  *
- * Dos intentos fallidos antes de éste, y el segundo enseñó lo que importa:
- * - **Separados** (tres columnas de aire entre uno y otro) eran dos manchas
- *   sueltas, el mismo fallo que ya costó una vuelta en el mareo con los cachetes
- *   flotando a los lados de la cara.
- * - **Pegados pero iguales** —un bloque macizo de 3×2 para la boca y otro de 3×3
- *   para el carrillo— tampoco se entendían, y ése es el hallazgo: el problema no
- *   era la distancia, era que **los dos eran la misma forma**. Dos rectángulos
- *   del mismo tamaño no se reparten papeles; uno tiene que ser volumen y el otro
- *   trazo. Una curva de 4×3 contra una raya de 1 px sí se reparten.
- *
- * Y va **bajo**, de tres filas: la bomba mide cinco, así que al inflarla se nota
- * que crece. Si el carrillo fuera igual de alto que la bomba, inflar no se vería.
+ * Dos intentos fallidos antes de este, y el segundo enseno lo que importa:
+ * separados eran dos manchas sueltas, y **pegados pero iguales** -un bloque de
+ * 3x2 para la boca y otro de 3x3 para el carrillo- tampoco se entendian. El
+ * problema no era la distancia, era que **los dos eran la misma forma**: dos
+ * rectangulos del mismo tamano no se reparten papeles, uno tiene que ser volumen
+ * y el otro trazo.
  */
 const MASCA = [
   ".XXX......",
@@ -499,37 +516,14 @@ const MASCA = [
 ];
 
 /**
- * El bocado, subiendo y bajando **un píxel**.
+ * El bocado, subiendo y bajando **un pixel**.
  *
- * Es un flipbook **dentro** de otro: el de fuera cambia de carrillo cada tiempo,
- * el de dentro mueve la mandíbula mientras ese tiempo dura. Sin él, mascar eran
- * dos poses turnándose cada 600 ms y eso no se lee como masticar — se lee como
- * que el bicho cambia de cara. Lo que dice «está trabajando la boca» es el
- * movimiento **pequeño y rápido**; el grande y lento sólo dice «ahora el otro
- * lado».
- *
- * Un píxel y ni uno más: a dos deja de ser masticar y pasa a dar botes. Y .3s
- * contra los .6s que dura un tiempo, o sea **dos mordidas por carrillo**, que es
- * un número entero a propósito: con una duración que no divida al tiempo, la
- * mordida cae en un sitio distinto en cada tanda y se ve como un tropiezo.
- *
- * Anidar flipbooks es seguro porque el CSS usa hijo directo (`.flip > g`): el
- * de dentro no es hijo del de fuera, es nieto, así que nadie le pisa la opacidad.
+ * Un flipbook dentro de otro: el de fuera cambia de carrillo, el de dentro mueve
+ * la mandibula mientras ese tiempo dura. Sin el, mascar eran dos poses turnandose
+ * y eso no se lee como masticar, se lee como que el bicho cambia de cara.
  */
 const masca = (m: string[], x: number) =>
-  flip([spr(m, x, 11), spr(m, x, 12)], ".3s");
-
-/**
- * Mascando chicle, versión larga: ocho tiempos.
- *
- * Es deliberadamente más larga que el resto de caritas —4,8 s frente a los 1,4 s
- * de tope habituales— y el tope no aplica aquí: esa regla existe porque las
- * caritas del dictado salen unos segundos y un gesto que no cierra se ve
- * cortado. Ésta sale con la onda clavada, mirándola, y lo que hay que evitar es
- * justo lo contrario, que se sienta repetitiva.
- */
-/** El chicle pegado encima de un ojo. Uno de los desenlaces posibles. */
-const PEGOTE_OJO = ["XXXXX", "XXXXX", ".XXX."];
+  flip([spr(m, x, 11), spr(m, x, 12)], ".34s");
 
 /** Cuanto dura una mascada. Todo lo demas se mide en mascadas. */
 const MASCADA_MS = 340;
@@ -537,152 +531,179 @@ const MASCADA_MS = 340;
 /**
  * Una tanda de mascadas de un lado.
  *
- * El numero de mascadas cambia cada vez -entre dos y seis- y el lado se
- * alterna. Eso es lo unico que hace que cuarenta segundos de mascar no se
- * sientan un bucle: no son dibujos distintos, es el **mismo dibujo durando
- * distinto**. Es literalmente lo que hacen los tamagotchi originales, que
- * alternan dos cuadros "tres o cuatro veces" y nunca las mismas.
+ * El numero cambia cada vez y el lado se alterna. Eso es lo unico que hace que un
+ * minuto de mascar no se sienta un bucle: no son dibujos distintos, es el **mismo
+ * dibujo durando distinto**. Es literalmente lo que hacen los tamagotchi
+ * originales, que alternan dos cuadros "tres o cuatro veces" y nunca las mismas.
  *
- * Los ojos parpadean con `blink` y no con un flipbook de cuatro poses: un
- * flipbook por tanda serian cuatro animaciones vivas por cada una de las treinta
- * y tantas tandas, y esto corre en una ventana que esta siempre encima. Dos
- * animaciones por tanda hacen el mismo trabajo. Lo que cambia entre tandas es la
- * pose abierta y el ritmo del parpadeo, para que no se sincronicen nunca.
+ * Los ojos parpadean con `blink` y no con un flipbook de cuatro poses: cuatro
+ * animaciones vivas por cada una de las treinta y tantas tandas serian demasiadas
+ * para una ventana que esta siempre encima. Dos hacen el mismo trabajo.
  */
 const tanda = (izq: boolean, bocados: number): Paso => {
   const abierto = uno([OJO, OJO, OJO_MEDIO]);
-  const alto = abierto === OJO_MEDIO ? 7 : 5;
   return {
     ms: bocados * MASCADA_MS,
     v:
-      blink(eyes(abierto, alto), eyes(OJO_LINEA, 7), `${(2.6 + azar(8) * 0.2).toFixed(1)}s`) +
-      (izq ? masca(MASCA, 16) : masca(espejo(MASCA), 19)),
+      blink(
+        eyes(abierto, abierto === OJO_MEDIO ? 7 : 5),
+        eyes(OJO_LINEA, 7),
+        `${(2.6 + azar(8) * 0.2).toFixed(1)}s`,
+      ) + (izq ? masca(MASCA, 16) : masca(espejo(MASCA), 19)),
   };
 };
 
-/** Los destellos del shiny: salen a los lados y nunca encima de la cara. */
-const destellos = (hay: boolean) =>
-  hay ? spr(tint(CHISPA, "s"), 9, 3) + spr(tint(CHISPA, "s"), 33, 9) : "";
-
-/**
- * La bomba, en tres niveles que **crecen**.
- *
- * Cada nivel infla pasando por los tamanos de abajo, asi que inflar se ve como
- * inflar y no como un cambio de dibujo. El tercero es el unico que revienta: si
- * reventara el primero, la historia no tendria a donde subir.
- */
-const bomba = (nivel: number, color: string, shiny: boolean): Paso[] => {
-  const chica = spr(tint(BOMBA_CHICA, color), 20, 9);
-  const media = spr(tint(BOMBA_MEDIA, color), 19, 7);
-  const gigante = spr(tint(BOMBA_GIGANTE, color), 16, 6);
-  const d = destellos(shiny);
-  if (nivel === 1) {
-    return [
-      { ms: 280, v: eyes(OJO_MEDIO, 7) + chica + d },
-      { ms: 760, v: eyes(OJO, 5) + chica + d },
-    ];
-  }
-  if (nivel === 2) {
-    return [
-      { ms: 240, v: eyes(OJO_MEDIO, 7) + chica + d },
-      { ms: 300, v: eyes(OJO_MEDIO, 7) + media + d },
-      { ms: 820, v: eyes(OJO, 5) + media + d },
-    ];
-  }
-  // Los ojos van DESPUES de la bomba gigante, encima: sin eso no queda nadie a
-  // quien le vaya a reventar, solo un globo flotando.
-  return [
-    { ms: 200, v: eyes(OJO_MEDIO, 7) + chica + d },
-    { ms: 220, v: eyes(OJO_MEDIO, 7) + media + d },
-    { ms: 380, v: gigante + eyes(OJO_ANCHO, 5) + d },
-    // El ultimo instante antes del pof: la bomba no cambia y lo que cambia es
-    // la cara, que se aprieta. Dos cuadros identicos seguidos son un cuadro
-    // desperdiciado -y ademas se ven como un tiron, porque el reloj sigue
-    // corriendo y no pasa nada-.
-    { ms: 460, v: gigante + eyes(OJO_LINEA, 7) + d },
-  ];
+/** Un peldano de la escalera, dibujado. Del 4 en adelante tapa los ojos. */
+const peldano = (n: number, ojos: string) => {
+  const [m, x, y] = ESCALERA[n];
+  const bomba = spr(tint(m, "p"), x, y);
+  return n >= 3 ? bomba + ojos : ojos + bomba;
 };
 
 /**
- * Como acaba: **nunca dos veces igual**.
+ * Inflar, que **lleva su tiempo**.
  *
- * Con un unico desenlace la historia se gasta en la segunda vuelta, que es justo
- * lo que hay que evitar cuando algo va a estar un minuto a la vista. Son tres, y
- * el shiny cambia ademas los ojos por estrellas.
+ * Sube la escalera peldano a peldano hasta el tamano que le toque y **se queda
+ * arriba un segundo y medio largo**. Los dos numeros importan:
+ *
+ * - Los peldanos son cortos (un cuarto de segundo) pero son varios, asi que lo
+ *   que se ve es un globo creciendo y no un globo que aparece.
+ * - El aguante es largo a proposito. Antes la bomba pasaba por pantalla en medio
+ *   segundo y no daba tiempo ni a verla: la gracia de una bomba de chicle es el
+ *   rato que esta ahi antes de reventar.
+ *
+ * Mientras aguanta, la cara sigue viva -los ojos alternan entre abiertos y
+ * entornados-: una bomba quieta con una cara quieta se lee como una pausa del
+ * programa, no como alguien aguantando.
  */
-const desenlace = (color: string, shiny: boolean): Paso[] => {
-  const esquirlas = spr(tint(ESQUIRLAS, color), 17, 6);
-  const d = destellos(shiny);
-  const ojosPremio = shiny ? eyes(OJO_ESTRELLA, 4) : eyes(OJO_LINEA, 7);
-  const pegotes =
-    spr(tint(PEGOTE_IZQ, color), 14, 4) + spr(tint(PEGOTE_DER, color), 28, 5);
-  const pof = { ms: 300, v: esquirlas + eyes(OJO_ANCHO, 5) + d };
-
-  const final = azar(3);
-  if (final === 0) {
-    // Se queda con el chicle pegado por toda la cara.
-    return [
-      pof,
-      { ms: 720, v: pegotes + ojosPremio + spr(RAYA, 20, 12) + d },
-      { ms: 540, v: pegotes + eyes(OJO, 5) + spr(LADEADA, 19, 12) },
-    ];
-  }
-  if (final === 1) {
-    // Le tapa un ojo, y el otro se abre de par en par.
-    return [
-      pof,
-      {
-        ms: 760,
-        v:
-          spr(tint(PEGOTE_OJO, color), 14, 4) +
-          spr(OJO_ANCHO, RX - 1, 5) +
-          spr(BOCA_O, 20, 11) +
-          d,
-      },
-      { ms: 520, v: spr(tint(PEGOTE_OJO, color), 14, 4) + spr(OJO, RX, 5) + spr(RAYA, 20, 12) },
-    ];
-  }
-  // Revienta limpio: susto y se le pasa.
-  return [
-    pof,
-    { ms: 600, v: eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11) + d },
-    { ms: 560, v: ojosPremio + spr(SONRISA, 18, 12) + d },
-  ];
-};
-
-/**
- * Una historia entera: entra el chicle, masca, tres bombas y un desenlace.
- *
- * Dura unos veinte segundos y **ninguna sale igual que la anterior**: cambian
- * cuantas tandas hay antes de cada bomba, cuantas mascadas tiene cada tanda, por
- * que lado empieza, el ritmo de los parpadeos y como acaba.
- *
- * El **shiny sale una de cada cinco**, como se pidio. Cambia el color del chicle
- * -de rosa a celeste-, le pone destellos a los lados y le deja ojos de estrella
- * en el desenlace. Es raro a proposito: si saliera siempre dejaria de ser un
- * premio y seria solo otro color.
- */
-const historiaChicle = (): Paso[] => {
-  const shiny = azar(5) === 0;
-  const color = shiny ? "s" : "p";
+const inflar = (hasta: number): Paso[] => {
+  // Antes de que salga nada, coge aire: la boca se hace una O. Sin este cuadro
+  // la bomba aparecia de la nada, y el primer peldano -que es el mas chico-
+  // pasaba tan rapido que no llegaba a leerse como un principio.
   const pasos: Paso[] = [
-    { ms: 520, v: eyes(OJO, 5) + spr(RAYA, 20, 12) + spr(tint(CHICLE_BOLA, color), 30, 11) },
+    { ms: 260, v: eyes(OJO_MEDIO, 7) + spr(BOCA_O, 20, 11) },
   ];
-  let izq = azar(2) === 0;
-  for (let nivel = 1; nivel <= 3; nivel++) {
-    for (let t = entre(3, 4); t > 0; t--) {
-      pasos.push(tanda(izq, entre(2, 6)));
-      izq = !izq;
-    }
-    pasos.push(...bomba(nivel, color, shiny));
+  for (let n = 0; n < hasta; n++) {
+    pasos.push({
+      ms: 240,
+      v: peldano(n, eyes(n >= 2 ? OJO_ANCHO : OJO_MEDIO, n >= 2 ? 5 : 7)),
+    });
   }
-  pasos.push(...desenlace(color, shiny));
+  const ojosArriba = flip(
+    [eyes(OJO_ANCHO, 5), eyes(OJO_MEDIO, 7), eyes(OJO_ANCHO, 5), eyes(OJO, 5)],
+    "1.2s",
+  );
+  pasos.push({ ms: 320, v: peldano(hasta, eyes(OJO_ANCHO, 5)) });
+  pasos.push({ ms: entre(1300, 1900), v: peldano(hasta, ojosArriba) });
   return pasos;
 };
 
-/** Tres historias seguidas: entre 50 y 70 segundos sin repetirse. */
-const construirChicle = () =>
-  secuencia([...historiaChicle(), ...historiaChicle(), ...historiaChicle()]);
+/**
+ * Revienta limpio: ni pegotes ni cara embarrada.
+ *
+ * Es lo que pasa **casi siempre**, y tiene que ser asi: si cada bomba acabara con
+ * la cara llena de chicle, la vez que de verdad le revienta dejaria de significar
+ * nada. Un susto de nada, se lame el labio y vuelve a mascar.
+ */
+const popLimpio = (hasta: number): Paso[] => {
+  const [, x, y] = ESCALERA[hasta];
+  const centro = x + Math.floor(ESCALERA[hasta][0][0].length / 2);
+  const grande = hasta >= 3;
+  const trozos = grande
+    ? spr(tint(ESQUIRLAS, "p"), centro - 5, y + 1)
+    : spr(tint(ESQUIRLAS_MINI, "p"), centro - 3, y);
+  return [
+    { ms: 260, v: trozos + eyes(OJO_ANCHO, 5) },
+    { ms: 320, v: eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11) },
+    { ms: 420, v: eyes(OJO_ARCO, 6) + spr(RAYA, 20, 12) },
+  ];
+};
+
+/**
+ * Y la rara: **le revienta en la cara**.
+ *
+ * Una de cada siete bombas. Es la unica que deja pegotes, y por eso es la que se
+ * cuenta: lo que hace especial a un suceso no es que sea aparatoso, es que los
+ * otros seis no lo sean. Acaba con ojos de estrella, que es el premio de
+ * haberlo visto.
+ */
+const explota = (): Paso[] => {
+  const pegotes =
+    spr(tint(PEGOTE_IZQ, "p"), 14, 4) + spr(tint(PEGOTE_DER, "p"), 28, 5);
+  const cara = azar(2) === 0;
+  return [
+    { ms: 300, v: spr(tint(ESQUIRLAS, "p"), 17, 4) + eyes(OJO_ANCHO, 5) },
+    cara
+      ? { ms: 820, v: pegotes + eyes(OJO_ASPA, 4) + spr(LADEADA, 19, 12) }
+      : {
+          ms: 820,
+          v:
+            spr(tint(PEGOTE_OJO, "p"), 14, 4) +
+            spr(OJO_ANCHO, RX - 1, 5) +
+            spr(BOCA_O, 20, 11),
+        },
+    { ms: 700, v: eyes(OJO_ESTRELLA, 4) + spr(SONRISA, 18, 12) },
+  ];
+};
+
+/**
+ * La historia entera, de unos sesenta segundos.
+ *
+ * Un solo ciclo que se repite -mascar, inflar, reventar- y que **nunca se repite
+ * igual**: cambian cuantas tandas hay antes de cada bomba, cuantas mascadas tiene
+ * cada tanda, por que lado empieza, hasta que peldano sube la bomba, cuanto
+ * aguanta arriba y el ritmo de los parpadeos.
+ *
+ * Y las tandas **van creciendo**: la primera vez masca poco, la cuarta masca un
+ * buen rato. Es lo que hace que no se sienta un metronomo.
+ *
+ * La bomba gigante sale **una de cada siete**, y es la unica que le explota en la
+ * cara. Cuando pasa, escupe lo que queda y empieza otra vez con chicle nuevo.
+ */
+const construirChicle = () => {
+  const pasos: Paso[] = [
+    { ms: 520, v: eyes(OJO, 5) + spr(RAYA, 20, 12) + spr(tint(CHICLE_BOLA, "p"), 30, 11) },
+  ];
+  let izq = azar(2) === 0;
+  let total = 520;
+  // `nivel` cuenta las bombas desde el ultimo reventon en la cara, y sube dos
+  // cosas a la vez: **masca mas rato** y **la bomba sale mas grande**. Es el arco
+  // que pidio Luis -una bomba mediana, luego una mas grande, y a la tercera ya
+  // anda crecido-. Se reinicia cuando le explota, para que cada tanda vuelva a
+  // empezar desde abajo y el arco se note otra vez.
+  let nivel = 0;
+  while (total < 55000) {
+    for (let t = entre(2, 3) + Math.min(nivel, 3); t > 0; t--) {
+      const paso = tanda(izq, entre(2, 6));
+      pasos.push(paso);
+      total += paso.ms;
+      izq = !izq;
+    }
+    const gigante = azar(7) === 0;
+    // Los tamanos que revientan limpios son el de 7x7 y el de 9x9, y se suben en
+    // ese orden segun el nivel. El mas chico se quedo fuera como destino: con el,
+    // inflar duraba dos cuadros y volvia a pasar lo que Luis dijo -la bomba no da
+    // tiempo ni a verse-. Sigue saliendo, pero **de paso**, como primer peldano
+    // de la escalera. Y la gigante es la unica del ultimo peldano: la que
+    // revienta en la cara tiene que ser, sin discusion, la mas grande vista.
+    const hasta = gigante ? 4 : Math.min(2 + nivel, 3);
+    const bomba = [...inflar(hasta), ...(gigante ? explota() : popLimpio(hasta))];
+    bomba.forEach((x) => (total += x.ms));
+    pasos.push(...bomba);
+    if (gigante) {
+      const nuevo = {
+        ms: 520,
+        v: eyes(OJO, 5) + spr(RAYA, 20, 12) + spr(tint(CHICLE_BOLA, "p"), 30, 11),
+      };
+      pasos.push(nuevo);
+      total += nuevo.ms;
+      nivel = 0;
+    } else {
+      nivel++;
+    }
+  }
+  return secuencia(pasos);
+};
 
 /**
  * Mascando chicle: la carita de stand-by.
@@ -711,7 +732,7 @@ export const CHICLE_CORTO: Variant = {
     [
       masca(espejo(MASCA), 19) + eyes(OJO, 5),
       eyes(OJO, 5) + masca(MASCA, 16),
-      eyes(OJO, 5) + spr(tint(BOMBA_CHICA, "p"), 20, 9),
+      eyes(OJO, 5) + spr(tint(BOMBA_2, "p"), 20, 9),
       eyes(OJO, 5) + masca(espejo(MASCA), 19),
     ],
     "1.4s",
