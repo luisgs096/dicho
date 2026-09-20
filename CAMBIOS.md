@@ -25,6 +25,34 @@ guiones. Nada más.
   leer la selección se pulsaba Ctrl+C por ti, y en una terminal eso no copia:
   interrumpe. Ahora copias tú y Dicho sólo lee el portapapeles.
 
+## 0.14.0 — 20 de septiembre de 2026
+
+- **La onda ya no repite: ahora cuenta historias de un minuto.** Cuando no pasa
+  nada, la carita se pone a hacer algo y tarda entre 55 y 75 segundos en cerrar
+  lo que empezó. Son tres y salen al azar:
+  - **Masca chicle.** Masca de un lado y del otro, tandas más largas cada vez, y
+    de vez en cuando infla una bomba que se ve crecer y aguanta un rato antes de
+    reventar. Casi siempre revienta limpio; **una de cada siete le explota en la
+    cara** y se queda con el chicle pegado.
+  - **Silba.** Por frases, con notas de colores subiendo cada una a su ritmo, y
+    coge aire entre frase y frase. **Una de cada seis va a por la nota larga**: o
+    le sale y se le ponen los ojos de estrella, o le gallea y disimula.
+  - **Duerme.** Respira despacio, suelta algún ZZZ y se le hincha un moco que
+    sube y baja con la respiración. **Una de cada siete revienta y lo
+    despierta**: se asusta, bosteza y se vuelve a dormir.
+
+  Ninguna vuelta es igual que la anterior —cambian los tiempos, los tamaños y
+  cómo acaba— y cada vez que la onda sale a reposo se vuelve a sortear.
+- **El carrito de la montaña rusa tiene profundidad**, la barandilla es más
+  gruesa y la carita y los bracitos van siempre por encima de ella. Y al marearla
+  **vomita tres veces, cada una peor**.
+- **Tu tecla de cancelar también quita de en medio al escribano.** Si la onda se
+  ofrece a corregir un texto y no querías nada, la misma tecla con la que
+  abandonas un dictado la devuelve a lo suyo.
+- **Arreglado: el historial vibraba.** Al pasar el ratón por los indicadores de
+  muletillas, la tarjeta cambiaba de alto, los chips se movían de debajo del
+  cursor y la pantalla entraba en bucle. Ya no se mueve nada.
+
 ## 0.13.0 — 17 de septiembre de 2026
 
 - **Modo escribano.** Copias un texto en cualquier programa y la onda cambia de
