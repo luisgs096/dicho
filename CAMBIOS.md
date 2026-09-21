@@ -25,6 +25,19 @@ guiones. Nada más.
   leer la selección se pulsaba Ctrl+C por ti, y en una terminal eso no copia:
   interrumpe. Ahora copias tú y Dicho sólo lee el portapapeles.
 
+## 0.15.0 — 21 de septiembre de 2026
+
+- **Los ojitos te siguen.** Una de las caritas de reposo sigue el cursor por toda
+  la pantalla, y si mueves el ratón como un loco **se marea**. Con esta ya son
+  cinco las cosas que la onda hace cuando no pasa nada: masca chicle, silba,
+  duerme, te sigue con la mirada y respira.
+- **La carita de dormir ya no echa burbujas.** Salían por el mismo lado que los
+  ZZZ y las dos juntas se veían como una mancha. Ahora **respira con la boca** y
+  **chasquea los labios en sueños**, y una de cada siete veces se despierta con
+  su propio ronquido: se asusta, bosteza y se vuelve a dormir.
+- **Tu atajo del escribano se ve en el teclado de Inicio**, en verde, al lado del
+  azul de dictar y del naranja de cancelar. De un vistazo ves las tres.
+
 ## 0.14.0 — 20 de septiembre de 2026
 
 - **La onda ya no repite: ahora cuenta historias de un minuto.** Cuando no pasa
