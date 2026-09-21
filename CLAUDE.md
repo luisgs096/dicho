@@ -292,6 +292,37 @@ conocimiento. Y se commitea con el resto.
   destello de `relevo` entre escalón y escalón.
   Se previsualiza con `npx esbuild src/windows/faces.ts --bundle --format=iife
   --global-name=FACES` + una página que pinte `FACES.V`.
+- **El stand-by son historias de un minuto, no gestos de cinco segundos**
+  (`secuencia()` en `faces.ts`). `flip()` reparte el tiempo en partes iguales y
+  tiene tope de doce cuadros: sirve para un gesto, no para una historia. Con
+  partes iguales no puedes mascar cuatro veces de un lado y dos del otro.
+  `secuencia()` es lo mismo con **duraciones libres por cuadro y sin tope**, y
+  como cada historia se sortea al vuelo, sus fotogramas **no pueden vivir en
+  `FACE_CSS`** —que es fijo—: se generan y viajan en un `<style>` dentro de la
+  propia escena, con nombres propios por tirada.
+  Las cuatro historias (`CHICLE`, `SILBANDO`, `DORMIDO` y los ojos que siguen al
+  cursor) traen **`fresco`**, una función que vuelve a sortear la escena. El HUD
+  la llama en un `useMemo` con clave `[face, variant, isError]`: **sin el memo, la
+  escena cambiaría en cada render** y React reescribiría el interior del `<svg>`
+  sesenta veces por segundo, reiniciando la historia en cada fotograma.
+  Lo que hace que un minuto no se sienta un bucle no es tener muchos dibujos: es
+  que **el mismo dibujo dure distinto cada vez**. Es lo que hacen los tamagotchi
+  de verdad, que alternan dos cuadros "tres o cuatro veces" y nunca las mismas, y
+  es también por qué el reposo se lleva el presupuesto de animación: es el 90 %
+  del tiempo que la mascota está a la vista.
+  **El truco que lo abarata**: el meneo de cabeza del silbido, la respiración del
+  dormido y la mandíbula del chicle van **anidados dentro de cada paso**, no como
+  pasos sueltos —un minuto de vaivén serían trescientos pasos y así son treinta—.
+  Y no se cortan al cambiar de paso porque las animaciones de CSS **arrancan
+  todas a la vez**, así que van en fase aunque estén en grupos distintos.
+- `src-tauri/src/commands.rs` — `hud_cursor` devuelve dónde está el cursor
+  **respecto al centro de la onda**, de -1 a 1. Existe porque desde el webview no
+  se puede saber: el HUD sólo recibe eventos de ratón cuando el cursor está
+  encima de él. Lo pregunta la carita de los ojos que te siguen cada 70 ms y
+  **sólo mientras esa carita está a la vista**; las otras cuatro no gastan nada.
+  El divisor es una **distancia fija de 600 px** y no el tamaño de la pantalla:
+  así los ojos llegan al tope del recorrido a un palmo de la onda, en vez de
+  necesitar cruzar un 4K entero para que la pupila se mueva un píxel.
 - `src/windows/Hud.tsx` — HUD con dos estilos conmutables desde Ajustes
   (`settings.hud_style`, evento `settings-changed` para refrescar al vuelo). Se
   agarra por cualquier punto: el `pointerdown` sólo dispara `hud_arrastrar` y el
@@ -437,7 +468,8 @@ conocimiento. Y se commitea con el resto.
   o sea TypeScript intentando leer una propiedad sobre la cadena que acaba de
   cerrar. Ya ha pasado **cuatro veces**, siempre por citar el nombre de una
   clase entre acentos graves. Si hay que nombrar una clase en un comentario de
-  ahí dentro, se escribe a pelo.
+  ahí dentro, se escribe a pelo. **Van cinco**, y la quinta (20/09/2026) fue en
+  el comentario de un keyframe recién añadido: el fallo no se olvida, se repite.
 - **Redibujar React también los reinicia**: la escena entra por
   `dangerouslySetInnerHTML`, así que cada render reescribe el interior del `<svg>`
   y se lleva por delante los `<g>` que llevan las animaciones. Un componente que
@@ -565,6 +597,41 @@ conocimiento. Y se commitea con el resto.
   función principal de la app, por culpa de una de laboratorio que no pudo
   arrancar. Va en `Option` y degrada. Regla: en un hilo que sostiene algo más que
   su propia tarea, no hay `unwrap` ni `expect` que valga.
+- **Nada de manos con dedos sueltos a 48×16** (20/09/2026). La mano que
+  chasqueaba los dedos en el silbido era un puño con **un dedo levantado**, y a
+  cinco píxeles eso no se lee como un chasquido: se lee como una peineta. Lo vio
+  luisg a la primera. Y **no tiene arreglo por refinamiento**: a esta escala
+  cualquier silueta con un dedo destacado está a un píxel del gesto obsceno,
+  porque no hay sitio para dibujar la mano que lo desambigua. Una mano aquí sólo
+  puede ser un bloque entero, como la que sostiene la servilleta.
+- **Un objeto que se reconoce por ser recto no puede dibujarse en diagonal**
+  (19/09/2026). El lápiz del dibujante iba en diagonal a cuatro píxeles y salía
+  «un espagueti con la punta rosa». Es el mismo aprendizaje que ya estaba escrito
+  para el brazo levantado y no se aplicó: **a esta escala una diagonal no es una
+  línea inclinada, es una escalera**.
+- **Dos gestos que significan lo mismo son un gesto de más.** La carita de
+  dibujar se borró el mismo día que nació: ya hay una de pluma y pergamino para
+  corregir y otra de manos tecleando para escribir, y una tercera de lápiz no
+  añadía un gesto sino una duda. Una mascota puede tener muchos gestos, pero no
+  dos que signifiquen lo mismo.
+- **Dos cosas creciendo en el mismo rincón se leen como una sola mancha**
+  (20/09/2026). La burbuja de moco del dormido salía por el mismo lado que los
+  ZZZ. El dibujo estaba bien; el sitio no. Cuando dos elementos compiten por el
+  mismo hueco, **el que se va es el que menos dice**.
+- **Dos formas iguales no se reparten papeles.** Mascar chicle no se entendía
+  siendo un bloque de 3×2 para la boca y otro de 3×3 para el carrillo, ni
+  separados ni pegados. El problema no era la distancia: **era que los dos eran
+  la misma forma**. Uno tiene que ser volumen y el otro trazo — una curva contra
+  una raya de un píxel sí se leen.
+- **Dos pasos idénticos seguidos son un paso desperdiciado, y se ven.** En el
+  dormido, dos respiraciones seguidas podían salir iguales: siete segundos del
+  mismo dibujo no se leen como respirar despacio, se leen como que se colgó. Toda
+  historia larga necesita una comprobación de que ningún paso repite al anterior
+  — se mide con las huellas de sus `<rect>`, no a ojo.
+- **`const` no se iza: el orden dentro de `faces.ts` importa.** `V` nombra las
+  caritas de reposo, así que tienen que estar **definidas antes**. Si viven mil
+  líneas más abajo, el módulo revienta al cargar con un `ReferenceError` — y el
+  compilador **no avisa**, lo dice el navegador con la ventana en blanco.
 - **El HUD atrapa el ratón o lo deja pasar, pero no a medias.** Nació siendo un
   cristal (`set_ignore_cursor_events(true)` → `WS_EX_TRANSPARENT`) para no comerse
   los clics de lo que hubiera debajo, y eso es justo lo que impedía arrastrarlo.
@@ -602,152 +669,153 @@ conocimiento. Y se commitea con el resto.
   `System.Windows.Forms.Form` en la posición deseada y robarle el foco con el truco
   del ALT (`keybd_event(0x12)` antes de `SetForegroundWindow`, si no Windows lo ignora).
 
-## Checkpoint — 17 de septiembre de 2026
+## Checkpoint — 21 de septiembre de 2026
 
 ### Estado
 
 | | |
 |---|---|
-| Versión publicada | **v0.12.0**, con las cuatro comprobaciones en verde (se sirve desde `releases/latest/download/`, sin BOM, `signature` idéntica al `.sig` local, SHA256 del `.exe` publicado igual al firmado) |
-| Versión en uso | **0.12.0** instalada y corriendo en el equipo de luisg. Le llegó |
-| Repo | `main` al día con todo lo de hoy. La rama `luis/corregir-escrito` quedó mezclada; **falta decidir si se borra** |
-| Pruebas | `cargo test --lib` → **47 pasan, 0 fallan, 1 ignorada** (la ignorada vuelca el prompt del Editor a disco para probarlo a mano: `-- --ignored`) |
+| Versión publicada | **v0.15.0**, con las cuatro comprobaciones en verde (se sirve desde `releases/latest/download/`, sin BOM, `signature` idéntica al `.sig` local, SHA256 del `.exe` publicado igual al firmado). Antes, el mismo día, la **0.14.0**, también verificada |
+| Versión en uso | luisg tenía la **0.13.0** al empezar la sesión. La 0.15.0 le llega al abrir Ajustes — **falta confirmar que la instaló** |
+| Repo | `main` al día y empujado. Las ramas `luis/reposo-largo` y `luis/ojitos` están mezcladas; con las tres viejas, **hay cinco ramas mezcladas pendientes de borrar** |
+| Pruebas | `cargo test --lib` → **52 pasan, 0 fallan, 1 ignorada** (la ignorada vuelca el prompt del Editor a disco para probarlo a mano: `-- --ignored`) |
 | Tipos y build | `npx tsc --noEmit` y `npm run build`, limpios |
 | Árbol de trabajo | limpio |
 | Pendiente crítico | respaldar `dicho.key` — **sólo puede hacerlo luisg**, y sigue sin hacerse desde el 27/08 |
 
 ### Qué pasó en la última sesión
 
-Sesión muy larga, con la 0.12.0 publicada en medio y dos bugs que sólo aparecieron
-usando la app de verdad.
+Sesión larga y de una sola cosa: **el reposo**. Se rehízo entero, dos veces, y
+acabó siendo un motor nuevo.
 
-**1 · La onda se arrastra sin permiso, y va en montaña rusa.** Se borró el modo de
-colocación entero (`modo_colocar`, `hud_colocar`, `COLOCANDO`): existía porque la
-onda sólo se movía dándole permiso, y desde que se mueve siempre no decidía nada. Lo
-que lo hace viable es un **umbral de seis píxeles** en Win32 — por debajo, un clic
-sigue siendo un clic. El menú se quedó en dos botones. Y mientras la arrastras va
-montada en una vagoneta, con las manitas agitándose en contrafase; si la zarandeas se
-marea, y al acabar el vómito se limpia con una servilleta y **funde** a una carita
-normal en vez de cortar.
+**1 · De gestos de cinco segundos a historias de un minuto.** Las caritas de
+reposo eran bucles cortos y luisg las quería largas y que no se notara el bucle.
+El primer intento —cuatro caritas de ocho tiempos— no valía, y la razón está en
+el motor: `flip()` reparte el tiempo en partes iguales y tiene tope de doce
+cuadros, así que no puedes mascar cuatro veces de un lado y dos del otro. De ahí
+salió **`secuencia()`**: duraciones libres por cuadro, sin tope, con los
+fotogramas generados al vuelo dentro de la propia escena.
 
-Las caritas costaron cuatro rondas de banco de pruebas y una vuelta con un animador
-que trajo referencias. Lo aprendido está en «Convenciones y gotchas» y en el mapa de
-`faces.ts`; lo caro de redescubrir fue que **la boca tenía que ir hueca por dentro** y
-que un brazo levantado sólo se lee si es largo, vertical y con entalle de muñeca.
+Lo que hizo que funcionara fue **la investigación de los tamagotchi de verdad**,
+que luisg pidió expresamente: su idioma no es una película larga, es **un bucle
+corto de dos cuadros repetido un número variable de veces**, interrumpido por
+sucesos que escalan. Los originales alternan dos cuadros "tres o cuatro veces" y
+nunca las mismas. De ahí las tres reglas que rigen las cuatro historias: el bucle
+base dura distinto cada vez, los sucesos escalan, y el final no siempre es el
+mismo.
 
-**2 · El modo Estándar había dejado de corregir.** Devolvía el dictado **idéntico** al
-crudo, y eso era lo que había detrás del «el interruptor de Final y Crudo no hace
-nada»: no fallaba el interruptor, es que no había nada que enseñar. Misma causa que ya
-había tenido el Editor —el encargo empezaba con «eres el post-procesador», y ese marco
-le pone techo a todo lo que venga después— y mismo arreglo. Medido con el banco contra
-tres dictados reales que salían idénticos: los tres cambian, y las muletillas bajan de
-6→4, 5→2 y 1→0.
+**2 · Las cinco caritas de stand-by, cerradas.** Masca chicle, silba, duerme, te
+sigue con la mirada, y respira (la quinta es la de siempre, de relleno).
 
-**3 · Dos bugs que reportó luisg al final, y los dos eran de verdad.**
+- **El chicle** costó tres versiones. La primera tenía la boca y el carrillo como
+  dos bloques iguales y no se entendía; la segunda ya era medio círculo y raya
+  pero la bomba pasaba por pantalla en medio segundo. La tercera es la buena:
+  escalera de cinco tamaños que **se ve crecer**, aguanta arriba 1,3-1,9 s, y
+  revienta limpio casi siempre — **una de cada siete le explota en la cara**.
+- **El silbido** perdió la mano que chasqueaba los dedos (ver gotchas: a cinco
+  píxeles era una peineta) y ganó los ojos cerrados y el meneo de cabeza.
+- **El dormido** perdió la burbuja de moco, que competía con los ZZZ por el mismo
+  rincón, y ahora respira con la boca.
+- **Los ojos que te siguen** fue la única que necesitó Rust.
+- **El dibujante se borró el mismo día que nació**: se pisaba con el escribano.
 
-- **El diccionario se ignoraba.** Sólo viajaba dentro del prompt como sugerencia, y la
-  sustitución literal ocurría nada más en modo Reglas. Medido: **13 de los últimos 400
-  dictados** conservaban un término que el diccionario tenía que haber cambiado —
-  «Cloud Code» seguía saliendo «Cloud», «Jimmy Knight» no se volvía «Gemini»—, y entre
-  ellos estaban los dos dictados en los que él reportaba justamente esto. Ahora se
-  aplica **después** de pulir y en todos los modos. Con el arreglo, esos 13 pasan a
-  **0**.
-- **Corregir texto seleccionado le cerraba las conversaciones de Claude Code.** Para
-  leer la selección se sintetizaba un Ctrl+C, que sólo significa «copiar» en un editor:
-  en una terminal significa **interrumpir**. Ahora copia el usuario y Dicho sólo lee el
-  portapapeles.
-
-**4 · La corrección al vuelo** (escribir con el teclado y que se corrija solo) quedó
-construida, compilando y **apagada de fábrica**. Ver abajo: no se ha probado nunca en
-vivo.
+**3 · Dos versiones publicadas**, la 0.14.0 y la 0.15.0, las dos verificadas con
+las cuatro comprobaciones.
 
 ### Lo que funciona y está probado
 
-- **La 0.12.0 entera, en la máquina de luisg.** El log lo confirma: hay un
-  `HUD movido a (1188,696)`, o sea que arrastró la onda y el arrastre libre funcionó.
-- **El diccionario, medido contra sus 400 últimos dictados**: 13 términos sin
-  reemplazar pasan a 0, incluidos los casos que él citó por su nombre.
-- **El modo Estándar y el Editor**, medidos con `herramientas/banco-de-prompts.py`
-  contra dictados reales del historial, no contra ejemplos inventados.
-- **Las caritas nuevas**, revisadas cuadro a cuadro en los dos temas y con una
-  comprobación que mide la simetría del histograma de columnas sobre x=22 (ahí salió
-  que un brazo estaba tres píxeles fuera de sitio, cosa que a ojo no se ve).
-- **47 tests**, entre ellos los tres del sync de historial y los ocho de la tabla de
-  ortografía, que no existían esta mañana.
+Todo lo de las historias está medido sobre **400 tiradas de cada una**, no a ojo:
+
+| | Duración | El suceso raro | Tiradas distintas |
+|---|---|---|---|
+| Chicle | 55-70 s | le explota 1 de cada 6,9 bombas | 400/400 |
+| Silbando | 55-62 s | la nota larga 1 de cada 6,2 frases | 400/400 |
+| Dormido | 55-69 s | se despierta 1 de cada 6,7 sucesos | 400/400 |
+
+Y en las tres: **cero pasos repetidos seguidos** y **cero píxeles fuera del
+lienzo**. Comprobado además en el navegador que **avanzan de verdad** y que en
+cada instante hay **exactamente un paso visible** — el chicle va por el paso 13 a
+los 10 s, por el 55 a los 40 s y por el 74 a los 54 s.
+
+- **Los ojos que siguen al cursor** se probaron en el manual, que alimenta las
+  mismas dos variables de CSS desde el ratón de la página. En la app la posición
+  viene de Rust; el mecanismo que lee la carita es idéntico.
+- **Las dos versiones publicadas**, cada una con las cuatro comprobaciones de
+  firma, BOM y SHA256 contra lo que descarga la app.
+- **52 tests de Rust**, tsc y build limpios.
 
 **No verificado todavía**, y se dice porque no se pudo probar:
 
-- **La corrección al vuelo nunca se ha ejecutado en vivo.** Probarla no es inocuo: el
-  corrector teclea de verdad en la ventana que tenga el foco, así que no se puede
-  probar desde una sesión automatizada sin escribir en algo del usuario.
-- **La animación de estreno** sigue sin verse en una actualización real.
+- **Ninguna de las caritas nuevas se ha visto dentro de la app.** Se han visto en
+  el manual, que usa el mismo `faces.ts`, pero el HUD es otra ventana: falta que
+  luisg instale la 0.15.0 y deje la onda clavada un minuto.
+- **El seguimiento del cursor nunca se ha ejecutado con Rust de por medio.** El
+  comando compila y el cableado está, pero `hud_cursor` no se ha llamado una sola
+  vez en vivo.
+- **La corrección al vuelo** (LABS) sigue sin probarse desde el 17/09.
 
 ### Siguiente paso inmediato
 
-**Rehacer «corregir lo que ya escribiste» como modo escribano.** luisg probó la versión
-publicada y no es lo que quiere; lo dejó especificado y está aprobado:
+**Que Dicho domine los registros del habla.** Lo pidió luisg y es lo primero de
+su lista: que entienda y sepa producir español profesional, organizado, informal
+y slang —mexicano— y que combine lo que haga falta según el input, **sin
+interruptor**. Es trabajo de prompt, y aquí eso **no se hace a ojo**: se hace con
+`herramientas/banco-de-prompts.py` contra sus ~750 dictados reales, que ya son un
+corpus de cómo habla él. El precedente manda: el modo Editor "parecía cambiar
+poco" y resultó que devolvía el dictado **idéntico** en dos de tres casos.
 
-1. Con la función encendida, la onda **se fuerza a clavada** (pinned) donde el usuario
-   la haya dejado. Si no está a la vista, no hay nada que pulsar.
-2. El usuario selecciona texto y **copia él** con el atajo que use su app. Dicho vigila
-   el portapapeles; al cambiar, la onda pasa a **modo escribano** (la carita de la
-   pluma, `LEYENDO`) y se queda así unos segundos.
-3. **Clic en la onda** → corrige. El atajo de teclado **se conserva** como segundo
-   camino.
-4. El resultado va al portapapeles **y sale una ventanita** con el texto corregido para
-   revisarlo, con un botón **«Sustituir»** que hace el reemplazo.
-5. El atajo de corregir entra en el teclado gráfico de Inicio como **tercera tecla, en
-   verde** (hoy hay dos: azul dicta, naranja cancela).
-
-Lo que hay que decirle y ya se le dijo una vez: **un menú de clic derecho no es
-posible** para texto suelto. El menú contextual de Windows se cuelga de archivos en el
-Explorador, no de una selección dentro de otra app.
+Justo detrás va **personalizar el Editor con su propio historial**, que es la
+otra mitad del mismo problema y usa el mismo banco.
 
 ### Lo que viene, por orden de valor
 
-1. **Que la app domine los registros del habla.** Lo pidió luisg al final: que entienda
-   y sepa producir español profesional, organizado, informal y slang —mexicano— y que
-   combine lo que haga falta según el input, **sin interruptor**. Es trabajo de prompt,
-   y aquí eso no se hace a ojo: se hace con `herramientas/banco-de-prompts.py` contra
-   sus ~730 dictados reales, que ya son un corpus de cómo habla él.
-2. **Probar la corrección al vuelo** (ver «pendientes que sólo puede hacer el usuario»).
-3. **Personalizar el Editor con su propio historial.** Los ~730 dictados están en
-   `mike.db`, en este disco, y **no hace falta Google**: basta meter tres o cuatro de
-   sus textos ya redactados en el prompt como referencia de voz.
-4. **Purga del historial**: `mike.db` crece sin tope y ahora cada fila pesa más.
-   Necesita que luisg decida la política (antigüedad, número de filas, o sólo un botón
-   de vaciar).
-5. **BYOK «compatible con OpenAI»** (URL base + key + modelo). Hoy Groq es la única
-   opción y su plan gratis puede cambiar.
-6. **Sincronización con Google de punta a punta.** El código está entero y ya no le
-   falta nada por dentro —viaja con los tres campos de la 0.11 y tiene tres tests—,
-   pero sigue bloqueada por el cliente OAuth que sólo puede crear luisg.
-7. **Vocabulario propio en el prompt del STT.** El diccionario llega al pulido pero no
-   al `prompt` de Whisper, así que hoy sólo corrige la palabra *después* de oírla mal.
-   Ojo: ese mismo prompt es lo que frena la traducción, así que hay que medir antes y
-   después.
+1. **Los registros del habla** (ver el siguiente paso inmediato).
+2. **Personalizar el Editor con el historial del propio usuario.** No hace falta
+   Google: los ~750 dictados están en `mike.db`, en este disco. La forma barata es
+   meter tres o cuatro de sus textos ya redactados en el prompt como referencia
+   de voz.
+3. **Purga del historial.** `mike.db` crece sin tope y cada fila pesa más desde la
+   0.11. Necesita que luisg decida la política.
+4. **BYOK: una casilla genérica "compatible con OpenAI"** (URL base + key +
+   modelo). Hoy Groq es la única opción y su plan gratis puede cambiar.
+5. **Sincronización con Google de punta a punta.** El código está entero y con
+   tests; bloqueado por el cliente OAuth que sólo puede crear luisg.
+6. **Vocabulario propio en el prompt del STT.** El diccionario llega al pulido
+   pero **no** al `prompt` de Whisper, así que hoy sólo corrige la palabra
+   *después* de oírla mal. Cuidado: ese mismo prompt es lo que frena la
+   traducción, así que hay que medir antes y después.
+7. **La quinta carita de reposo.** Hoy el hueco lo tapa la de siempre —respira y
+   parpadea— porque el dibujante se borró. Falta una idea que no se pise con
+   ninguna de las otras cuatro ni con el escribano.
 
 ### Pendientes que sólo puede hacer el usuario
 
-- **Respaldar la clave privada del updater** (`%USERPROFILE%\.tauri\dicho.key`). El
-  único pendiente crítico y sólo existe una copia, en este disco. Sin ella, ni luisg ni
-  ninguno de sus testers vuelve a recibir una actualización jamás. **Copiarla, no
-  moverla.** Sigue sin hacerse desde el 27/08.
+- **Respaldar la clave privada del updater** (`%USERPROFILE%\.tauri\dicho.key`).
+  El único pendiente crítico y sólo existe una copia, en este disco. Sin ella, ni
+  luisg ni ninguno de sus testers vuelve a recibir una actualización jamás:
+  habría que reinstalar a mano en cada equipo. **Copiarla, no moverla** —
+  `publicar.ps1` la lee de esa ruta exacta. Acordado el 27/08 y **sigue sin
+  hacerse**.
+- **Instalar la 0.15.0 y mirar la onda un minuto**, clavada y sin dictar. Es la
+  única forma de ver las cuatro historias de stand-by dentro de la app, y de
+  comprobar que el seguimiento del cursor funciona de verdad. Si la onda va a
+  tirones, decirlo: la palanca directa es bajar las historias de 60 a 45 s.
 - **Probar la corrección al vuelo.** Inicio → LABS → encender «Corregir mientras
-  escribo», escribir en un bloc de notas `tambien informacion aqui rapido ` (con espacio
-  tras cada palabra) y ver si salen con tilde. Y comprobar que **en una terminal no hace
-  nada**, que viene vetada de fábrica. Si el parpadeo de los borrados molesta, la
-  palanca es el `sleep` de 40 ms de `spawn_tecleador`.
-- **Decidir si se borra la rama `luis/corregir-escrito`**, ya mezclada en `main`.
+  escribo», escribir en un bloc de notas `tambien informacion aqui rapido ` (con
+  espacio tras cada palabra) y ver si salen con tilde. Y comprobar que **en una
+  terminal no hace nada**, que viene vetada de fábrica.
+- **Decidir si se borran las cinco ramas ya mezcladas**: `luis/ojitos`,
+  `luis/reposo-largo`, `luis/bajarse-del-carrito`, `luis/modo-escribano` y
+  `luis/regla-de-merge`.
 - **Decidir la política de purga del historial.**
-- **Crear el cliente OAuth de Google** (~5 min, gratis). Es lo único que bloquea la
-  sincronización entre equipos.
+- **Crear el cliente OAuth de Google** (~5 min, gratis). Es lo único que bloquea
+  la sincronización entre equipos.
 - **Avisar si cambia de plan en Groq**: con el gratuito hay 20 peticiones/minuto.
 
 ### Comprobar en dos minutos
 
 ```sh
-cd src-tauri && cargo test --lib   # 47 pasan, 1 ignorada
+cd src-tauri && cargo test --lib   # 52 pasan, 1 ignorada
 npx tsc --noEmit                   # sin salida
 npm run build                      # limpio
 git status --short                 # vacío
@@ -766,9 +834,19 @@ Get-Content "$env:APPDATA\dev.mike.app\dicho.log" -Tail 20
 Select-String -Path "$env:APPDATA\dev.mike.app\dicho.log" -Pattern "DESBORDE|panic|DESCARTADO|NO se pudo" | Select-Object -Last 5
 ```
 
-**Ojo al probar**: luisg puede estar dictando. Cualquier script que robe el foco lo
-interrumpe, y simular el atajo hace que Dicho **pegue texto de verdad** en la ventana
-enfocada. Mirar antes la hora de la última línea de `dicho.log`.
+Y una que es de esta tanda: que las historias largas **no se queden congeladas**.
+Con la onda clavada y sin dictar, en la consola del HUD:
+
+```js
+document.querySelector(".seq").getAnimations({subtree:true})[0].currentTime
+```
+
+Dos veces seguidas: si no avanza, alguien volvió a meter la duración en una
+variable CSS.
+
+**Ojo al probar**: luisg puede estar dictando. Cualquier script que robe el foco
+lo interrumpe, y simular el atajo hace que Dicho **pegue texto de verdad** en la
+ventana enfocada. Mirar antes la hora de la última línea de `dicho.log`.
 
 ## Publicar y actualizar
 
@@ -826,6 +904,21 @@ repetirla cada vez que se publique). Todo limpio:
   dinero de nadie sin poner su propia key.
 
 ## Historial de sesiones
+
+**20-21/09** — El reposo, entero y dos veces. Las caritas de stand-by pasaron de
+ser gestos de cinco segundos a **historias de un minuto que no se repiten**, y
+eso obligó a un motor nuevo: `flip()` reparte el tiempo en partes iguales y tope
+doce cuadros, así que no se puede mascar cuatro veces de un lado y dos del otro.
+`secuencia()` tiene duraciones libres y sus fotogramas viajan dentro de la propia
+escena, porque cada tirada se sortea al vuelo. La clave no fue dibujar más: la dio
+**la investigación de los tamagotchi originales**, que alternan dos cuadros "tres
+o cuatro veces" y nunca las mismas — lo que rompe la repetición es que el mismo
+dibujo dure distinto. Cuatro historias medidas sobre 400 tiradas cada una, todas
+distintas, con su suceso raro a razón de uno de cada siete. Se publicaron la
+**0.14.0** y la **0.15.0**. Y tres borrados que valen tanto como lo añadido: la
+mano que chasqueaba los dedos (a cinco píxeles era una peineta), la carita del
+dibujante (se pisaba con el escribano) y la burbuja del dormido (competía con los
+ZZZ por el mismo rincón). 52 tests.
 
 **17/09** — La 0.12.0 publicada y, sobre todo, dos bugs que sólo aparecieron usando la
 app. **El diccionario se ignoraba**: viajaba dentro del prompt como sugerencia y el
