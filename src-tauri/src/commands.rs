@@ -251,6 +251,28 @@ pub fn aplicar_raton_hud(app: &AppHandle, arrastrable: bool) {
 ///
 /// El seguimiento del cursor se va a un hilo aparte porque dura lo que dure el
 /// gesto —segundos— y no puede quedarse ocupando el hilo de comandos.
+/// Dónde está el cursor **respecto al centro de la onda**, de -1 a 1.
+///
+/// Lo pregunta la carita de los ojos que te siguen, unas quince veces por
+/// segundo y **sólo mientras esa carita está a la vista**. Un hilo en Rust
+/// emitiendo eventos todo el rato saldría más caro: la mayor parte del tiempo no
+/// hay nadie mirando.
+///
+/// El divisor no es el tamaño de la pantalla sino una distancia de referencia
+/// fija (600 px): así los ojos llegan al tope del recorrido a un palmo de la
+/// onda, que es donde estás cuando la miras, en vez de tener que cruzar un
+/// monitor 4K entero para que la pupila se mueva un píxel.
+#[tauri::command]
+pub fn hud_cursor(app: AppHandle) -> Option<(f32, f32)> {
+    let hud = app.get_webview_window("hud")?;
+    let pos = hud.outer_position().ok()?;
+    let tam = hud.outer_size().ok()?;
+    let (cx, cy) = crate::overlay::cursor_pos()?;
+    let dx = (cx as f32 - (pos.x as f32 + tam.width as f32 / 2.0)) / 600.0;
+    let dy = (cy as f32 - (pos.y as f32 + tam.height as f32 / 2.0)) / 600.0;
+    Some((dx.clamp(-1.0, 1.0), dy.clamp(-1.0, 1.0)))
+}
+
 #[tauri::command]
 pub fn hud_arrastrar(app: AppHandle, state: State<'_, SettingsState>) {
     let Some(hud) = app.get_webview_window("hud") else {

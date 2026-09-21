@@ -238,6 +238,7 @@ pub fn run() {
             commands::google_logout,
             commands::hud_log,
             commands::hud_arrastrar,
+            commands::hud_cursor,
             commands::hud_pos_reset,
             commands::hud_pin,
             commands::hud_corregir,

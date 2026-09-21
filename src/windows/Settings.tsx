@@ -431,12 +431,19 @@ const MODIFIERS = new Set([
   "ShiftRight",
 ]);
 
-/** Para qué está elegida una tecla. Las dos se pintan **a la vez** y cada una
- *  con su color, así que de un vistazo ves tu atajo y tu tecla de cancelar sin
- *  tener que cambiar de pestaña: azul dicta, naranja cancela. */
-type Papel = "atajo" | "cancelar" | null;
+/** Para qué está elegida una tecla. Las tres se pintan **a la vez** y cada una
+ *  con su color, así que de un vistazo ves cómo tienes configurado todo sin
+ *  tener que cambiar de pestaña: azul dicta, naranja cancela, verde corrige.
+ *
+ *  El verde no es un color cualquiera: es el de LABS, y el escribano vive ahí.
+ *  Que la tecla lleve el color de su sección dice, sin una línea de texto, que
+ *  esa función es de las que todavía se están cociendo. */
+type Papel = "atajo" | "cancelar" | "corregir" | null;
 
-const PAPELES: Record<"atajo" | "cancelar", { clase: string; titulo: string }> =
+const PAPELES: Record<
+  "atajo" | "cancelar" | "corregir",
+  { clase: string; titulo: string }
+> =
   {
     atajo: {
       clase:
@@ -447,6 +454,11 @@ const PAPELES: Record<"atajo" | "cancelar", { clase: string; titulo: string }> =
       clase:
         "border-amber-600 bg-amber-500 text-white shadow-sm ring-2 ring-amber-400/50",
       titulo: "Tu tecla para cancelar a media grabación",
+    },
+    corregir: {
+      clase:
+        "border-emerald-700 bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/40",
+      titulo: "Parte del atajo del escribano: corrige lo que ya escribiste",
     },
   };
 
@@ -500,10 +512,14 @@ function Cap(props: {
 export function KeyboardPicker(props: {
   selected: string[];
   cancelar: string | null;
+  corregir: string[];
   destino: "atajo" | "cancelar";
   onToggle: (code: string) => void;
 }) {
   const [idioma, setIdioma] = useState<Idioma>("es");
+  // El orden importa: una tecla que esté en dos sitios se pinta con el primero
+  // que la reclame. Dictar manda sobre cancelar y cancelar sobre corregir,
+  // porque es el orden en el que molesta equivocarse.
   const papelDe = (code: string | null): Papel =>
     code === null
       ? null
@@ -511,7 +527,9 @@ export function KeyboardPicker(props: {
         ? "atajo"
         : props.cancelar === code
           ? "cancelar"
-          : null;
+          : props.corregir.includes(code)
+            ? "corregir"
+            : null;
   const cap = (k: KbKey, i: number, extra?: string) => (
     <Cap
       key={i}
@@ -583,6 +601,12 @@ export function KeyboardPicker(props: {
           <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" />
           cancela
         </span>
+        {props.corregir.length > 0 && (
+          <span className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+            <span className="h-2.5 w-2.5 rounded-sm bg-emerald-600" />
+            corrige
+          </span>
+        )}
       </div>
 
       <div className="flex gap-2 rounded-xl bg-slate-100 p-2 dark:bg-slate-950/60">
@@ -938,6 +962,7 @@ export default function Settings() {
                   <KeyboardPicker
                     selected={draft}
                     cancelar={settings?.cancelar ?? null}
+                    corregir={settings?.corregir_atajo ?? []}
                     destino={destinoTecla}
                     onToggle={toggleKey}
                   />
