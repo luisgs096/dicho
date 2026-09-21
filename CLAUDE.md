@@ -677,7 +677,7 @@ conocimiento. Y se commitea con el resto.
 |---|---|
 | Versión publicada | **v0.15.0**, con las cuatro comprobaciones en verde (se sirve desde `releases/latest/download/`, sin BOM, `signature` idéntica al `.sig` local, SHA256 del `.exe` publicado igual al firmado). Antes, el mismo día, la **0.14.0**, también verificada |
 | Versión en uso | luisg tenía la **0.13.0** al empezar la sesión. La 0.15.0 le llega al abrir Ajustes — **falta confirmar que la instaló** |
-| Repo | `main` al día y empujado. Las ramas `luis/reposo-largo` y `luis/ojitos` están mezcladas; con las tres viejas, **hay cinco ramas mezcladas pendientes de borrar** |
+| Repo | `main` al día y empujado, y **es la única rama que queda**: las cinco mezcladas se borraron el 21/09 con el visto bueno de luisg (dos de ellas también en GitHub) |
 | Pruebas | `cargo test --lib` → **52 pasan, 0 fallan, 1 ignorada** (la ignorada vuelca el prompt del Editor a disco para probarlo a mano: `-- --ignored`) |
 | Tipos y build | `npx tsc --noEmit` y `npm run build`, limpios |
 | Árbol de trabajo | limpio |
@@ -804,9 +804,6 @@ otra mitad del mismo problema y usa el mismo banco.
   escribo», escribir en un bloc de notas `tambien informacion aqui rapido ` (con
   espacio tras cada palabra) y ver si salen con tilde. Y comprobar que **en una
   terminal no hace nada**, que viene vetada de fábrica.
-- **Decidir si se borran las cinco ramas ya mezcladas**: `luis/ojitos`,
-  `luis/reposo-largo`, `luis/bajarse-del-carrito`, `luis/modo-escribano` y
-  `luis/regla-de-merge`.
 - **Decidir la política de purga del historial.**
 - **Crear el cliente OAuth de Google** (~5 min, gratis). Es lo único que bloquea
   la sincronización entre equipos.
