@@ -373,10 +373,16 @@ const entre = (a: number, b: number) => a + azar(b - a + 1);
 /** Uno de la lista, al azar. */
 const uno = <T,>(xs: T[]) => xs[azar(xs.length)];
 
-/** Parpadeo: abierto casi todo el ciclo, cerrado un instante. */
-const blink = (open: string, shut: string, dur = "3.2s") =>
-  `<g class="blink"><g style="animation-duration:${dur}">${open}</g>` +
-  `<g style="animation-duration:${dur}">${shut}</g></g>`;
+/** Parpadeo: abierto casi todo el ciclo, cerrado un instante (del 92 % al 97 %).
+ *
+ *  `retraso`, negativo, adelanta el primer parpadeo. Con un ciclo largo el
+ *  primero cae casi al final, y una carita que sale uno o dos segundos se iba
+ *  sin haber parpadeado: con los ojos quietos, que es justo lo que la regla
+ *  de la casa prohíbe. Literal e inline, como la duración (ver el gotcha de
+ *  las variables CSS). */
+const blink = (open: string, shut: string, dur = "3.2s", retraso = "0s") =>
+  `<g class="blink"><g style="animation-duration:${dur};animation-delay:${retraso}">${open}</g>` +
+  `<g style="animation-duration:${dur};animation-delay:${retraso}">${shut}</g></g>`;
 
 /** Guiño: como el parpadeo pero el ojo se queda cerrado un rato largo. */
 const wink = (open: string, shut: string, dur = "1.6s") =>
@@ -1195,8 +1201,17 @@ const CUENCA_GRANDE = [
 export const OJOS_SIGUEN: Variant = {
   status: "",
   sigue: true,
-  scene: `${spr(CUENCA_GRANDE, 13, 3)}${spr(CUENCA_GRANDE, 25, 3)}
-    <g class="a-pupila">${spr(PUPILA, 15, 5)}${spr(PUPILA, 27, 5)}</g>
+  // Y parpadea. Con el ratón quieto la pupila no se mueve, y en el catálogo y
+  // la vista previa —donde nadie le manda --mx/--my— no se mueve nunca: era la
+  // única carita con los ojos quietos. Cerrado, una raya por la mitad de la
+  // cuenca. El primer parpadeo, adelantado a 1,1 s.
+  scene: `${blink(
+    `${spr(CUENCA_GRANDE, 13, 3)}${spr(CUENCA_GRANDE, 25, 3)}
+    <g class="a-pupila">${spr(PUPILA, 15, 5)}${spr(PUPILA, 27, 5)}</g>`,
+    `${spr(["XXXXXXX"], 13, 6)}${spr(["XXXXXXX"], 25, 6)}`,
+    "3.6s",
+    "-2.2s",
+  )}
     ${spr(SONRISA, 18, 12)}`,
 };
 
@@ -1451,10 +1466,12 @@ export const V: Record<FaceState, Variant[]> = {
       sad: true,
       // Ladear la cabeza sin rotar: un ojo sube, el otro baja y la boca se
       // tuerce. El parpadeo respeta esa asimetría, cada ojo a su altura.
+      // Cada 1,3 s y no cada 2,6: esta carita se ve 2,6 s (StopResult::Empty) y
+      // con el ciclo largo su único parpadeo caía a los 2,39, ya de salida.
       scene: `${blink(
         spr(OJO, LX, 6) + spr(OJO, RX, 4),
         spr(OJO_LINEA, LX, 8) + spr(OJO_LINEA, RX, 6),
-        "2.6s",
+        "1.3s",
       )}${spr(LADEADA, 18, 12)}
         <g class="a-interr">${spr(tint(INTERR, "w"), 39, 3)}</g>`,
     },
@@ -1589,11 +1606,11 @@ const RENGLON = ["XXXXXXXXXXX"];
  */
 export const LEYENDO: Variant = {
   status: "Corrigiendo…",
-  // Los ojos van a media asta y parpadean: leyendo, no escuchando. Ninguna
-  // carita de la casa tiene los ojos quietos, y ésta tampoco.
   // El ojo va entero y parpadea —ninguna carita de la casa los tiene quietos— y
-  // los lentes le cruzan por la mitad: media luna, como se leen de cerca.
-  scene: `${blink(eyes(OJO, 5), eyes(OJO_LINEA, 7), "4s")}${spr(LENTES_LECTURA, 13, 6)}${spr(RAYA, 20, 13)}
+  // los lentes le cruzan por la mitad: media luna, como se leen de cerca. El
+  // parpadeo es el lento de leer (4 s), pero adelantado: sin retraso, el
+  // primero caía a los 3,68 s y una corrección dura uno o dos.
+  scene: `${blink(eyes(OJO, 5), eyes(OJO_LINEA, 7), "4s", "-2.9s")}${spr(LENTES_LECTURA, 13, 6)}${spr(RAYA, 20, 13)}
     ${flip(
       [
         spr(PLUMA, 30, 2) + spr(["XXX"], 31, 15),
