@@ -91,10 +91,8 @@ pub async fn download(app: AppHandle) -> anyhow::Result<()> {
     let result = download_inner(&app).await;
     DOWNLOADING.store(false, Ordering::SeqCst);
     match &result {
-        Ok(()) => {
-            emit_progress(&app, "", total_bytes(), true, None);
-            let _ = app.emit("model-ready", ());
-        }
+        // El `done` del progreso es el aviso de "listo": Ajustes no escucha otro.
+        Ok(()) => emit_progress(&app, "", total_bytes(), true, None),
         Err(e) => emit_progress(&app, "", 0, false, Some(e.to_string())),
     }
     result
