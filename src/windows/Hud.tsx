@@ -1112,7 +1112,10 @@ export default function Hud() {
           >
             {/* El estreno, en el estilo clásico: las mismas dos capas, y al
                 final se revelan las cinco barritas en vez de la cara. Mismo
-                frente de onda —1,44 a 1,68 s— y mismo keyframe. */}
+                frente de onda que la cara —de 2,44 s en adelante, el 87 % del
+                reloj de 2,8 s— y mismo keyframe. Iban a 1,44 s, el 80 % del
+                reloj viejo de 1,8: desde que el estreno dura un segundo más,
+                salían a media carga y el destello se las comía. */}
             {estrenando && (
               <>
                 <CapasEstreno version={version} />
@@ -1127,7 +1130,7 @@ export default function Hud() {
                       style={{
                         height: BAR_MIN,
                         backgroundColor: dark ? "#38bdf8" : "#2563eb",
-                        animationDelay: `${(1.44 + i * 0.06).toFixed(2)}s`,
+                        animationDelay: `${(2.44 + i * 0.06).toFixed(2)}s`,
                       }}
                     />
                   ))}

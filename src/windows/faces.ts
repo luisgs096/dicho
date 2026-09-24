@@ -1606,8 +1606,8 @@ export const LEYENDO: Variant = {
 
 // ─── el estreno de versión ──────────────────────────────────────────────────
 //
-// Guion de Luis, en cinco tiempos y 1,8 s, todo DENTRO de la cápsula de
-// siempre. Antes era una película de 6 s en una ventana cuadrada de 260x260, y
+// Guion de Luis, en cinco tiempos y 2,8 s —eran 1,8 y pidió un segundo más
+// para la carga—, todo DENTRO de la cápsula de siempre. Antes era una película de 6 s en una ventana cuadrada de 260x260, y
 // se caía por su propio peso: al volverse cuadrada disparaba un resize, el
 // resize reescribía la variable CSS --k, y escribir una custom property en un
 // ancestro **recrea la animación desde cero** (el gotcha de CLAUDE.md). El
@@ -1616,7 +1616,7 @@ export const LEYENDO: Variant = {
 //   1 · Reposo. La cápsula como siempre, para que lo de después se lea como
 //       una interrupción y no como el estado normal.
 //   2 · La cápsula se llena de izquierda a derecha, verde menta, a tirones.
-//       Mientras: los ojos giran y la boca pasa por tres gestos.
+//       Mientras: los ojos giran y la lengua da vueltas en la boca abierta.
 //   3 · Al 100 % la barra se vuelve blanca de golpe y sale la versión en grande.
 //   4 · El blanco se funde con el fondo.
 //   5 · Vuelve el reposo: la cara se revela píxel a píxel.
@@ -2739,16 +2739,17 @@ ${FLIP_CSS}
                     36%, 100% { opacity: 1; } }
 
   /* ── el estreno de versión ────────────────────────────────────────────────
-     Un solo reloj de 1,8 s y cada capa entra y sale por porcentajes de ese
+     Un solo reloj de 2,8 s y cada capa entra y sale por porcentajes de ese
      mismo reloj. Las duraciones van literales y con longhands, nunca con el
      atajo animation: el atajo reinicia animation-duration a 0s, y una duración
      en var() se recrearía entera cada vez que algo escriba otra variable CSS.
 
-       0-10 %   reposo, para que lo siguiente se lea como interrupción
-       10-50 %  la barra cruza a tirones; ojos girando y tres bocas
-       50-64 %  destello blanco con la versión en grande
-       64-80 %  el blanco se funde con el fondo
-       80-100 % la cara se revela píxel a píxel                              */
+       0-6 %    reposo, para que lo siguiente se lea como interrupción
+       6-67 %   la barra cruza a tirones; ojos girando y la lengua
+       68-77 %  destello blanco con la versión en grande
+       77-87 %  el blanco se funde con el fondo (el micro y el texto entran
+                fundiéndose desde el 80 %)
+       87-100 % la cara se revela píxel a píxel                              */
   .u-ini, .u-carga, .u-fin, .u-barra, .u-blanco, .u-entra {
     animation-duration: 2.8s;
     animation-iteration-count: 1;
@@ -2760,9 +2761,9 @@ ${FLIP_CSS}
 
   .u-carga { opacity: 0; animation-name: u-carga; animation-timing-function: steps(1, end); }
   @keyframes u-carga { 0%, 5% { opacity: 0; } 6%, 67% { opacity: 1; } 68%, 100% { opacity: 0; } }
-  /* Los dos flipbooks arrancan cuando arranca su tiempo, no cuando se monta la
-     escena: si no entran a media vuelta y la tercera boca se queda fuera. Un
-     ciclo de bocas y dos de ojos caben justos en los 720 ms. */
+  /* Los dos flipbooks arrancan cuando arranca su tiempo (el 6 %, a los .17 s),
+     no cuando se monta la escena: si no, los ojos y la lengua entrarian a
+     media vuelta. */
   .u-carga .flip > g { animation-delay: .17s; }
 
   /* La barra. Molde de .cinta —scaleX con el origen a la izquierda— pero la
