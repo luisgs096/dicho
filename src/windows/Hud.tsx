@@ -1207,6 +1207,18 @@ export default function Hud() {
               </>
             )}
 
+            {/* El escribano, ofreciéndose o corrigiendo. Sin esto el clásico
+                enseñaba una pastilla vacía: ni «Clic para corregir» ni nada
+                que dijera que un clic ahí corrige lo que acabas de copiar. */}
+            {leyendo && (
+              <>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
+                  ✎
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm">{status}</p>
+              </>
+            )}
+
             {rec.state === "done" && (
               <>
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white dark:bg-sky-500">
