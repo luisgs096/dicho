@@ -15,7 +15,10 @@ import {
   MAREO,
   RODANDO,
   MIC_SVG,
+  PALETA_CLARA,
+  PALETA_OSCURA,
   V,
+  cssVars,
   type FaceState,
 } from "./faces";
 
@@ -27,38 +30,14 @@ function hudLog(msg: string) {
 const MIC_HTML = { __html: MIC_SVG };
 
 // ─── paletas del tamagotchi (mismos colores de Dicho) ───────────────────────
-const LIGHT = {
-  a: "#2563eb",
-  m: "#17b394",
-  p: "#f06ea9",
-  w: "#ea7317",
-  s: "#38bdf8",
-  face: "#33415c",
-  faint: "#8296b2",
-  lcd: "#d7e1f0",
-  lcdBorder: "#bfcde2",
-  grid: "rgba(51,65,92,.07)",
-  shellA: "#cdd7e6",
-  shellB: "#aab9d0",
-  warnLcd: "#f7e3cd",
-  warnBorder: "#ecc9a0",
-};
-const DARK = {
-  a: "#38bdf8",
-  m: "#2dd4b4",
-  p: "#f472b6",
-  w: "#fb923c",
-  s: "#7dd3fc",
-  face: "#dbe6f6",
-  faint: "#5c6f8f",
-  lcd: "#0a1322",
-  lcdBorder: "#223052",
-  grid: "rgba(219,230,246,.05)",
-  shellA: "#263450",
-  shellB: "#16223a",
-  warnLcd: "#2b1d0e",
-  warnBorder: "#4a3520",
-};
+// Las de faces.ts, no una copia: la copia que vivía aquí se quedó sin
+// --pergamino, --pergaminoBorde y --tinta cuando nació el modo lectura, y en la
+// onda de verdad el LCD del escribano salía transparente, con el aro del color
+// de la cara y los huecos de los lentes pintados de negro. La vista previa y el
+// catálogo ya usaban las de faces.ts, pero ninguno enseña el pergamino: el
+// fallo sólo existía donde nadie lo miraba con calma.
+const LIGHT = PALETA_CLARA;
+const DARK = PALETA_OSCURA;
 
 // ─── modo clásico: barras que crecen con la intensidad de la voz ────────────
 /** Historial de niveles de voz que alimenta las barras. */
@@ -821,26 +800,7 @@ export default function Hud() {
   const gesto = `agarrable ${agarrando ? "agarrando" : ""} select-none`;
 
   const pal = dark ? DARK : LIGHT;
-  const vars = useMemo(
-    () =>
-      ({
-        "--a": pal.a,
-        "--m": pal.m,
-        "--p": pal.p,
-        "--w": pal.w,
-        "--s": pal.s,
-        "--face": pal.face,
-        "--faint": pal.faint,
-        "--lcd": pal.lcd,
-        "--lcdBorder": pal.lcdBorder,
-        "--grid": pal.grid,
-        "--shellA": pal.shellA,
-        "--shellB": pal.shellB,
-        "--warnLcd": pal.warnLcd,
-        "--warnBorder": pal.warnBorder,
-      }) as React.CSSProperties,
-    [pal],
-  );
+  const vars = useMemo(() => cssVars(dark) as React.CSSProperties, [dark]);
 
   const face = stateFor(rec);
   // ── acciones del menú de la onda ──────────────────────────────────────────
@@ -1276,7 +1236,10 @@ export default function Hud() {
           ref={tamaRef}
           className={`tama ${sad ? "sad" : ""} ${leyendo ? "leyendo" : ""} ${v.shake && !isError ? "shake" : ""} ${relevo ? "relevo" : ""} ${fundiendo ? "fundido" : ""} ${unaVez ? "una-vez" : ""}`}
         >
-          <div className="screen" style={{ color: sad ? pal.w : pal.face }}>
+          {/* El color va inline y gana a la regla de .leyendo, así que la tinta
+              tiene que ir aquí también: si no, el pergamino llevaría la carita
+              pintada con el color de siempre. */}
+          <div className="screen" style={{ color: sad ? pal.w : leyendo ? pal.tinta : pal.face }}>
             {estrenando && <CapasEstreno version={version} />}
             {/* Sin micrófono en modo lectura: no está escuchando nada, y
                 dejarlo puesto sería decir lo contrario de lo que pasa. */}
