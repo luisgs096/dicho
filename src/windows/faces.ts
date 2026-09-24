@@ -3030,5 +3030,5 @@ export const ESTADOS: { key: FaceState; titulo: string; cuando: string }[] = [
   { key: "pensando", titulo: "Escribiendo", cuando: "Transcribiendo y puliendo lo que dijiste (1-3 s)." },
   { key: "listo", titulo: "Listo", cuando: "Con el texto ya pegado. La de los lentes sale cuando el dictado va en español, y el eructo sólo si antes te salió la carita comilona." },
   { key: "no-entendi", titulo: "No entendí", cuando: "El audio venía mudo o no se entendió nada." },
-  { key: "reposo", titulo: "En reposo", cuando: "El instante antes de empezar a grabar." },
+  { key: "reposo", titulo: "En reposo", cuando: "Con la onda clavada y sin dictar. Masca chicle, silba o duerme en historias de un minuto que nunca se repiten, respira, o te sigue con la mirada." },
 ];

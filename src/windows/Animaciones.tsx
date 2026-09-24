@@ -3,18 +3,14 @@ import {
   ESTADOS,
   FACE_CSS,
   BAJANDO,
-  CHICLE,
   CHICLE_CORTO,
-  DORMIDO,
   DORMIDO_CORTO,
   CURIOSEANDO,
   LIMPIADAS,
   MAREO,
   MIC_SVG,
   OJOS_MAREADOS,
-  OJOS_SIGUEN,
   RODANDO,
-  SILBANDO,
   SILBANDO_CORTO,
   V,
   cssVars,
@@ -28,7 +24,7 @@ const MIC_HTML = { __html: MIC_SVG };
 
 /** Una cápsula del catálogo. Va con `memo` porque el deslizador de la voz
  *  repinta el catálogo entero en cada paso, y con la escena entrando por
- *  `dangerouslySetInnerHTML` eso reescribía los 42 <svg>: todas las caritas
+ *  `dangerouslySetInnerHTML` eso reescribía todos los <svg>: todas las caritas
  *  volvían a empezar mientras movías el deslizador. La variante es siempre el
  *  mismo objeto, así que con `memo` React se salta la cápsula. */
 const Pastilla = memo(function Pastilla({ v }: { v: Variant }) {
@@ -56,6 +52,32 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
   );
   const [nivel, setNivel] = useState(0.4);
   const [doble, setDoble] = useState(false);
+
+  /** Una columna de cápsulas numeradas, al tamaño que toque. */
+  const filas = (lista: Variant[]) => (
+    <div className="flex flex-col gap-2.5">
+      {lista.map((v, i) => (
+        <div
+          key={i}
+          className="flex items-center gap-3"
+          style={doble ? { height: 132 } : undefined}
+        >
+          <span className="w-4 shrink-0 font-mono text-[11px] text-slate-400 dark:text-slate-500">
+            {i + 1}
+          </span>
+          <div
+            style={
+              doble
+                ? { transform: "scale(2)", transformOrigin: "left center" }
+                : undefined
+            }
+          >
+            <Pastilla v={v} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 
   useEffect(() => {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
@@ -139,67 +161,45 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
               <p className="mb-3 max-w-xl text-xs text-slate-500 dark:text-slate-400">
                 {cuando}
               </p>
-              <div className="flex flex-col gap-2.5">
-                {V[key].map((v, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-3"
-                    style={doble ? { height: 132 } : undefined}
-                  >
-                    <span className="w-4 shrink-0 font-mono text-[11px] text-slate-400 dark:text-slate-500">
-                      {i + 1}
-                    </span>
-                    <div
-                      style={
-                        doble
-                          ? { transform: "scale(2)", transformOrigin: "left center" }
-                          : undefined
-                      }
-                    >
-                      <Pastilla v={v} />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {filas(V[key])}
             </section>
           ))}
 
-          <section className="mb-1 border-t border-dashed border-slate-300 pt-6 dark:border-slate-700">
+          <section className="mb-7 border-t border-dashed border-slate-300 pt-6 dark:border-slate-700">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-              La montaña rusa
+              Fuera del dictado
             </h3>
             <p className="mb-3 max-w-xl text-xs text-slate-500 dark:text-slate-400">
-              No salen dictando: salen al <b>arrastrar la onda</b>. Llevándola
-              con calma se queda en la primera, montada en su carrito. Si la
-              zarandeas, cada sacudida sube un escalón y se va poniendo peor —
-              hasta que vomita. Y para limpiarse hay <b>dos</b>, que salen
-              sorteadas: con la servilleta o con la lengua.
+              Las de la montaña rusa salen al <b>arrastrar la onda</b>.
+              Llevándola con calma se queda en la primera, montada en su
+              carrito. Si la zarandeas, cada sacudida sube un escalón y se va
+              poniendo peor — hasta que vomita. Y para limpiarse hay{" "}
+              <b>dos</b>, que salen sorteadas: con la servilleta o con la
+              lengua. Al soltarla se baja y mira a los lados. La última sale en
+              reposo: los ojos que te siguen se marean si le das{" "}
+              <b>dos vueltas</b> al cursor alrededor de la onda.
             </p>
-            <div className="flex flex-col gap-2.5">
-              {[RODANDO, ...MAREO, ...LIMPIADAS.map((l) => l.v), BAJANDO, CURIOSEANDO,
-                CHICLE, CHICLE_CORTO, SILBANDO, SILBANDO_CORTO,
-                DORMIDO, DORMIDO_CORTO, OJOS_SIGUEN, OJOS_MAREADOS].map(
-                (v, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3"
-                  style={doble ? { height: 132 } : undefined}
-                >
-                  <span className="w-4 shrink-0 font-mono text-[11px] text-slate-400 dark:text-slate-500">
-                    {i + 1}
-                  </span>
-                  <div
-                    style={
-                      doble
-                        ? { transform: "scale(2)", transformOrigin: "left center" }
-                        : undefined
-                    }
-                  >
-                    <Pastilla v={v} />
-                  </div>
-                </div>
-              ))}
-            </div>
+            {/* Las historias de reposo no van aquí: ya salen arriba, en «En
+                reposo». Antes se repetían bajo el título de la montaña rusa. */}
+            {filas([
+              RODANDO,
+              ...MAREO,
+              ...LIMPIADAS.map((l) => l.v),
+              BAJANDO,
+              CURIOSEANDO,
+              OJOS_MAREADOS,
+            ])}
+          </section>
+
+          <section className="mb-1">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Las versiones cortas del reposo
+            </h3>
+            <p className="mb-3 max-w-xl text-xs text-slate-500 dark:text-slate-400">
+              Bucles de los de siempre, de antes de las historias de un minuto.
+              Hoy no salen en la onda: se guardan aquí para compararlas.
+            </p>
+            {filas([CHICLE_CORTO, SILBANDO_CORTO, DORMIDO_CORTO])}
           </section>
         </div>
       </div>
