@@ -1240,6 +1240,46 @@ export const OJOS_MAREADOS: Variant = {
   )}`,
 };
 
+/**
+ * El confeti de la carita de corazones, a saltos de píxel.
+ *
+ * Antes cada pieza salía del entrecejo en línea recta con una animación
+ * lineal: medio píxel por fotograma (contra la regla de steps), cuatro de las
+ * seis cruzaban el borde de arriba a plena opacidad y las otras atravesaban
+ * los ojos de corazón. Ahora nacen a los lados de la cara, sin tocar ojos ni
+ * boca, y cada pieza lleva sus cinco paradas enteras en su propio keyframe:
+ * el truco de secuencia(), porque el CSS fijo no sabe de posiciones por
+ * pieza. Las de la derecha son el espejo de las de la izquierda (x' = 43 - x,
+ * por ser de 2 de ancho).
+ */
+const CONFETI = (() => {
+  const izq: [string, [number, number][]][] = [
+    ["p", [[11, 6], [9, 4], [7, 3], [5, 3], [3, 4]]],
+    ["m", [[11, 9], [9, 10], [7, 12], [5, 13], [3, 14]]],
+    ["a", [[12, 12], [11, 14], [9, 15], [8, 16], [7, 16]]],
+  ];
+  const piezas = [
+    ...izq,
+    ...izq.map(
+      ([c, ps]) => [c, ps.map(([x, y]) => [43 - x, y])] as [string, [number, number][]],
+    ),
+  ];
+  let css = "";
+  const rects = piezas.map(([c, ps], i) => {
+    const [x0, y0] = ps[0];
+    const en = (k: number) => `transform:translate(${ps[k][0] - x0}px,${ps[k][1] - y0}px)`;
+    css +=
+      `@keyframes cf${i}{0%{${en(0)};opacity:0}10%{${en(0)};opacity:1}28%{${en(1)}}` +
+      `46%{${en(2)}}64%{${en(3)}}82%{${en(4)};opacity:1}92%,100%{${en(4)};opacity:0}}`;
+    return (
+      `<rect x="${x0}" y="${y0}" width="2" height="2" fill="${PAL[c]}" style="animation-name:cf${i};` +
+      `animation-duration:1.4s;animation-timing-function:steps(1,end);animation-iteration-count:infinite;` +
+      `animation-fill-mode:backwards;animation-delay:${((i % 3) * 0.06).toFixed(2)}s"/>`
+    );
+  });
+  return `<style>${css}</style><g>${rects.join("")}</g>`;
+})();
+
 // ─── 26 caritas: 5 por estado + el eructo, que sólo sale tras la comilona ───
 // Regla nueva (28/08): **ninguna carita tiene los ojos quietos**, y el gesto de
 // los ojos no se repite entre caritas. Es lo que las separa unas de otras
@@ -1403,21 +1443,7 @@ export const V: Record<FaceState, Variant[]> = {
       // Ojos de corazón entre el confeti: te quiere.
       status: "Got it!",
       scene: `${flip([eyes(OJO_ARCO, 6), eyes(OJO_CORAZON, 4)], "1.4s")}${spr(SONRISOTA, 19, 11)}
-        <g class="a-confeti">${(
-          [
-            ["p", -10, -6],
-            ["m", 10, -7],
-            ["a", -13, 3],
-            ["p", 12, 4],
-            ["m", -5, -10],
-            ["a", 6, -10],
-          ] as [string, number, number][]
-        )
-          .map(
-            ([c, x, y], i) =>
-              `<rect x="21" y="4" width="2" height="2" fill="${PAL[c]}" style="--cx:${x}px; --cy:${y}px; animation-delay:${i * 0.06}s"/>`,
-          )
-          .join("")}</g>`,
+        ${CONFETI}`,
     },
     {
       // El postre de la comilona: se comió tu voz y ahora la devuelve. Sólo
@@ -2717,9 +2743,6 @@ ${FLIP_CSS}
                       45%, 100% { transform: translateY(0); opacity: 1; } }
   @keyframes baila { 0% { transform: translateX(-1px); } 50% { transform: translateX(1px); } }
   @keyframes maraca { 0% { transform: translate(0, 0); } 50% { transform: translate(1px, -1px); } }
-  @keyframes confeti { 0% { transform: translate(0, 0); opacity: 0; }
-                       12%, 70% { opacity: 1; }
-                       100% { transform: translate(var(--cx), var(--cy)); opacity: 0; } }
   /* La lagrima baja a saltos de pixel entero. Con steps(1, end) y el
      transform escrito solo en 0 % y 100 %, el salto caia justo al final del
      ciclo: no bajaba nunca, aparecia y se quedaba quieta. Cada parada tiene
@@ -2931,7 +2954,6 @@ ${FLIP_CSS}
   .a-baila { animation: baila .4s steps(1, end) infinite; }
   .a-mar1 { animation: maraca .4s steps(1, end) infinite; }
   .a-mar2 { animation: maraca .4s steps(1, end) .2s infinite; }
-  .a-confeti rect { animation: confeti 1.4s linear infinite; }
   .a-gota { animation: gota 1.3s steps(1, end) infinite; }
   .a-interr { animation: interr 1.6s steps(1, end) infinite; }
   .a-rubor { animation: rubor 1.2s steps(1, end) infinite; }
