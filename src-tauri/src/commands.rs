@@ -407,7 +407,7 @@ pub fn hud_encima(app: AppHandle, on: bool) {
             return;
         }
         if let Some(hud) = app.get_webview_window("hud") {
-            let _ = hud.hide();
+            pipeline::ocultar_ventana(&hud);
         }
     });
 }
@@ -430,9 +430,9 @@ pub fn hud_pin(app: AppHandle, state: State<'_, SettingsState>, on: bool) -> Res
     if let Some(hud) = app.get_webview_window("hud") {
         if on {
             pipeline::recolocar_hud(&app);
-            let _ = hud.show();
+            pipeline::mostrar_ventana(&hud);
         } else if !pipeline::grabando() {
-            let _ = hud.hide();
+            pipeline::ocultar_ventana(&hud);
         }
     }
     Ok(())

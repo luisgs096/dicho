@@ -221,7 +221,7 @@ fn show_hud(app: &AppHandle, gen: &Arc<AtomicU64>) {
     };
     let area = area_hud(app);
     let (x, y) = place_hud(app, &hud, area);
-    let _ = hud.show();
+    mostrar_ventana(&hud);
     let _ = hud.set_always_on_top(true);
     let hwnd = overlay::hwnd_of(&hud).unwrap_or(0);
     overlay::assert_topmost(hwnd);
@@ -288,6 +288,29 @@ pub(crate) fn hud_clavado(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
+/// Esconde la onda **y le dice a WebView2 que ya no se ve**.
+///
+/// `WebviewWindow::hide()` sólo oculta la ventana: el control de WebView2 se
+/// queda con `IsVisible = TRUE` (tauri-runtime-wry 2.11 no lo toca), así que
+/// para Chromium la página sigue a la vista y no frena ni animaciones ni
+/// temporizadores. La onda escondida seguía animando su carita todo el día:
+/// medido en Chromium, 30-45 ms de hilo principal por segundo con una historia
+/// de reposo puesta. `Webview::hide()` es el que llama a `SetIsVisible(false)`,
+/// que según Microsoft es lo que hay que hacer al esconder la ventana madre.
+pub(crate) fn ocultar_ventana(w: &tauri::WebviewWindow) {
+    let wv: &tauri::Webview = w.as_ref();
+    let _ = wv.hide();
+    let _ = w.hide();
+}
+
+/// Lo contrario, y en este orden: primero el WebView2, para que la ventana no
+/// aparezca con el lienzo en blanco.
+pub(crate) fn mostrar_ventana(w: &tauri::WebviewWindow) {
+    let wv: &tauri::Webview = w.as_ref();
+    let _ = wv.show();
+    let _ = w.show();
+}
+
 fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
     let expected = gen.load(Ordering::SeqCst);
     let app = app.clone();
@@ -303,7 +326,7 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
                 if hud_clavado(&app) || RATON_ENCIMA.load(Ordering::SeqCst) {
                     emit_state(&app, "idle", None);
                 } else {
-                    let _ = hud.hide();
+                    ocultar_ventana(&hud);
                 }
             }
         }
@@ -474,7 +497,7 @@ pub(crate) fn armar_escribano(app: &AppHandle, texto: &str) {
     };
     crate::escribano::ARMADO.store(true, Ordering::SeqCst);
     place_hud(app, &hud, area_hud(app));
-    let _ = hud.show();
+    mostrar_ventana(&hud);
     let _ = hud.set_always_on_top(true);
     emit_state(
         app,
@@ -494,7 +517,7 @@ pub(crate) fn escribano_expirado(app: &AppHandle) {
     if hud_clavado(app) {
         emit_state(app, "idle", None);
     } else if let Some(hud) = app.get_webview_window("hud") {
-        let _ = hud.hide();
+        ocultar_ventana(&hud);
     }
 }
 
@@ -515,7 +538,7 @@ pub(crate) fn celebrar_actualizacion(app: &AppHandle, version: &str) {
     // Sale primero en reposo y arranca un respiro después. El primer tiempo del
     // guion es la cápsula normal, y emitir a la vez que el show() se lo come el
     // primer pintado: la barra aparecería ya a medio llenar.
-    let _ = hud.show();
+    mostrar_ventana(&hud);
     std::thread::sleep(Duration::from_millis(120));
     emit_state(
         app,
@@ -536,7 +559,7 @@ pub(crate) fn celebrar_actualizacion(app: &AppHandle, version: &str) {
         if hud_clavado(&app) {
             emit_state(&app, "idle", None);
         } else if let Some(hud) = app.get_webview_window("hud") {
-            let _ = hud.hide();
+            ocultar_ventana(&hud);
         }
     });
 }

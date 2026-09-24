@@ -147,9 +147,14 @@ pub fn run() {
                     std::thread::sleep(std::time::Duration::from_millis(900));
                     pipeline::recolocar_hud(&h);
                     if let Some(hud) = h.get_webview_window("hud") {
-                        let _ = hud.show();
+                        pipeline::mostrar_ventana(&hud);
                     }
                 });
+            } else if let Some(hud) = app.get_webview_window("hud") {
+                // La onda nace escondida pero con su WebView2 "a la vista":
+                // sin esto animaba su carita de reposo desde el arranque sin
+                // que nadie la viera. Ver `pipeline::ocultar_ventana`.
+                pipeline::ocultar_ventana(&hud);
             }
 
             // ¿Acabamos de actualizar? Se compara la versión de ahora con la
