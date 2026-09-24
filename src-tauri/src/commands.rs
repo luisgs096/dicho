@@ -474,27 +474,29 @@ Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
 
 #[tauri::command]
 pub fn programar_relanzamiento(app: AppHandle) -> Result<(), String> {
-    use std::os::windows::process::CommandExt;
-    // Sin ventana y desacoplado del padre: si no, muere con la app.
-    const DETACHED_PROCESS: u32 = 0x0000_0008;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let script = std::env::temp_dir().join("dicho-relanzar.ps1");
     let contenido = script_relanzador(&exe.display().to_string());
     std::fs::write(&script, contenido).map_err(|e| e.to_string())?;
 
-    std::process::Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            &script.to_string_lossy(),
-        ])
-        .creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW)
-        .spawn()
-        .map_err(|e| e.to_string())?;
+    let mut relanzador = std::process::Command::new("powershell");
+    relanzador.args([
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        &script.to_string_lossy(),
+    ]);
+    // Sin ventana y desacoplado del padre: si no, muere con la app. Va tras su
+    // propio cfg para que el crate compile —y sus tests corran— fuera de Windows.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        relanzador.creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW);
+    }
+    relanzador.spawn().map_err(|e| e.to_string())?;
 
     pipeline::diag(&app, "Updater: relanzamiento programado");
     Ok(())
