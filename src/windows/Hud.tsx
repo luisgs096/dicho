@@ -1085,7 +1085,11 @@ export default function Hud() {
           invoke("hud_encima", { on: false }).catch(() => {});
         }}
       >
-        <style>{CLASSIC_CSS + DRAG_CSS}</style>
+        {/* FACE_CSS también aquí: la cinta de niveles (.niveles, .niv…) y las
+            capas del estreno (.u-barra, .u-blanco, .u-entra, .u-px) viven ahí
+            desde que la cinta entró en la cápsula, con sus reglas .clasico
+            incluidas. Sin él, el clásico las pinta como texto suelto. */}
+        <style>{FACE_CSS + CLASSIC_CSS + DRAG_CSS}</style>
         <div
           className={`relative ${rodando ? "suelta" : ""}`}
           style={{ transform: "scale(var(--k, 1))" }}
