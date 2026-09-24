@@ -2683,8 +2683,6 @@ ${FLIP_CSS}
                  transform: scaleY(calc((2 * round(nearest, (var(--h) * (.4 + var(--lvl, .1) * .85) - 1) / 2, 1) + 1) / var(--h))); }
 
   @keyframes resp { 0% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
-  @keyframes mira { 0% { transform: translateX(0); } 30% { transform: translateX(-1px); }
-                    60% { transform: translateX(1px); } 90% { transform: translateX(0); } }
   @keyframes asiente { 0% { transform: translateY(0); } 50% { transform: translateY(2px); } }
   @keyframes atento { 0% { transform: translate(0, 0); } 25% { transform: translate(1px, 0); }
                       50% { transform: translate(0, 1px); } 75% { transform: translate(-1px, 0); } }
@@ -2727,7 +2725,6 @@ ${FLIP_CSS}
                      50% { transform: scaleX(.6); } 75% { transform: scaleX(.8); }
                      95% { transform: scaleX(1); } }
   @keyframes punto { 0% { opacity: .18; } 25% { opacity: 1; } 60% { opacity: .18; } }
-  @keyframes foco { 0% { opacity: .18; } 45% { opacity: 1; } }
   @keyframes chispa { 0% { opacity: 0; } 30% { opacity: 1; } 70% { opacity: 0; } }
   @keyframes lentes { 0% { transform: translateY(-12px); }
                       9% { transform: translateY(-4px); }
@@ -2786,7 +2783,6 @@ ${FLIP_CSS}
                     71.4% { transform: translateX(-15px); opacity: 1; }
                     85.7% { transform: translateX(-18px); opacity: 1; }
                     100% { transform: translateX(-18px); opacity: 0; } }
-  /* El eructo aparece al 75 % del bucle, que es cuando la boca se abre. */
   /* El "no" de toda la vida: la cabeza barre de un lado a otro. Tres píxeles
      de recorrido, que con uno parecía un temblor y no una negación. */
   @keyframes niega { 0% { transform: translateX(-3px); } 50% { transform: translateX(3px); } }
@@ -2893,10 +2889,6 @@ ${FLIP_CSS}
   @keyframes arcada { 0%, 20% { transform: translate(0, 0); }
                       25% { transform: translate(0, -1px); }
                       30%, 100% { transform: translate(0, 1px); } }
-  /* El chorro sale en el mismo cuadro en que la boca se abre (20 %) y describe
-     un arco hacia la derecha y abajo. En arco y no en caída recta porque la
-     pantalla sólo tiene 16 px de alto (y=2 a 17) y la boca ya acaba en y=14:
-     cayendo a plomo se salía del lienzo antes de leerse. */
   /* Un solo recorrido para las tres sueltas: sale de la boca, describe el arco
      hacia la derecha y se apaga al llegar al suelo. En arco y no a plomo porque
      cayendo recto se sale del lienzo — la boca ya acaba en y=14 de 17. */
@@ -2907,25 +2899,13 @@ ${FLIP_CSS}
                       20% { transform: translate(6px, 3px); }
                       24% { transform: translate(8px, 4px); opacity: 1; }
                       26%, 100% { opacity: 0; } }
-  @keyframes vomito { 0%, 18% { transform: translate(0, 0); opacity: 0; }
-                      20% { transform: translate(0, 0); opacity: 1; }
-                      32% { transform: translate(2px, 1px); }
-                      44% { transform: translate(4px, 2px); }
-                      56% { transform: translate(6px, 3px); }
-                      68% { transform: translate(8px, 4px); opacity: 1; }
-                      76%, 100% { transform: translate(9px, 5px); opacity: 0; } }
-  /* El hilo que queda colgando de la comisura, y que se corta al limpiarse. */
-  @keyframes escurre { 0%, 24% { transform: scaleY(0); opacity: 0; }
-                       28% { transform: scaleY(.34); opacity: 1; }
-                       44% { transform: scaleY(.67); }
-                       60%, 74% { transform: scaleY(1); opacity: 1; }
-                       78%, 100% { transform: scaleY(1); opacity: 0; } }
   /* El charco no se va: aparece cuando aterriza el primer chorro, crece con el
      segundo y se queda hasta el final del ciclo. */
   @keyframes charco { 0%, 22% { opacity: 0; } 26%, 100% { opacity: 1; } }
   @keyframes charco2 { 0%, 55% { opacity: 0; } 59%, 100% { opacity: 1; } }
   @keyframes charco3 { 0%, 88% { opacity: 0; } 92%, 100% { opacity: 1; } }
 
+  /* El eructo aparece al 75 % del bucle, que es cuando la boca se abre. */
   @keyframes eructo { 0% { transform: translate(0, 0); opacity: 0; }
                       75% { transform: translate(0, 0); opacity: 1; }
                       81% { transform: translate(2px, -1px); opacity: 1; }
@@ -2934,7 +2914,6 @@ ${FLIP_CSS}
                       100% { transform: translate(8px, -4px); opacity: 0; } }
 
   .a-resp { animation: resp 2s steps(1, end) infinite; }
-  .a-mira { animation: mira 2.4s steps(1, end) infinite; }
   /* La pupila que sigue al cursor. Va con TRANSICION y no con animacion porque
      lo que manda es una posicion, no un ciclo. Y la transicion corta no es
      decoracion: hace que el ojo llegue con un pelin de retraso, que es lo que lo
@@ -2956,7 +2935,6 @@ ${FLIP_CSS}
   .a-pt1 { animation: punto .9s steps(1, end) infinite; }
   .a-pt2 { animation: punto .9s steps(1, end) .15s infinite; }
   .a-pt3 { animation: punto .9s steps(1, end) .3s infinite; }
-  .a-foco { animation: foco 1.2s steps(1, end) infinite; }
   .a-chispa1 { animation: chispa 1s steps(1, end) infinite; }
   .a-chispa2 { animation: chispa 1s steps(1, end) .35s infinite; }
   .a-lentes { animation: lentes 1.4s steps(1, end) infinite; }
