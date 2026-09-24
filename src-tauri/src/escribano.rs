@@ -94,6 +94,14 @@ fn version_portapapeles() -> u32 {
     0
 }
 
+/// ¿La ventana del frente es de Dicho? Fuera de Windows no se sabe y dice que no.
+fn dicho_al_frente() -> bool {
+    let propio = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()));
+    propio.is_some() && crate::overlay::proceso_al_frente() == propio
+}
+
 /// Arranca el vigilante. Una sola vez, al inicio de la app.
 pub fn vigilar(app: AppHandle, settings: SettingsState) {
     std::thread::spawn(move || {
@@ -144,6 +152,13 @@ pub fn vigilar(app: AppHandle, settings: SettingsState) {
             // día. Se mira aquí, con una copia nueva ya confirmada, y no en
             // cada vuelta: el Administrador de credenciales no es gratis.
             if crate::stt::groq::get_api_key().is_err() {
+                continue;
+            }
+            // Lo que se copia con Dicho al frente —desde la revisión, o lo que
+            // pone ahí «Copiar otra vez»— no es una copia nueva: ofrecerse
+            // encima de la revisión, y apuntarla como ventana de destino, haría
+            // que «Sustituir» pegara dentro de la propia revisión.
+            if dicho_al_frente() {
                 continue;
             }
             // Copió algo nuevo: la onda se ofrece. Y se apunta dónde estaba,

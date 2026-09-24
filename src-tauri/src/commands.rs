@@ -86,7 +86,22 @@ pub fn escribano_sustituir(app: AppHandle, state: State<'_, SettingsState>) -> R
         .map(|s| s.apps_sin_correccion.clone())
         .unwrap_or_default();
 
-    let hwnd = crate::escribano::foco_anterior();
+    // Lo que se pega es la corrección y en la ventana de la corrección, las dos
+    // cosas guardadas al abrir la revisión. El portapapeles y el foco apuntado
+    // por el vigilante pueden haber cambiado mientras leías: copiar otra cosa
+    // en otra ventana hacía pegar esa otra cosa en esa otra ventana.
+    let revision = pipeline::REVISION.lock().ok().and_then(|r| r.clone());
+    let corregido = revision
+        .as_ref()
+        .and_then(|r| r["corregido"].as_str())
+        .ok_or("No hay ninguna corrección que sustituir.")?
+        .to_string();
+    let hwnd = revision
+        .as_ref()
+        .and_then(|r| r["destino"].as_i64())
+        .unwrap_or(0) as isize;
+    crate::escribano::ya_visto(&corregido);
+    crate::inject::copiar(&corregido).map_err(|e| e.to_string())?;
     if !crate::overlay::devolver_foco(hwnd) {
         return Err("No pude volver a la ventana donde estabas. El texto sigue copiado: pégalo tú.".into());
     }

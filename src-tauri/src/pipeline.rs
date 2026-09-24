@@ -408,16 +408,17 @@ fn corregir_seleccion(
             // sabe qué significa esa combinación en la app que hay delante.
             //
             // Quien decide pegar es el usuario, desde la ventana de revisión.
+            //
+            // Antes de copiar, no después: que el vigilante no tome nuestra
+            // propia salida por una copia del usuario. Sin esto el escribano se
+            // rearmaría con lo que acaba de producir, en bucle.
+            crate::escribano::ya_visto(&corregido);
             if let Err(e) = crate::inject::copiar(&corregido) {
                 diag(app, &format!("Corregir: no se pudo copiar ({e})"));
                 emit_state(app, "error", Some(serde_json::json!({ "message": e.to_string() })));
                 hide_hud_later(app, hud_gen, 3200);
                 return;
             }
-            // Que el vigilante no tome nuestra propia salida por una copia del
-            // usuario: sin esto el escribano se rearmaría con lo que acaba de
-            // producir, en bucle.
-            crate::escribano::ya_visto(&corregido);
             // Y se abre la revisión: el usuario ve qué cambió y decide.
             abrir_revision(app, &original, &corregido);
             diag(app, &format!(
@@ -452,7 +453,14 @@ pub(crate) static REVISION: Mutex<Option<serde_json::Value>> = Mutex::new(None);
 /// La ventana de revisión se crea al usarla y se destruye al cerrarla: casi
 /// nunca está abierta, y oculta cuesta un proceso de WebView2 entero.
 fn abrir_revision(app: &AppHandle, original: &str, corregido: &str) {
-    let datos = serde_json::json!({ "original": original, "corregido": corregido });
+    // El destino viaja con la revisión y no se lee al pulsar «Sustituir»: para
+    // entonces el vigilante lo habrá movido si el usuario copió otra cosa en
+    // otra ventana mientras leía.
+    let datos = serde_json::json!({
+        "original": original,
+        "corregido": corregido,
+        "destino": crate::escribano::foco_anterior(),
+    });
     if let Ok(mut r) = REVISION.lock() {
         *r = Some(datos.clone());
     }
