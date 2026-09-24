@@ -1924,10 +1924,12 @@ const SERVILLETA_MANO = ["XXXXX", "XoooX", "XXXXX", "XXXXX"];
  *   derecha y el antebrazo rellena hasta el hombro.
  */
 const brazoConServilleta = (mano: number) =>
-  // El hombro, subiendo de la vagoneta.
-  spr(Array(5).fill("XX"), 32, 9) +
+  // El hombro, subiendo de la vagoneta justo donde nace el brazo derecho de
+  // par(): así el vómito, la limpiada y su último cuadro —que ya lleva los dos
+  // brazos de par()— tienen el hombro en la misma columna y no salta.
+  spr(Array(5).fill("XX"), 33, 9) +
   // El antebrazo, de la mano al hombro.
-  spr(Array(2).fill("X".repeat(Math.max(1, 34 - (mano + 5)))), mano + 5, 8) +
+  spr(Array(2).fill("X".repeat(Math.max(1, 35 - (mano + 5)))), mano + 5, 8) +
   // La mano, maciza —aquí una mano sólo puede ser un bloque—, agarrando la
   // servilleta por su lado.
   spr(["XX", "XX", "XX"], mano + 4, 7) +
@@ -1990,14 +1992,19 @@ const VAGONETA = [
 /**
  * Un par de brazos, ya colocados y con el derecho espejado.
  *
- * El izquierdo en x=8 y el derecho en x=31 **no es a ojo**: la cara se centra en
+ * El izquierdo en x=7 y el derecho en x=32 **no es a ojo**: la cara se centra en
  * x=22, el espejo de una columna `p` es `44-p`, y un sprite de 6 de ancho que
- * ocupa 8-13 tiene su espejo ocupando 31-36. Espejar el origen en vez del tramo
+ * ocupa 7-12 tiene su espejo ocupando 32-37. Espejar el origen en vez del tramo
  * —el error fácil— deja un brazo tres píxeles más fuera que el otro, y a este
  * tamaño eso se ve.
+ *
+ * Iban en 8 y 31, y desde que la cara del carrito subió a y=2 la mano en alto
+ * quedaba pegada al ojo ancho (x=14-18 y 26-30): medido, se tocaban el 60 % del
+ * tiempo en la montaña rusa y mano y ojo se leían como un solo bloque. Una
+ * columna más fuera deja el píxel de aire.
  */
 const par = (izq: string[], der: string[]) =>
-  spr(izq, 8, 3) + spr(espejo(der), 31, 3);
+  spr(izq, 7, 3) + spr(espejo(der), 32, 3);
 
 /**
  * La barandilla de seguridad del carrito.
@@ -2057,17 +2064,11 @@ const escenario = (brazos: string) =>
  */
 export const RODANDO: Variant = {
   status: "¡Yujuuu!",
-  // Los brazos: el izquierdo en x=8 y el derecho en x=31. **No es a ojo**: la
-  // cara se centra en x=22, así que el espejo de una columna p es 44-p, y un
-  // sprite de 6 de ancho que ocupa 8-13 tiene su espejo ocupando 31-36. Espejar
-  // el origen en vez del tramo —el error fácil— deja un brazo más fuera que el
-  // otro, y a este tamaño tres píxeles se ven.
+  // Los brazos van donde los pone par(), que explica sus columnas.
   //
   // El saludo va **en contrafase**: cuando uno abre, el otro cierra. Los dos a
   // la vez se leen como un dibujo que se estira; alternados se leen como dos
   // manos agitándose, que es lo que hace alguien en una montaña rusa.
-  // Saludo **en contrafase**: cuando uno abre, el otro cierra. Los dos a la vez
-  // se leen como un dibujo que se estira; alternados, como dos manos agitándose.
   scene: `${escenario(
     flip(
       [par(BRAZO_ABIERTO, BRAZO_RECTO), par(BRAZO_RECTO, BRAZO_ABIERTO)],
@@ -2113,24 +2114,24 @@ const LIMPIADA_SERVILLETA: Variant = {
   scene: `<g class="a-vagon">${spr(VAGONETA, 9, 14)}${flip(
     [
       // Llega con la boca aún sucia, un resto a cada lado.
-      spr(BRAZO_ABAJO, 8, 3) +
+      spr(BRAZO_ABAJO, 7, 3) +
         brazoConServilleta(27) +
         eyes(OJO, 2) +
         spr(BOCA_CHICA, 21, 9) +
         spr(tint(RESTO, "m"), 18, 10) +
         spr(tint(RESTO, "m"), 24, 10),
       // Primera pasada: tapa la boca y se lleva el resto de la derecha.
-      spr(BRAZO_ABAJO, 8, 3) +
+      spr(BRAZO_ABAJO, 7, 3) +
         brazoConServilleta(20) +
         eyes(OJO_ARCO, 3) +
         spr(tint(RESTO, "m"), 18, 10),
       // Llega al otro lado y se lleva el de la izquierda. La boca va debajo
       // del antebrazo, que es justo lo que está limpiando.
-      spr(BRAZO_ABAJO, 8, 3) + brazoConServilleta(15) + eyes(OJO_ARCO, 3),
+      spr(BRAZO_ABAJO, 7, 3) + brazoConServilleta(15) + eyes(OJO_ARCO, 3),
       // Vuelta.
-      spr(BRAZO_ABAJO, 8, 3) + brazoConServilleta(20) + eyes(OJO_ARCO, 3),
+      spr(BRAZO_ABAJO, 7, 3) + brazoConServilleta(20) + eyes(OJO_ARCO, 3),
       // Aparta la mano: la boca, limpia.
-      spr(BRAZO_ABAJO, 8, 3) +
+      spr(BRAZO_ABAJO, 7, 3) +
         brazoConServilleta(27) +
         eyes(OJO_ARCO, 3) +
         spr(BOCA_CHICA, 21, 9),
@@ -2350,15 +2351,17 @@ export const MAREO: Variant[] = [
       ],
       "1.28s",
     )}${spr(ZIGZAG, 18, 9)}</g>
-      <g class="a-orb1">${spr(tint(CHISPITA, "w"), 37, 3)}</g>
-      <g class="a-orb2">${spr(tint(CHISPITA, "w"), 37, 3)}</g>`,
+      <g class="a-orb1">${spr(tint(CHISPITA, "w"), 42, 3)}</g>
+      <g class="a-orb2">${spr(tint(CHISPITA, "w"), 42, 3)}</g>`,
   },
   {
     // 2 · Aguantándose. Cuatro tiempos que cuentan la historia entera: boca
     // sellada, se llena, se llena del todo, y el trago —los carrillos
     // desaparecen de golpe, la boca se hace chiquita y la cara baja un píxel—.
     // Los ojos pulsan de 3 a 5 px de ancho al doble de ritmo: es el esfuerzo
-    // de no soltarlo. La gota de sudor, en la sien, remata la idea.
+    // de no soltarlo. La gota de sudor remata la idea: salta de la sien por
+    // fuera del brazo, porque entre el ojo y la mano no queda sitio para ella
+    // y encima de la mano se leía como parte de la mano.
     status: "¡Aguanta!",
     // La onda de medusa: la pose recorre los dos brazos con un cuadro de desfase,
     // así que lo que se ve no es un sube-y-baja sino algo que **viaja** de un
@@ -2382,7 +2385,7 @@ export const MAREO: Variant[] = [
       ],
       "1.28s",
     )}</g>
-      <g class="a-sudor">${spr(tint(GOTA, "s"), 33, 4)}</g>`,
+      <g class="a-sudor">${spr(tint(GOTA, "s"), 40, 4)}</g>`,
   },
   {
     // 3 · Ya no aguantó, y no una vez: **tres**, cada una peor que la anterior.
@@ -2397,8 +2400,10 @@ export const MAREO: Variant[] = [
     // cuenta cuánto ha vomitado es el charco del suelo, no su expresión.
     status: "¡Blegh!",
     // Aquí los brazos **no se mueven**: te agarras. Un saludo mientras vomitas
-    // contaría dos cosas a la vez y no se leería ninguna.
-    scene: `${escenario(par(BRAZO_RECTO, BRAZO_RECTO))}
+    // contaría dos cosas a la vez y no se leería ninguna. Y agarrarse es
+    // BRAZO_ABAJO, no el brazo en alto: con la mano arriba queda a la altura
+    // de los ojos de par en par y se funde con ellos (ver BRAZO_ABAJO).
+    scene: `${escenario(par(BRAZO_ABAJO, BRAZO_ABAJO))}
       <g class="a-arcada">${flip(
       [
         eyes(OJO_ANCHO, 2),
@@ -2826,17 +2831,21 @@ ${FLIP_CSS}
   @keyframes u-entra { 0%, 80% { opacity: 0; } 100% { opacity: 1; } }
 
   /* ── el mareo, sólo al zarandear la onda mientras la colocas ───────────── */
-  /* Bamboleo: un píxel a cada lado. Con dos ya no parecía mareo sino temblor. */
+  /* Bamboleo: un píxel a cada lado. Con dos ya no parecía mareo sino temblor.
+     Los dos botes van hacia ABAJO: la cara del carrito vive en y=2, y el bote
+     hacia arriba sacaba los ojos del lienzo por la fila de arriba. */
   @keyframes vagoneta { 0% { transform: translateY(0); }
-                        25% { transform: translate(1px, -1px); }
+                        25% { transform: translate(1px, 1px); }
                         50% { transform: translateY(0); }
                         75% { transform: translate(-1px, 1px); } }
   @keyframes mareo { 0% { transform: translateX(-1px); } 25% { transform: translateX(0); }
                      50% { transform: translateX(1px); } 75% { transform: translateX(0); } }
-  /* Las chispas dan la vuelta por las cuatro esquinas de un cuadrado de 4 px:
-     en pixel-art un círculo de verdad se sale de la rejilla entera. */
-  @keyframes orbita { 0% { transform: translate(0, 0); } 25% { transform: translate(4px, 2px); }
-                      50% { transform: translate(0, 4px); } 75% { transform: translate(-4px, 2px); } }
+  /* Las chispas dan la vuelta por las cuatro esquinas de un rombo de 4 px de
+     lado: en pixel-art un círculo de verdad se sale de la rejilla entera. Iban
+     por uno de 8 de ancho y desde que hay brazos no cabe: a la izquierda
+     pisaba la mano abierta. */
+  @keyframes orbita { 0% { transform: translate(0, 0); } 25% { transform: translate(2px, 2px); }
+                      50% { transform: translate(0, 4px); } 75% { transform: translate(-2px, 2px); } }
   /* El trago: la cara aguanta arriba y en el último cuarto baja de golpe. */
   @keyframes glup { 0%, 74% { transform: translateY(0); }
                     75%, 88% { transform: translateY(1px); }
