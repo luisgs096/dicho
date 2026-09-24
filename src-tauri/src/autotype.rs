@@ -94,8 +94,9 @@ pub struct Corrector {
     vetada: bool,
     settings: SettingsState,
     store: Arc<crate::store::Store>,
-    /// El diccionario del usuario, con su hora de lectura.
-    dicc: Vec<(String, String)>,
+    /// El diccionario del usuario, con su hora de lectura. Sin reemplazo es
+    /// una palabra protegida: el usuario dijo que se escribe así.
+    dicc: Vec<(String, Option<String>)>,
     dicc_leido: Instant,
     tx: Sender<Reemplazo>,
     /// Lo levanta el hilo que teclea. Nuestras propias teclas vuelven por el
@@ -232,18 +233,22 @@ impl Corrector {
                 .store
                 .dict_pairs()
                 .into_iter()
-                .filter_map(|(t, r)| r.map(|r| (t.to_lowercase(), r)))
+                .map(|(t, r)| (t.to_lowercase(), r))
                 .collect();
             self.dicc_leido = Instant::now();
         }
-        // El diccionario del usuario manda sobre la tabla: lo escribió él.
+        // El diccionario del usuario manda sobre la tabla: lo escribió él. Y
+        // también cuando no trae reemplazo: una palabra protegida es justo
+        // «ésta se escribe así», y la tabla no puede ponerle una tilde encima
+        // («Angel» → «Ángel»).
         let baja = self.palabra.to_lowercase();
-        let bueno = self
-            .dicc
-            .iter()
-            .find(|(t, _)| *t == baja)
-            .map(|(_, r)| r.clone())
-            .or_else(|| crate::ortografia::corrige(&self.palabra));
+        let bueno = match self.dicc.iter().find(|(t, _)| *t == baja) {
+            // Con la mayúscula de lo tecleado, como la tabla y como el dictado:
+            // «Osea» al empezar la frase es «O sea», no «o sea».
+            Some((_, Some(r))) => Some(crate::polish::respeta_mayuscula(&self.palabra, r)),
+            Some((_, None)) => None,
+            None => crate::ortografia::corrige(&self.palabra),
+        };
         if let Some(bueno) = bueno {
             if bueno != self.palabra {
                 let _ = self.tx.send(Reemplazo {
@@ -308,4 +313,75 @@ fn teclear(r: &Reemplazo) -> anyhow::Result<()> {
     }
     enigo.text(&r.texto)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod pruebas_diccionario {
+    //! El diccionario en la corrección al vuelo (nacieron en la auditoría del
+    //! 24/09/2026; dos de las tres fallaban entonces).
+    //!
+    //! `observa` pasa por Win32 (ventana al frente, campo de contraseña) y no se
+    //! puede ejecutar aquí; lo que decide qué se teclea es `cierra_palabra`, y a
+    //! ésa se la llama directamente con un `Corrector` montado a mano.
+    use super::*;
+    use std::sync::mpsc::{channel, Receiver};
+    use std::sync::RwLock;
+
+    fn corrector(nombre: &str, dict: &[(&str, Option<&str>)]) -> (Corrector, Receiver<Reemplazo>) {
+        let carpeta = std::env::temp_dir().join(format!(
+            "mike-pruebas-autotype-{nombre}-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&carpeta);
+        let store = Arc::new(crate::store::Store::init_en(&carpeta).unwrap());
+        for (t, r) in dict {
+            store.dict_add(t, *r).unwrap();
+        }
+        let (tx, rx) = channel();
+        let c = Corrector {
+            teclado: None,
+            palabra: String::new(),
+            ventana: 0,
+            vetada: false,
+            settings: Arc::new(RwLock::new(crate::settings::AppSettings::default())),
+            store,
+            dicc: Vec::new(),
+            // Que la primera palabra lea el diccionario de verdad, por `dict_pairs`.
+            dicc_leido: Instant::now() - REFRESCO_DICCIONARIO,
+            tx,
+            escribiendo: Arc::new(AtomicBool::new(false)),
+        };
+        (c, rx)
+    }
+
+    /// Lo que se teclearía al cerrar `palabra` con un espacio.
+    fn teclea(c: &mut Corrector, rx: &Receiver<Reemplazo>, palabra: &str) -> Option<String> {
+        c.palabra = palabra.to_string();
+        c.cierra_palabra();
+        rx.try_recv().ok().map(|r| r.texto)
+    }
+
+    #[test]
+    fn el_diccionario_manda_sobre_la_tabla() {
+        let (mut c, rx) = corrector("manda", &[("aqui", Some("acá"))]);
+        assert_eq!(teclea(&mut c, &rx, "aqui").as_deref(), Some("acá "));
+        // Y la tabla sigue funcionando para lo demás.
+        assert_eq!(teclea(&mut c, &rx, "tambien").as_deref(), Some("también "));
+    }
+
+    /// La tabla respeta la mayúscula de lo tecleado (`con_la_misma_caja`); el
+    /// diccionario tendría que hacer lo mismo.
+    #[test]
+    fn el_diccionario_respeta_la_mayuscula_de_principio_de_frase() {
+        let (mut c, rx) = corrector("mayus", &[("osea", Some("o sea"))]);
+        assert_eq!(teclea(&mut c, &rx, "Osea").as_deref(), Some("O sea "));
+    }
+
+    /// Una palabra protegida (término sin reemplazo) es justo «esta palabra se
+    /// escribe así». La tabla no debería pasarle por encima.
+    #[test]
+    fn una_palabra_protegida_no_la_toca_la_tabla() {
+        let (mut c, rx) = corrector("protegida", &[("Angel", None)]);
+        assert_eq!(teclea(&mut c, &rx, "Angel"), None);
+    }
 }
