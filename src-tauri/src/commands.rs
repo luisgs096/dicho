@@ -142,6 +142,21 @@ pub fn revision_colocar(app: AppHandle, alto: f64) -> String {
     pipeline::colocar_revision(&app, alto).to_string()
 }
 
+/// «Copiar»: vuelve a poner la corrección en el portapapeles, para pegarla a
+/// mano. Es el camino de la terminal: ahí «Sustituir» no puede pegar encima de
+/// lo seleccionado. Lo hace Rust y no el globo porque el globo no tiene el
+/// foco, y sin foco el navegador no deja escribir en el portapapeles.
+#[tauri::command]
+pub fn revision_copiar() -> Result<(), String> {
+    let corregido = pipeline::REVISION
+        .lock()
+        .ok()
+        .and_then(|r| r.as_ref()?["corregido"].as_str().map(String::from))
+        .ok_or("No hay ninguna corrección que copiar.")?;
+    crate::escribano::ya_visto(&corregido);
+    crate::inject::copiar(&corregido).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn revision_cerrar(app: AppHandle) {
     pipeline::cerrar_revision(&app);

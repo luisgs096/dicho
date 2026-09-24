@@ -10,6 +10,15 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.16.1 — 24 de septiembre de 2026
+
+- **El globo del escribano es sólo tu texto corregido.** Se fueron las fichas de
+  abajo, que se comían medio globo: ahora pasas el ratón por una palabra marcada
+  y te dice cómo estaba.
+- **Botón «Copiar»** junto a «Sustituir», para pegarlo tú donde quieras. Es el
+  camino en la terminal, donde «Sustituir» no puede pegar encima de lo
+  seleccionado.
+
 ## 0.16.0 — 24 de septiembre de 2026
 
 - **El escribano corrige de verdad lo que tecleas**: faltas de dedo («hqaremos»

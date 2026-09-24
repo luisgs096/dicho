@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { comparar, type Tipo } from "./diferencias";
+import { comparar, type Tipo, type Tramo } from "./diferencias";
 
 /**
  * El globo del escribano: sale de la onda, como si hablara ella, con lo que
@@ -13,14 +13,14 @@ import { comparar, type Tipo } from "./diferencias";
  * sustituye nada sin enseñarlo antes.
  *
  * Fue una ventana normal de 560×460 con los dos textos enteros uno encima del
- * otro, y había que leerlos los dos para encontrar qué cambió. Ahora se lee uno
- * solo con los cambios marcados, y las erratas —lo que de verdad importa— van
- * además en fichas, como en el historial.
+ * otro, y había que leerlos los dos para encontrar qué cambió. Luego fue este
+ * globo con las erratas repetidas en fichas debajo del texto, y las fichas se
+ * comían más de la mitad del globo. Ahora es sólo el texto con los cambios
+ * marcados: **pasar el ratón por uno enseña cómo estaba**.
  *
  * **No toma el foco**, igual que la onda: la ventana donde copiaste sigue
- * delante, y «Sustituir» pega ahí. Por eso no hay botón de copiar: sin foco el
- * navegador no deja escribir en el portapapeles, y el texto ya está copiado
- * desde antes de que el globo salga.
+ * delante, y «Sustituir» pega ahí. Por eso «Copiar» lo hace Rust: sin foco el
+ * navegador no deja escribir en el portapapeles.
  */
 
 type Datos = { original: string; corregido: string };
@@ -44,12 +44,23 @@ const MARCA_ANTES: Record<Tipo, string> = {
 
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
+/** El texto de cada cambio en un lado, por su número: es lo que enseña la
+ *  etiqueta al pasar el ratón por el otro lado. */
+const textoPorCambio = (tramos: Tramo[]) => {
+  const m = new Map<number, string>();
+  for (const t of tramos)
+    if (t.cambio !== null) m.set(t.cambio, (m.get(t.cambio) ?? "") + t.texto);
+  return m;
+};
+
 export default function Revision() {
   const [datos, setDatos] = useState<Datos | null>(null);
   const [ver, setVer] = useState<"despues" | "antes">("despues");
-  const [foco, setFoco] = useState<number | null>(null);
   const [pico, setPico] = useState<"abajo" | "arriba">("abajo");
   const [aviso, setAviso] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState(false);
+  // La etiqueta de «así estaba»: qué dice y dónde, en coordenadas de la ventana.
+  const [etiqueta, setEtiqueta] = useState<{ texto: string; x: number; y: number; abajo: boolean } | null>(null);
   const caja = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -57,6 +68,7 @@ export default function Revision() {
       setDatos(p);
       setVer("despues");
       setAviso(null);
+      setCopiado(false);
     };
     // El globo se crea al usarlo: el primer texto llegó antes de que escuchara,
     // así que lo pide él. Los siguientes llegan por el evento.
@@ -88,9 +100,11 @@ export default function Revision() {
   }, []);
 
   const dif = useMemo(() => (datos ? comparar(datos.original, datos.corregido) : null), [datos]);
+  const otroLado = useMemo(
+    () => (dif ? textoPorCambio(ver === "despues" ? dif.antes : dif.despues) : new Map()),
+    [dif, ver],
+  );
   const cuenta = (t: Tipo) => dif?.cambios.filter((c) => c.tipo === t).length ?? 0;
-  const erratas =
-    dif?.cambios.map((c, id) => ({ ...c, id })).filter((c) => c.tipo === "errata") ?? [];
   const sinCambios = !!dif && dif.cambios.length === 0;
   const resumen = sinCambios
     ? "Tu texto ya estaba bien"
@@ -104,6 +118,40 @@ export default function Revision() {
 
   const cerrar = () => invoke("revision_cerrar");
   const sustituir = () => invoke("escribano_sustituir").catch((e) => setAviso(String(e)));
+  // Copia y se va: lo que sigue es pegarlo tú, y el globo ya no pinta nada.
+  const copiar = () =>
+    invoke("revision_copiar").then(
+      () => {
+        setCopiado(true);
+        setTimeout(cerrar, 900);
+      },
+      (e) => setAviso(String(e)),
+    );
+
+  /** Al pasar por un cambio, la etiqueta con cómo estaba (o cómo quedó, si se
+   *  está viendo el original). Va encima de la palabra; en la primera línea no
+   *  cabría, así que ahí va debajo. */
+  const mostrar = (cambio: number, el: HTMLElement) => {
+    // El primer renglón y no la caja entera: un cambio partido en dos líneas
+    // («¿Quién sabe? :c» al final de una) dejaba la etiqueta en medio de nada.
+    const r = el.getClientRects()[0] ?? el.getBoundingClientRect();
+    const otro = (otroLado.get(cambio) ?? "").trim();
+    const texto =
+      ver === "despues"
+        ? otro
+          ? `antes: ${otro}`
+          : "esto no estaba"
+        : otro
+          ? `quedó: ${otro}`
+          : "esto se quitó";
+    const abajo = r.top < 40;
+    setEtiqueta({
+      texto,
+      x: Math.min(Math.max(r.left + r.width / 2, 70), window.innerWidth - 70),
+      y: abajo ? r.bottom + 4 : r.top - 4,
+      abajo,
+    });
+  };
 
   const tramos = dif ? (ver === "despues" ? dif.despues : dif.antes) : [];
 
@@ -151,16 +199,21 @@ export default function Revision() {
           </div>
         )}
 
-        <p className="mt-2 max-h-36 overflow-y-auto text-[13px] leading-relaxed whitespace-pre-wrap select-text">
+        <p
+          className="mt-2 max-h-36 overflow-y-auto text-[13px] leading-relaxed whitespace-pre-wrap select-text"
+          onScroll={() => setEtiqueta(null)}
+        >
           {tramos.map((t, k) =>
             t.cambio === null ? (
               <span key={k}>{t.texto}</span>
             ) : (
               <span
                 key={k}
-                className={`rounded-sm ${
+                onMouseEnter={(e) => mostrar(t.cambio!, e.currentTarget)}
+                onMouseLeave={() => setEtiqueta(null)}
+                className={`cursor-help rounded-sm ${
                   (ver === "despues" ? MARCA : MARCA_ANTES)[dif!.cambios[t.cambio].tipo]
-                } ${foco === t.cambio ? "ring-2 ring-emerald-500" : ""}`}
+                }`}
               >
                 {t.texto}
               </span>
@@ -168,21 +221,6 @@ export default function Revision() {
           )}
           {!datos && "…"}
         </p>
-
-        {erratas.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {erratas.map((c) => (
-              <span
-                key={c.id}
-                onMouseEnter={() => setFoco(c.id)}
-                onMouseLeave={() => setFoco(null)}
-                className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30"
-              >
-                <s className="opacity-60">{c.antes || "∅"}</s> → {c.despues || "∅"}
-              </span>
-            ))}
-          </div>
-        )}
 
         {aviso && (
           <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1.5 text-[11px] leading-snug text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
@@ -193,22 +231,44 @@ export default function Revision() {
         <div className="mt-3 flex items-center justify-end gap-1.5">
           <button
             onClick={cerrar}
-            className="rounded-lg px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+            className="mr-auto rounded-lg px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
           >
             {sinCambios ? "Cerrar" : "Dejarlo así"}
           </button>
           {!sinCambios && (
-            <button
-              onClick={sustituir}
-              disabled={!datos}
-              className="rounded-lg bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-            >
-              Sustituir
-            </button>
+            <>
+              <button
+                onClick={copiar}
+                disabled={!datos}
+                className="rounded-lg border border-slate-300 px-3 py-1 text-[11px] font-medium hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-800"
+              >
+                {copiado ? "¡Copiado!" : "Copiar"}
+              </button>
+              <button
+                onClick={sustituir}
+                disabled={!datos}
+                className="rounded-lg bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                Sustituir
+              </button>
+            </>
           )}
         </div>
       </div>
       {pico === "abajo" && colaPico}
+
+      {etiqueta && (
+        <div
+          className="pointer-events-none fixed z-20 rounded-md bg-slate-800 px-2 py-0.5 text-[11px] whitespace-nowrap text-white shadow dark:bg-slate-100 dark:text-slate-900"
+          style={{
+            left: etiqueta.x,
+            top: etiqueta.y,
+            transform: `translate(-50%, ${etiqueta.abajo ? "0" : "-100%"})`,
+          }}
+        >
+          {etiqueta.texto}
+        </div>
+      )}
     </div>
   );
 }

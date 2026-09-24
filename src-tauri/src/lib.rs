@@ -278,6 +278,7 @@ pub fn run() {
             commands::revision_pendiente,
             commands::revision_colocar,
             commands::revision_cerrar,
+            commands::revision_copiar,
         ])
         .run(ctx)
         .expect("error while running tauri application");
