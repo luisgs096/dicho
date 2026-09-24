@@ -396,10 +396,6 @@ const MAIN_ROWS = (idioma: Idioma): KbKey[][] => {
   ];
 };
 
-/** Fila de abajo, **sin flechas**: van aparte en su bloque en forma de T, que
- *  es como están en un teclado de verdad. Antes iban en línea con el resto y
- *  las cuatro se aplastaban hasta no leerse — con la fila sumando 16 anchos
- *  contra los 13 de las de arriba, la ↑ y la ↓ desaparecían. */
 /** Fila de abajo, con las tres flechas al final — debajo del Mayús derecho,
  *  donde están de verdad. Antes iban las cuatro en línea con el resto y se
  *  aplastaban hasta no leerse: la fila sumaba 16 anchos contra los 14,8 de las
@@ -823,9 +819,6 @@ export default function Settings() {
       refreshHistory(busquedaRef.current),
     );
     const unDict = listen("dict-changed", () => refreshDict());
-    // El modo colocación también se apaga solo al cerrar esta ventana, así que
-    // el botón se entera por el mismo evento que el HUD y no se queda diciendo
-    // "Listo, déjala ahí" cuando ya no hay nada que colocar.
     return () => {
       unProgress.then((f) => f());
       unHistory.then((f) => f());

@@ -266,13 +266,12 @@ pub async fn google_logout(app: AppHandle) -> Result<(), String> {
     crate::sync::logout(app).await.map_err(|e| e.to_string())
 }
 
-/// Decide si el ratón atraviesa el HUD o lo agarra.
+/// Decide si el HUD atrapa el ratón o lo deja pasar.
 ///
 /// El HUD nació siendo un cristal (`ignore_cursor_events`) para no comerse los
 /// clics de lo que hubiera debajo. Para poder arrastrarlo hay que dejar que los
 /// atrape, y es todo o nada: no hay forma de hacer transparente sólo una parte
 /// de la ventana. Por eso es un ajuste y no una decisión nuestra.
-/// Decide si el HUD atrapa el ratón o lo deja pasar.
 ///
 /// La regla de que **clavada lo atrapa sí o sí** vive aquí dentro y no en cada
 /// llamada, que es de donde venía el fallo: cuatro sitios la decidían y dos se
@@ -493,18 +492,6 @@ pub fn hud_log(app: AppHandle, msg: String) {
     pipeline::diag(&app, &format!("HUD-JS: {msg}"));
 }
 
-/// Deja programado el relanzamiento de Dicho tras una actualización.
-///
-/// El instalador NSIS trae su propio `/R` para volver a abrir la app, y el
-/// plugin del updater se lo pasa. Pero sólo funciona si Dicho ya está cerrado
-/// cuando arranca el instalador: si lo encuentra abierto entra por
-/// `CheckIfAppIsRunning`, lo mata, y por ese camino el relanzamiento nunca
-/// llega. Que es justo lo que pasa al actualizar desde dentro de la app.
-///
-/// Así que el relanzamiento lo programa la app antes de empezar: un PowerShell
-/// suelto que espera a que el proceso desaparezca y lo vuelve a abrir. Es
-/// inofensivo aunque el `/R` funcione — la guardia de instancia única hace que
-/// el segundo arranque enfoque al primero y se cierre.
 /// El script vigilante, en su propia función para poder probarlo sin lanzar nada.
 fn script_relanzador(exe: &str) -> String {
     // Con BOM: un .ps1 sin él se lee como ANSI y los acentos rompen el parseo.
@@ -543,6 +530,18 @@ pub fn ajustes_ocupada(on: bool) {
     AJUSTES_OCUPADA.store(on, Ordering::SeqCst);
 }
 
+/// Deja programado el relanzamiento de Dicho tras una actualización.
+///
+/// El instalador NSIS trae su propio `/R` para volver a abrir la app, y el
+/// plugin del updater se lo pasa. Pero sólo funciona si Dicho ya está cerrado
+/// cuando arranca el instalador: si lo encuentra abierto entra por
+/// `CheckIfAppIsRunning`, lo mata, y por ese camino el relanzamiento nunca
+/// llega. Que es justo lo que pasa al actualizar desde dentro de la app.
+///
+/// Así que el relanzamiento lo programa la app antes de empezar: un PowerShell
+/// suelto que espera a que el proceso desaparezca y lo vuelve a abrir. Es
+/// inofensivo aunque el `/R` funcione — la guardia de instancia única hace que
+/// el segundo arranque enfoque al primero y se cierre.
 #[tauri::command]
 pub fn programar_relanzamiento(app: AppHandle) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;

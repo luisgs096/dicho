@@ -1314,15 +1314,9 @@ const CONFETI = (() => {
 // los ojos no se repite entre caritas. Es lo que las separa unas de otras
 // cuando el accesorio se parece.
 export const V: Record<FaceState, Variant[]> = {
-  // Las cuatro de reposo son las **versiones cortas** de las caritas de
-  // stand-by. Cortas y no de ocho tiempos porque aquí la onda sale unos
-  // segundos: una historia de 4,8 s se vería siempre cortada por la mitad, que
-  // es peor que no contarla. Las largas salen con la onda clavada, mirándola.
-  //
-  // La quinta sigue siendo la vieja —los ojos paseando dentro de la cuenca— a
-  // propósito: es el hueco de **los ojos que te siguen el cursor**, que necesita
-  // que Rust le mande dónde está el ratón y todavía no existe. Se queda la de
-  // antes en vez de dejar cuatro, que cambiaría el reparto de los cinco estados.
+  // Las de reposo son las **historias largas** de stand-by —chicle, silbido y
+  // dormido, de un minuto cada una—, la de siempre (respira y parpadea) en el
+  // hueco que dejó el dibujante, y los ojos que te siguen el cursor.
   reposo: [
     // La larga, no la corta: en reposo es donde vive el stand-by. Durante un
     // dictado sale unos segundos y sólo se ve el principio -mascando-, que es

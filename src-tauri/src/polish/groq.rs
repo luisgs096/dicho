@@ -30,7 +30,6 @@ meeting', 'hacer deploy'); conserva CADA palabra en el idioma exacto en que fue 
  - Devuelves ÚNICAMENTE el texto final, sin comentarios, sin comillas y sin preámbulo.";
 
 /// Nivel Estándar: limpiar sin reescribir. Promete **tus palabras**.
-/// Nivel Estándar: limpiar sin reescribir. Promete **tus palabras**.
 ///
 /// Se reencuadró el 16/09/2026 y no por gusto: el encargo anterior empezaba con
 /// "eres el post-procesador de un dictado por voz", y ese marco le ponía techo
@@ -316,7 +315,8 @@ fn desvia_demasiado(entrada: &str, salida: &str, nivel: Nivel) -> bool {
 /// hablante; contestar trae palabras nuevas (en el caso real del mando: "CPU",
 /// "sensibilidad", "almacenamiento" — ninguna estaba en la pregunta). Así que se
 /// cuenta qué fracción de las palabras con carga del resultado ya estaba en el
-/// dictado. Por debajo de la mitad, eso no es tu idea ordenada: es otra cosa.
+/// dictado. Por debajo de una cuarta parte, eso no es tu idea ordenada: es otra
+/// cosa (por qué una cuarta y no la mitad, en el umbral de abajo).
 ///
 /// Los conectores no cuentan. Desde que el nivel estructurado tiene el encargo
 /// de **cambiar muletillas por conectores**, "es decir" o "por lo tanto" son

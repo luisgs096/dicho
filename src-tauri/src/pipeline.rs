@@ -29,12 +29,13 @@ pub enum Cmd {
     Start,
     Stop,
     /// Te arrepentiste a media frase: se tira el audio y no se transcribe ni se
-    /// pega nada. Lo manda el Escape mientras grabas.
+    /// pega nada. Lo manda la tecla de cancelar (Escape de fábrica) mientras
+    /// grabas.
     Cancel,
     /// El modelo terminó de descargarse; se cargará al dictar.
     ModelReady,
-    /// Corregir lo que el usuario tenga seleccionado, sin dictar nada. Es el
-    /// mismo motor de redacción del dictado aplicado a texto que ya existía.
+    /// Corregir lo que el usuario acaba de copiar, sin dictar nada. Es el mismo
+    /// motor de redacción del dictado aplicado a texto que ya existía.
     Corregir,
     /// Quitar de en medio el escribano: está ofreciéndose y no quieres nada.
     /// Lo manda **la misma tecla que cancela un dictado**, que es la que el
@@ -333,14 +334,13 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
     });
 }
 
-/// Corrige el texto que el usuario tenga seleccionado, con el mismo motor que
+/// Corrige el texto que el usuario acaba de copiar, con el mismo motor que
 /// redacta los dictados.
 ///
-/// Es LABS y se nota en una cosa: aquí el texto de partida **ya existe**, así
-/// que equivocarse cuesta más que en un dictado. Por eso, si el pulido falla o
-/// lo descarta una guarda, **no se pega nada**: se deja lo que el usuario
-/// escribió y se le dice. Sustituir su texto por una versión peor sería el peor
-/// resultado posible.
+/// Aquí el texto de partida **ya existe**, así que equivocarse cuesta más que
+/// en un dictado. Por eso, si el pulido falla o lo descarta una guarda, **no se
+/// pega nada**: se deja lo que el usuario escribió y se le dice. Sustituir su
+/// texto por una versión peor sería el peor resultado posible.
 fn corregir_seleccion(
     app: &AppHandle,
     settings: &SettingsState,
@@ -489,11 +489,6 @@ fn abrir_revision(app: &AppHandle, original: &str, corregido: &str) {
     let _ = v.set_focus();
 }
 
-/// Saca la onda a celebrar que acabas de actualizar. Una sola vez, al primer
-/// arranque con la versión nueva.
-///
-/// No se enseña si tienes la onda apagada: quien la apagó no quiere verla, y
-/// menos por sorpresa nada más encender el ordenador. El estilo ya no importa:
 /// La onda se ofrece a corregir lo que el usuario acaba de copiar.
 ///
 /// No usa la «generación» del HUD como el dictado porque no compite con él: si
@@ -536,6 +531,11 @@ pub(crate) fn escribano_expirado(app: &AppHandle) {
     }
 }
 
+/// Saca la onda a celebrar que acabas de actualizar. Una sola vez, al primer
+/// arranque con la versión nueva.
+///
+/// No se enseña si tienes la onda apagada: quien la apagó no quiere verla, y
+/// menos por sorpresa nada más encender el ordenador. El estilo ya no importa:
 /// la barra de carga y el destello con la versión son los mismos en los dos, y
 /// sólo cambia qué se revela al final —la cara o las cinco barritas—.
 pub(crate) fn celebrar_actualizacion(app: &AppHandle, version: &str) {
@@ -771,9 +771,6 @@ fn cola_de(texto: &str, max: usize) -> String {
     texto.chars().skip(n - max).collect()
 }
 
-/// Opciones de transcripción según los ajustes. Con "no traducir" jamás se fija
-/// idioma —es justo lo que empuja al motor a traducir el otro— y se le pasa una
-/// muestra de spanglish como contexto de estilo.
 /// Añade los términos del diccionario al oído de Whisper.
 ///
 /// Se hace aparte de `opts_de` porque ahí no hay base de datos y porque el
@@ -798,6 +795,9 @@ fn con_diccionario(mut opts: SttOpts, store: &std::sync::Arc<crate::store::Store
     opts
 }
 
+/// Opciones de transcripción según los ajustes. Con "no traducir" jamás se fija
+/// idioma —es justo lo que empuja al motor a traducir el otro— y se le pasa una
+/// muestra de spanglish como contexto de estilo.
 fn opts_de(s: &crate::settings::AppSettings) -> SttOpts {
     SttOpts {
         language: if s.no_traducir {

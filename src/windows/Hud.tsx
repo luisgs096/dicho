@@ -503,7 +503,7 @@ export default function Hud() {
   const [cap, setCap] = useState(0);
   const topeRef = useRef(600);
 
-  // El HUD está dibujado para un lienzo de 96 px de alto. Al saltar a un
+  // El HUD está dibujado para un lienzo de 104 px de alto. Al saltar a un
   // monitor con otro DPI, WebView2 a veces conserva su escala y nos deja un
   // lienzo más grande: se escala todo en bloque para llenarlo igual.
   useEffect(() => {

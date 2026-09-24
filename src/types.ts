@@ -12,7 +12,7 @@ export interface AppSettings {
   hotkey: string[];
   /** Tecla para cancelar a media grabación. `null` la desactiva. */
   cancelar: string | null;
-  /** Atajo para corregir lo que tengas seleccionado. Vacío = apagado. */
+  /** Atajo del escribano: corrige lo que acabas de copiar. Vacío = apagado. */
   corregir_atajo: string[];
   engine: EngineKind;
   polish: PolishKind;

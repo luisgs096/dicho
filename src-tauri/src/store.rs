@@ -533,9 +533,8 @@ impl Store {
         Ok(added)
     }
 
-    /// Fusión de sincronización: inserta dictados remotos que no existen
-    /// localmente, identificados por (ts, raw).
-    /// Mete las filas que falten, sin duplicar.
+    /// Fusión de sincronización: mete los dictados remotos que falten aquí,
+    /// identificados por (ts, raw), sin duplicar y sin resucitar lo borrado.
     ///
     /// Recibe structs y no tuplas por lo mismo que `add_history`: con nueve
     /// campos, cuatro de ellos enteros, una tupla posicional es una trampa que
