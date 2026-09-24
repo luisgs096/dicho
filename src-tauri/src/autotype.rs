@@ -128,12 +128,19 @@ impl Corrector {
 
     /// Se llama con cada evento de teclado. Vuelve enseguida: aquí no se teclea.
     pub fn observa(&mut self, event: &EventType) {
-        let (activo, vetadas) = {
-            let Ok(s) = self.settings.read() else {
-                return;
-            };
-            (s.corregir_al_escribir, s.apps_sin_correccion.clone())
-        };
+        // El hook de rdev trae también el ratón: cada movimiento del sistema
+        // pasa por aquí. Sólo interesan las teclas y el clic.
+        if matches!(
+            event,
+            EventType::MouseMove { .. } | EventType::Wheel { .. } | EventType::ButtonRelease(_)
+        ) {
+            return;
+        }
+        let activo = self
+            .settings
+            .read()
+            .map(|s| s.corregir_al_escribir)
+            .unwrap_or(false);
         if !activo {
             self.palabra.clear();
             return;
@@ -147,9 +154,39 @@ impl Corrector {
         if ahora != self.ventana {
             self.ventana = ahora;
             self.palabra.clear();
+            let vetadas = self
+                .settings
+                .read()
+                .map(|s| s.apps_sin_correccion.clone())
+                .unwrap_or_default();
             self.vetada = esta_vetada(&vetadas);
         }
         if self.vetada {
+            return;
+        }
+
+        // Mover el cursor sin escribir —un clic, flechas, Inicio/Fin, Supr— rompe
+        // la palabra: lo que se teclee después ya no va pegado a lo de antes, y
+        // corregirla borraría texto en otro sitio. `Keyboard::add` devuelve
+        // `None` para todas ellas, así que sin esto la palabra seguía viva.
+        if matches!(
+            event,
+            EventType::ButtonPress(_)
+                | EventType::KeyPress(
+                    Key::LeftArrow
+                        | Key::RightArrow
+                        | Key::UpArrow
+                        | Key::DownArrow
+                        | Key::Home
+                        | Key::End
+                        | Key::PageUp
+                        | Key::PageDown
+                        | Key::Delete
+                        | Key::Insert
+                        | Key::Escape
+                )
+        ) {
+            self.palabra.clear();
             return;
         }
 
