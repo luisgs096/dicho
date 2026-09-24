@@ -68,7 +68,17 @@ const PAL: Record<string, string> = {
   o: "var(--lcd)",
 };
 
-/** Pinta un mapa de texto como rejilla de <rect> de 1×1. */
+/**
+ * Pinta un mapa de texto: un `<path>` por color, con los tramos horizontales ya
+ * juntados.
+ *
+ * Antes era un `<rect>` de 1×1 por píxel, y en el HUD, que está siempre vivo,
+ * eso se paga en nodos: una historia de reposo montaba 1.900-2.600 y el
+ * catálogo entero 7.500. Con un nodo por sprite y color son 250-460 y 1.400, y
+ * el dibujo es el mismo píxel a píxel: las coordenadas siguen siendo enteras y
+ * el SVG va con crispEdges. Comprobado con capturas de las 39 escenas en cinco
+ * instantes, a 100 %, 125 % y 200 %: ni un píxel distinto.
+ */
 export function spr(
   map: string[],
   ox = 0,
@@ -78,6 +88,25 @@ export function spr(
   estilo?: (x: number, y: number) => string,
 ): string {
   let out = "";
+  if (!estilo) {
+    const trazos: Record<string, string> = {};
+    map.forEach((row, y) => {
+      for (let x = 0; x < row.length; ) {
+        const c = row[x];
+        if (!PAL[c]) {
+          x++;
+          continue;
+        }
+        let n = 1;
+        while (row[x + n] === c) n++;
+        trazos[c] = (trazos[c] ?? "") + `M${x + ox} ${y + oy}h${n}v1h-${n}z`;
+        x += n;
+      }
+    });
+    for (const [c, d] of Object.entries(trazos)) out += `<path fill="${PAL[c]}" d="${d}"/>`;
+    return out;
+  }
+  // El revelado necesita un nodo por píxel: cada uno lleva su propio retraso.
   map.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
       const c = row[x];
