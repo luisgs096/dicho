@@ -345,7 +345,7 @@ let seqN = 0;
 
 /**
  * Un flipbook de duraciones libres. Devuelve el `<style>` con sus fotogramas y
- * el grupo con un `<g>` por paso.
+ * el grupo con un `<g>` por dibujo distinto (ver más abajo por qué no por paso).
  *
  * Igual que `flip()`, usa `steps(1, end)` y longhands, y la duracion viaja
  * **inline y literal**: en cuanto viva en una variable CSS, escribir cualquier

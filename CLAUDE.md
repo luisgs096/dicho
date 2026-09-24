@@ -221,12 +221,21 @@ conocimiento. Y se commitea con el resto.
   accesorio se parece). El repertorio sale del vocabulario tamagotchi —abierto,
   con destello, de par en par, entrecerrado, cerrado, contento, caído, estrella,
   corazón, aspa— y **todos son de ancho impar**: `eyes()` centra con
-  `(3 - ancho) / 2`, así que un ancho par los dejaría a medio píxel.
+  `(3 - ancho) / 2`, así que un ancho par los dejaría a medio píxel. Y los
+  ojos no pueden estar quietos **en el tiempo que la carita está a la vista**:
+  `blink()` acepta un retraso para que el primer parpadeo no caiga cuando la
+  carita ya se fue (le pasaba al escribano y a «¿Me repites?»).
+  `spr()` pinta **un `<path>` por color**, con los tramos horizontales
+  juntados, y no un `<rect>` por píxel: una historia de reposo bajó de ~2.000
+  nodos a ~300 y el catálogo de 7.469 a 1.418, con el mismo dibujo píxel a
+  píxel (585 capturas a 100, 125 y 200 %, ni un píxel distinto). Sólo el
+  revelado del estreno sigue con un `<rect>` por píxel, porque cada uno lleva
+  su retraso.
   Exporta `CARITA_COMILONA`/`CARITA_ERUCTO`, los dos índices que el HUD encadena,
-  **`ACTUALIZADO`** (el estreno de versión: un solo reloj CSS de **1,8 s**,
+  **`ACTUALIZADO`** (el estreno de versión: un solo reloj CSS de **2,8 s**,
   `forwards`, y todo **dentro de la cápsula normal**. Cinco tiempos: reposo →
   la cápsula se llena de izquierda a derecha en verde menta mientras los ojos
-  giran y la boca pasa por tres gestos → destello blanco con el número de
+  giran y la lengua da vueltas en la boca abierta → destello blanco con el número de
   versión en grande → el blanco se funde → la cara se revela **píxel a píxel**.
   En el estilo clásico es igual pero al final se revelan las cinco barritas.
   Tres cosas que costó aprender:
@@ -390,9 +399,17 @@ conocimiento. Y se commitea con el resto.
   vueltas en 3 s** (`VUELTAS_MAREO`, con un tope de un cuarto de vuelta por
   muestra para que saltos al azar no sumen). Antes bastaban tres saltos rápidos
   del cursor, y eso lo hace cualquiera que trabaje deprisa.
-  Las transiciones que cuentan un final —la limpiada, bajarse del carrito— llevan
-  la clase `una-vez` (ver el gotcha) y la limpiada dura lo que dice
-  `LIMPIADAS[i].ms` más `REMATE_LIMPIA`, sin que un meneo la interrumpa.
+  Las escenas que cuentan un final —el vómito, la limpiada, bajarse del carrito
+  y mirar a los lados— llevan la clase `una-vez` (ver el gotcha) y la limpiada
+  dura lo que dice `LIMPIADAS[i].ms` más `REMATE_LIMPIA`, sin que un meneo la
+  interrumpa. Al soltar la onda la cola es bajada (1,2 s) → `CURIOSEANDO`
+  (2,4 s, con la vagoneta aún debajo) → fundido → reposo; agarrarla otra vez o
+  empezar a dictar la cancela, para que ningún temporizador funda la pantalla
+  a destiempo.
+  La paleta es la de `faces.ts` (`PALETA_CLARA`/`PALETA_OSCURA` y `cssVars`),
+  **no una copia**: la copia que vivía aquí se quedó sin `--pergamino`,
+  `--pergaminoBorde` y `--tinta`, y en la onda de verdad el escribano salía con
+  el LCD transparente y los lentes rellenos de negro.
   - `tamagotchi` (default): pantalla LCD pixel (viewBox `0 2 48 16`), 26 caritas =
     5 variaciones × 5 estados elegidas al azar por transición, reacción por idioma
     en "listo" (heurística es/en sobre el texto). La variable CSS `--lvl` lleva el
@@ -561,6 +578,11 @@ conocimiento. Y se commitea con el resto.
   cuadro) y la duración vive en **una sola constante** que usan el flip y el
   HUD. Y lo que es el final de una historia no se interrumpe: un meneo a media
   limpiada la devolvía al vómito, y la de la servilleta no llegaba a verse nunca.
+  La clase no sirve sólo para flipbooks: el vómito dura 2,4 s, el HUD encadena
+  la limpiada a los 2,6, y en esos 200 ms el charco —que «no se va»— se
+  apagaba con la primera arcada otra vez en pantalla. Por eso `una-vez` cubre
+  también las animaciones sueltas de la escena (la cabeza, las sueltas, los
+  charcos), no sólo `.flip > g`.
 - **Dos cosas que suben por la misma columna a ritmos distintos se atraviesan**
   (24/09). Las notas del silbido y los ZZZ salían de casi el mismo sitio con
   duraciones distintas: la rápida alcanzaba a la lenta. No se arregla afinando
@@ -730,7 +752,7 @@ conocimiento. Y se commitea con el resto.
   dormido, dos respiraciones seguidas podían salir iguales: siete segundos del
   mismo dibujo no se leen como respirar despacio, se leen como que se colgó. Toda
   historia larga necesita una comprobación de que ningún paso repite al anterior
-  — se mide con las huellas de sus `<rect>`, no a ojo.
+  — se mide con las huellas de su dibujo (los `<path>` de cada paso), no a ojo.
 - **`const` no se iza: el orden dentro de `faces.ts` importa.** `V` nombra las
   caritas de reposo, así que tienen que estar **definidas antes**. Si viven mil
   líneas más abajo, el módulo revienta al cargar con un `ReferenceError` — y el
