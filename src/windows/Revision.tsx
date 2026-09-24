@@ -1,129 +1,214 @@
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { comparar, type Tipo } from "./diferencias";
 
 /**
- * La ventana que sale al corregir un texto que ya estaba escrito.
+ * El globo del escribano: sale de la onda, como si hablara ella, con lo que
+ * corrigió.
  *
  * Existe porque corregir texto ajeno no es como dictar: **el original ya vale
  * algo**. En un dictado, si el pulido sale mal, lo peor que pasa es que repitas;
  * aquí lo peor que pasa es que pierdas lo que habías escrito. Así que Dicho no
  * sustituye nada sin enseñarlo antes.
  *
- * El texto ya está en el portapapeles cuando esta ventana aparece, así que
- * cerrarla no pierde el trabajo: el botón es un atajo, no la única salida.
+ * Fue una ventana normal de 560×460 con los dos textos enteros uno encima del
+ * otro, y había que leerlos los dos para encontrar qué cambió. Ahora se lee uno
+ * solo con los cambios marcados, y las erratas —lo que de verdad importa— van
+ * además en fichas, como en el historial.
+ *
+ * **No toma el foco**, igual que la onda: la ventana donde copiaste sigue
+ * delante, y «Sustituir» pega ahí. Por eso no hay botón de copiar: sin foco el
+ * navegador no deja escribir en el portapapeles, y el texto ya está copiado
+ * desde antes de que el globo salga.
  */
+
+type Datos = { original: string; corregido: string };
+
+/** Cómo se marca cada tipo de cambio en el texto corregido. Sólo las erratas
+ *  llevan fondo: con todo pintado —tildes y comas incluidas— el mensaje de
+ *  prueba quedaba con quince manchas y las tres que importaban no destacaban.
+ *  Los acentos van subrayados, y los signos sólo se cuentan arriba. */
+const MARCA: Record<Tipo, string> = {
+  errata: "bg-emerald-200/80 dark:bg-emerald-500/35",
+  acento: "underline decoration-sky-400/80 decoration-2 underline-offset-2",
+  signo: "",
+};
+/** Lo mismo en el original: sólo se tacha lo que estaba mal escrito. Tachar
+ *  «que» porque le faltaba la tilde parecía decir que esa palabra se borró. */
+const MARCA_ANTES: Record<Tipo, string> = {
+  errata: "bg-rose-200/60 line-through decoration-rose-500/60 dark:bg-rose-500/25",
+  acento: "underline decoration-rose-400/70 decoration-2 underline-offset-2",
+  signo: "",
+};
+
+const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
+
 export default function Revision() {
-  const [original, setOriginal] = useState("");
-  const [corregido, setCorregido] = useState("");
+  const [datos, setDatos] = useState<Datos | null>(null);
+  const [ver, setVer] = useState<"despues" | "antes">("despues");
+  const [foco, setFoco] = useState<number | null>(null);
+  const [pico, setPico] = useState<"abajo" | "arriba">("abajo");
   const [aviso, setAviso] = useState<string | null>(null);
-  const [copiado, setCopiado] = useState(false);
+  const caja = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const poner = (p: { original: string; corregido: string }) => {
-      setOriginal(p.original);
-      setCorregido(p.corregido);
+    const poner = (p: Datos) => {
+      setDatos(p);
+      setVer("despues");
       setAviso(null);
-      setCopiado(false);
     };
-    // La ventana se crea al usarla: el primer texto llegó antes de que
-    // escuchara, así que lo pide ella. Los siguientes llegan por el evento.
-    invoke<{ original: string; corregido: string } | null>("revision_pendiente").then(
-      (p) => p && poner(p),
-    );
-    const un = listen<{ original: string; corregido: string }>("revision", (e) =>
-      poner(e.payload),
-    );
+    // El globo se crea al usarlo: el primer texto llegó antes de que escuchara,
+    // así que lo pide él. Los siguientes llegan por el evento.
+    invoke<Datos | null>("revision_pendiente").then((p) => p && poner(p));
+    const un = listen<Datos>("revision", (e) => poner(e.payload));
     return () => {
       un.then((f) => f());
     };
   }, []);
 
-  // Cerrar la destruye, y con ella su proceso de WebView2.
-  const cerrar = () => getCurrentWebviewWindow().close();
+  // El alto lo pone el contenido: se mide y Rust ajusta la ventana y la pega a
+  // la onda. Y se vuelve a pegar cuando sueltas la onda en otro sitio.
+  useLayoutEffect(() => {
+    const el = caja.current;
+    if (!el) return;
+    const medir = () =>
+      invoke<string>("revision_colocar", { alto: Math.ceil(el.getBoundingClientRect().height) })
+        .then((p) => setPico(p === "arriba" ? "arriba" : "abajo"))
+        .catch(() => {});
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    const un = listen<boolean>("hud-arrastre", (e) => {
+      if (!e.payload) medir();
+    });
+    return () => {
+      ro.disconnect();
+      un.then((f) => f());
+    };
+  }, []);
 
-  const sustituir = () =>
-    invoke("escribano_sustituir").catch((e) => setAviso(String(e)));
+  const dif = useMemo(() => (datos ? comparar(datos.original, datos.corregido) : null), [datos]);
+  const cuenta = (t: Tipo) => dif?.cambios.filter((c) => c.tipo === t).length ?? 0;
+  const erratas =
+    dif?.cambios.map((c, id) => ({ ...c, id })).filter((c) => c.tipo === "errata") ?? [];
+  const sinCambios = !!dif && dif.cambios.length === 0;
+  const resumen = sinCambios
+    ? "Tu texto ya estaba bien"
+    : [
+        cuenta("errata") && plural(cuenta("errata"), "errata", "erratas"),
+        cuenta("acento") && plural(cuenta("acento"), "acento", "acentos"),
+        cuenta("signo") && plural(cuenta("signo"), "signo", "signos"),
+      ]
+        .filter(Boolean)
+        .join(" · ");
 
-  // El texto ya está copiado desde antes de abrirse la ventana; esto sólo lo
-  // vuelve a poner por si el usuario copió otra cosa mientras leía.
-  const copiar = () => {
-    navigator.clipboard.writeText(corregido).then(
-      () => {
-        setCopiado(true);
-        setTimeout(() => setCopiado(false), 1600);
-      },
-      () => setAviso("No pude copiarlo. Selecciónalo y cópialo a mano."),
-    );
-  };
+  const cerrar = () => invoke("revision_cerrar");
+  const sustituir = () => invoke("escribano_sustituir").catch((e) => setAviso(String(e)));
 
-  const palabras = (t: string) => t.trim().split(/\s+/).filter(Boolean).length;
-  const sinCambios = original.trim() === corregido.trim();
+  const tramos = dif ? (ver === "despues" ? dif.despues : dif.antes) : [];
+
+  // El pico del globo apunta a la onda: abajo si el globo salió encima de ella.
+  const colaPico = (
+    <div
+      className={`relative z-10 h-3 w-3 rotate-45 border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 ${
+        pico === "abajo" ? "-mt-[7px] border-r border-b" : "-mb-[7px] border-t border-l"
+      }`}
+    />
+  );
 
   return (
-    <div className="flex h-screen flex-col bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100">
-      <header className="shrink-0 border-b border-slate-200 px-5 py-3 dark:border-slate-800">
-        <h1 className="text-sm font-semibold">Revisa antes de sustituir</h1>
-        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-          Ya está copiado. <b>Sustituir</b> te devuelve a donde estabas y lo pega
-          encima de lo que tenías seleccionado.
+    <div ref={caja} className="flex flex-col items-center px-2 py-1 select-none">
+      <style>{"html, body, #root { overflow: hidden; background: transparent; }"}</style>
+      {pico === "arriba" && colaPico}
+      <div className="w-full rounded-2xl border border-slate-200 bg-white p-3 text-slate-800 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+            ✒ Corregí esto
+          </span>
+          <span className="truncate text-[11px] text-slate-400">{resumen}</span>
+        </div>
+
+        {!sinCambios && (
+          <div className="mt-2 flex gap-1 text-[10px] font-medium">
+            {(
+              [
+                ["despues", "Corregido"],
+                ["antes", "Como estaba"],
+              ] as const
+            ).map(([v, texto]) => (
+              <button
+                key={v}
+                onClick={() => setVer(v)}
+                className={`rounded-full px-2 py-0.5 ${
+                  ver === v
+                    ? "bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900"
+                    : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                }`}
+              >
+                {texto}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <p className="mt-2 max-h-36 overflow-y-auto text-[13px] leading-relaxed whitespace-pre-wrap select-text">
+          {tramos.map((t, k) =>
+            t.cambio === null ? (
+              <span key={k}>{t.texto}</span>
+            ) : (
+              <span
+                key={k}
+                className={`rounded-sm ${
+                  (ver === "despues" ? MARCA : MARCA_ANTES)[dif!.cambios[t.cambio].tipo]
+                } ${foco === t.cambio ? "ring-2 ring-emerald-500" : ""}`}
+              >
+                {t.texto}
+              </span>
+            ),
+          )}
+          {!datos && "…"}
         </p>
-      </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-5">
-        <section className="flex min-h-0 flex-col gap-1">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-            Como estaba · {palabras(original)} palabras
-          </span>
-          <p className="max-h-32 overflow-y-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-white p-3 text-[13px] leading-relaxed text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-            {original || "…"}
-          </p>
-        </section>
-
-        <section className="flex min-h-0 flex-1 flex-col gap-1">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-            Corregido · {palabras(corregido)} palabras
-          </span>
-          <p className="min-h-24 flex-1 overflow-y-auto whitespace-pre-wrap rounded-lg border border-emerald-300 bg-white p-3 text-[13px] leading-relaxed dark:border-emerald-800 dark:bg-slate-900">
-            {corregido || "…"}
-          </p>
-        </section>
-
-        {sinCambios && corregido && (
-          <p className="rounded-lg bg-slate-100 px-3 py-2 text-[11px] text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-            No hubo nada que cambiar: tu texto ya estaba bien.
-          </p>
+        {erratas.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {erratas.map((c) => (
+              <span
+                key={c.id}
+                onMouseEnter={() => setFoco(c.id)}
+                onMouseLeave={() => setFoco(null)}
+                className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30"
+              >
+                <s className="opacity-60">{c.antes || "∅"}</s> → {c.despues || "∅"}
+              </span>
+            ))}
+          </div>
         )}
 
         {aviso && (
-          <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+          <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1.5 text-[11px] leading-snug text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
             {aviso}
           </p>
         )}
-      </div>
 
-      <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 px-5 py-3 dark:border-slate-800">
-        <button
-          onClick={cerrar}
-          className="rounded-lg px-3 py-1.5 text-[12px] text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"
-        >
-          Cerrar
-        </button>
-        <button
-          onClick={copiar}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-[12px] font-medium hover:bg-white dark:border-slate-700 dark:hover:bg-slate-800"
-        >
-          {copiado ? "¡Copiado!" : "Copiar otra vez"}
-        </button>
-        <button
-          onClick={sustituir}
-          disabled={!corregido || sinCambios}
-          className="rounded-lg bg-emerald-600 px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
-        >
-          Sustituir
-        </button>
-      </footer>
+        <div className="mt-3 flex items-center justify-end gap-1.5">
+          <button
+            onClick={cerrar}
+            className="rounded-lg px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+          >
+            {sinCambios ? "Cerrar" : "Dejarlo así"}
+          </button>
+          {!sinCambios && (
+            <button
+              onClick={sustituir}
+              disabled={!datos}
+              className="rounded-lg bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              Sustituir
+            </button>
+          )}
+        </div>
+      </div>
+      {pico === "abajo" && colaPico}
     </div>
   );
 }

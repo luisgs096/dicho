@@ -95,15 +95,16 @@ pub struct AppSettings {
     /// se queda para abrir el menú Inicio. Por eso es configurable y no fija.
     /// `None` la desactiva.
     pub cancelar: Option<Key>,
-    /// El atajo del escribano: corrige lo que acabas de **copiar**, sin dictar.
-    /// Vacío = escribano apagado. Por defecto `Win + Mayús + C`: Windows no se
-    /// queda esa combinación y casi ninguna app la usa, pero es configurable por
-    /// lo de siempre — cualquier atajo choca con algo en algún sitio.
+    /// El escribano: la onda se ofrece a corregir lo que acabas de **copiar**.
+    /// Se usa con un clic en la onda y ya; tuvo atajo de teclado propio y se
+    /// quitó el 24/09/2026 porque el gesto es copiar y darle clic, y un tercer
+    /// atajo sólo era otra cosa que configurar y que podía chocar con las demás.
     ///
-    /// Encenderlo **clava la onda** (`hud_pin`): el gesto es copiar y darle un
-    /// clic. Lo aplica `save_settings` al pasar de vacío a lleno, no en cada
-    /// guardado, para que desclavarla desde su menú no se deshaga sola.
-    pub corregir_atajo: Vec<Key>,
+    /// Encenderlo **clava la onda** (`hud_pin`). Lo aplica `save_settings` al
+    /// pasar de apagado a encendido, no en cada guardado, para que desclavarla
+    /// desde su menú no se deshaga sola.
+    #[serde(default = "verdadero")]
+    pub escribano: bool,
     pub engine: EngineKind,
     pub polish: PolishKind,
     /// "auto" o código ISO-639-1 ("es", "en", ...). Se ignora si `no_traducir`.
@@ -187,7 +188,7 @@ impl Default for AppSettings {
         Self {
             hotkey: vec![Key::ControlLeft, Key::MetaLeft],
             cancelar: Some(Key::Escape),
-            corregir_atajo: vec![Key::MetaLeft, Key::ShiftLeft, Key::KeyC],
+            escribano: true,
             engine: EngineKind::Parakeet,
             polish: PolishKind::Rules,
             language: "auto".into(),

@@ -21,9 +21,6 @@ pub fn spawn(tx: Sender<Cmd>, settings: SettingsState, store: Arc<crate::store::
         // siendo cierto y arrancaría un dictado nuevo en el acto. Se levanta
         // cuando por fin sueltas.
         let mut esperando_soltar = false;
-        // El atajo de corregir dispara una vez por pulsación, no una por evento
-        // de teclado: sin esto, mantenerlo medio segundo mandaría decenas.
-        let mut corrigiendo = false;
         let result = rdev::listen(move |event| {
             // Lo primero y aparte del atajo: aquí sólo se acumula la palabra y
             // se decide. Teclear lo hace otro hilo — lo que corra dentro de este
@@ -63,22 +60,7 @@ pub fn spawn(tx: Sender<Cmd>, settings: SettingsState, store: Arc<crate::store::
                 }
                 _ => return,
             }
-            // El atajo de corregir se mira aparte y ANTES: es un disparo, no un
-            // mantener pulsado, así que se comprueba al completarse la
-            // combinación y se marca para no repetirse mientras sigue apretada.
-            let (combo, corregir) = settings
-                .read()
-                .map(|s| (s.hotkey.clone(), s.corregir_atajo.clone()))
-                .unwrap_or_default();
-            if !corregir.is_empty() && !active {
-                let todas = corregir.iter().all(|k| pressed.contains(k));
-                if todas && !corrigiendo {
-                    corrigiendo = true;
-                    let _ = tx.send(Cmd::Corregir);
-                } else if !todas {
-                    corrigiendo = false;
-                }
-            }
+            let combo = settings.read().map(|s| s.hotkey.clone()).unwrap_or_default();
             if combo.is_empty() {
                 return;
             }

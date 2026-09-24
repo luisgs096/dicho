@@ -12,9 +12,14 @@ guiones. Nada más.
 
 ## 0.16.0 — 24 de septiembre de 2026
 
-- **El atajo del escribano se cambia desde el teclado de Inicio**, en su pestaña
-  verde, igual que los de dictar y cancelar. No te deja elegir uno que choque con
-  los otros dos.
+- **El escribano corrige de verdad lo que tecleas**: faltas de dedo («hqaremos»
+  → «haremos»), acentos y signos, sin quitarte el slang ni los emoticonos. Antes
+  usaba las mismas reglas que el dictado y dejaba las erratas tal cual.
+- **La corrección sale en un globo junto a la onda**, como si hablara ella. Marca
+  lo que cambió, las erratas van en fichas como en el historial, y puedes ver
+  cómo estaba. Ya no le quita el foco a la ventana donde escribías.
+- **El escribano ya no tiene atajo de teclado**: se usa copiando y dándole clic a
+  la onda. Y se ofrece cada vez que copias, aunque copies otra vez lo mismo.
 - **El escribano necesita tu key de Groq, que es gratis.** LABS te lo dice y trae
   un botón que te lleva a conseguirla; sin key ya no sale a cada Ctrl+C. Ahora
   se ofrece **8 segundos**, no 20, y si desclavas la onda ya no se vuelve a clavar

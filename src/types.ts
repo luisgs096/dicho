@@ -12,8 +12,8 @@ export interface AppSettings {
   hotkey: string[];
   /** Tecla para cancelar a media grabación. `null` la desactiva. */
   cancelar: string | null;
-  /** Atajo del escribano: corrige lo que acabas de copiar. Vacío = apagado. */
-  corregir_atajo: string[];
+  /** El escribano: la onda se ofrece a corregir lo que acabas de copiar. */
+  escribano: boolean;
   engine: EngineKind;
   polish: PolishKind;
   language: string;
@@ -179,6 +179,3 @@ export function keyLabel(key: string): string {
   return key;
 }
 
-export function hotkeyLabel(keys: string[]): string {
-  return keys.map(keyLabel).join(" + ");
-}

@@ -4,8 +4,8 @@
 //!
 //! Seleccionas texto donde sea, lo copias **tú** con el atajo que use esa app, y
 //! la onda —que está clavada, para eso se fuerza— cambia a la carita de la pluma
-//! y espera. Un clic encima y lo corrige. El atajo de teclado sigue existiendo
-//! como segundo camino, para cuando ya tienes las manos ahí.
+//! y espera. Un clic encima y lo corrige, y la corrección sale en un globo
+//! pegado a la onda.
 //!
 //! # Por qué vigila el portapapeles en vez de leer la selección
 //!
@@ -125,7 +125,7 @@ pub fn vigilar(app: AppHandle, settings: SettingsState) {
             std::thread::sleep(SONDEO);
             let activo = settings
                 .read()
-                .map(|s| !s.corregir_atajo.is_empty())
+                .map(|s| s.escribano)
                 .unwrap_or(false);
             if !activo || crate::pipeline::grabando() {
                 continue;

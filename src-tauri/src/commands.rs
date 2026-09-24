@@ -39,8 +39,8 @@ pub fn save_settings(
     // tus espaldas — y una instalación nueva, que ya trae el escribano puesto,
     // no amanece con la onda clavada por marcar una casilla. Sin clavar, la
     // onda se queda a la vista mientras se ofrece (ver `hud_encima`).
-    let encendiendo = !new_settings.corregir_atajo.is_empty()
-        && state.read().map(|s| s.corregir_atajo.is_empty()).unwrap_or(false);
+    let encendiendo =
+        new_settings.escribano && state.read().map(|s| !s.escribano).unwrap_or(false);
     if encendiendo {
         new_settings.hud_pin = true;
     }
@@ -131,10 +131,20 @@ pub fn escribano_sustituir(app: AppHandle, state: State<'_, SettingsState>) -> R
         }
     }
     crate::inject::pegar().map_err(|e| e.to_string())?;
-    if let Some(v) = app.get_webview_window("revision") {
-        let _ = v.close();
-    }
+    pipeline::cerrar_revision(&app);
     Ok(())
+}
+
+/// El globo ya se midió: se ajusta a su contenido y se pega a la onda. Devuelve
+/// hacia dónde tiene que apuntar su pico.
+#[tauri::command]
+pub fn revision_colocar(app: AppHandle, alto: f64) -> String {
+    pipeline::colocar_revision(&app, alto).to_string()
+}
+
+#[tauri::command]
+pub fn revision_cerrar(app: AppHandle) {
+    pipeline::cerrar_revision(&app);
 }
 
 /// Lo que la ventana de revisión tiene que enseñar al abrirse.

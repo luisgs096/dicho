@@ -324,7 +324,12 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
                 // Clavada se queda: sólo vuelve a reposo, que es su cara de
                 // "aquí estoy, sin molestar". Y con el ratón encima tampoco se
                 // va: esconderse bajo el cursor es lo contrario de dejarse usar.
-                if hud_clavado(&app) || RATON_ENCIMA.load(Ordering::SeqCst) {
+                // Y mientras el globo de la revisión esté abierto, tampoco: un
+                // globo sin nadie que lo diga no se entiende.
+                if hud_clavado(&app)
+                    || RATON_ENCIMA.load(Ordering::SeqCst)
+                    || app.get_webview_window("revision").is_some()
+                {
                     emit_state(&app, "idle", None);
                 } else {
                     ocultar_ventana(&hud);
@@ -452,8 +457,69 @@ fn corregir_seleccion(
 /// (`revision_pendiente`): si se acaba de crear, todavía no escucha eventos.
 pub(crate) static REVISION: Mutex<Option<serde_json::Value>> = Mutex::new(None);
 
-/// La ventana de revisión se crea al usarla y se destruye al cerrarla: casi
-/// nunca está abierta, y oculta cuesta un proceso de WebView2 entero.
+/// Ancho del globo de la revisión, en puntos lógicos. El alto lo pone su
+/// contenido: lo mide el webview y lo pide con `revision_colocar`.
+const GLOBO_W: f64 = 380.0;
+
+/// Pega el globo a la onda, como si hablara ella: **encima** si cabe y debajo
+/// si la onda está arriba del todo. Devuelve hacia dónde apunta el pico
+/// (`"abajo"` = el globo está encima de la onda).
+///
+/// Nada de solaparse con la ventana de la onda: sus 22 px de arriba son el
+/// sitio del botón del menú, y el globo se lo taparía.
+pub(crate) fn colocar_revision(app: &AppHandle, alto: f64) -> &'static str {
+    let (Some(v), Some(hud)) = (
+        app.get_webview_window("revision"),
+        app.get_webview_window("hud"),
+    ) else {
+        return "abajo";
+    };
+    let (Ok(p), Ok(t)) = (hud.outer_position(), hud.outer_size()) else {
+        return "abajo";
+    };
+    let escala = hud.scale_factor().unwrap_or(1.0);
+    let (w, h) = ((GLOBO_W * escala) as i32, (alto * escala) as i32);
+    let (ax, ay, aw, _) = overlay::hwnd_of(&hud)
+        .and_then(overlay::work_area_of)
+        .unwrap_or_else(|| area_hud(app));
+    let x = (p.x + t.width as i32 / 2 - w / 2).clamp(ax, (ax + aw - w).max(ax));
+    let (y, pico) = if p.y - h >= ay {
+        (p.y - h, "abajo")
+    } else {
+        (p.y + t.height as i32, "arriba")
+    };
+    // Primero a su sitio y luego el tamaño: si el globo nace en otra pantalla,
+    // al moverlo Windows lo reescala por el DPI y pisaría el tamaño bueno.
+    let _ = v.set_position(tauri::PhysicalPosition { x, y });
+    let _ = v.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
+    // El lienzo de WebView2 no se entera solo del cambio de DPI (ver el gotcha).
+    let webview: &tauri::Webview<_> = v.as_ref();
+    let _ = webview.set_bounds(tauri::Rect {
+        position: tauri::PhysicalPosition::new(0, 0).into(),
+        size: tauri::PhysicalSize::new(w as u32, h as u32).into(),
+    });
+    pico
+}
+
+/// Cierra el globo y, si la onda no está clavada, la deja irse con él.
+pub(crate) fn cerrar_revision(app: &AppHandle) {
+    if let Some(v) = app.get_webview_window("revision") {
+        let _ = v.close();
+    }
+    if hud_clavado(app) || RATON_ENCIMA.load(Ordering::SeqCst) || grabando() {
+        return;
+    }
+    if let Some(hud) = app.get_webview_window("hud") {
+        ocultar_ventana(&hud);
+    }
+}
+
+/// La revisión es un globo que sale de la onda. Se crea al usarlo y se destruye
+/// al cerrarlo: casi nunca está abierto, y oculto cuesta un proceso de WebView2
+/// entero.
+///
+/// **No se lleva el foco**, igual que la onda: así la ventana donde copiaste
+/// sigue delante mientras lees, y «Sustituir» pega ahí.
 fn abrir_revision(app: &AppHandle, original: &str, corregido: &str) {
     // El destino viaja con la revisión y no se lee al pulsar «Sustituir»: para
     // entonces el vigilante lo habrá movido si el usuario copió otra cosa en
@@ -487,8 +553,12 @@ fn abrir_revision(app: &AppHandle, original: &str, corregido: &str) {
             }
         }
     };
-    let _ = v.show();
-    let _ = v.set_focus();
+    let _ = v.set_focusable(false);
+    // Un alto provisional para nacer ya junto a la onda; el definitivo lo pide
+    // el globo en cuanto se mide.
+    colocar_revision(app, 200.0);
+    mostrar_ventana(&v);
+    let _ = v.set_always_on_top(true);
 }
 
 /// La onda se ofrece a corregir lo que el usuario acaba de copiar.
