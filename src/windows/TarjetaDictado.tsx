@@ -114,7 +114,10 @@ export function TarjetaDictado(props: {
   const sinCambios = h.raw.trim() === h.polished.trim();
 
   const analisis = useMemo(() => {
-    if (!listas) return null;
+    // Sólo con el panel abierto, que es el único sitio donde se enseña. Hecho
+    // para las cien tarjetas a la vez, abrir la pestaña Historial costaba unos
+    // 64 ms en vez de 17: ~270 expresiones regulares por tarjeta.
+    if (!listas || !abierto) return null;
     // Las muletillas se cuentan por DIFERENCIA: las que estaban en el crudo y ya
     // no están en el final. Así una palabra que también es muletilla —"este
     // documento", "pues bien"— no infla el número, porque aparece en los dos.
@@ -139,7 +142,7 @@ export function TarjetaDictado(props: {
       palabrasCrudo: h.raw.split(/\s+/).filter(Boolean).length,
       palabrasFinal: h.polished.split(/\s+/).filter(Boolean).length,
     };
-  }, [h.raw, h.polished, listas]);
+  }, [h.raw, h.polished, listas, abierto]);
 
   // Cada indicador resalta sobre el texto donde se le ve. Las muletillas sólo
   // existen en el crudo; las correcciones, en el final.
