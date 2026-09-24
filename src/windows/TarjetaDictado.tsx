@@ -163,7 +163,11 @@ export function TarjetaDictado(props: {
 
   const terminosResaltados =
     resaltado === "correcciones"
-      ? h.corrections.filter((c) => c.aplicadas > 0).map((c) => c.replacement)
+      ? h.corrections
+          // Sin el dato (dictados de antes de la 0.11) no se sabe si llegó:
+          // no se resalta nada en vez de adivinar.
+          .filter((c) => (c.aplicadas ?? 0) > 0)
+          .map((c) => c.replacement)
       : resaltado === "muletillas"
         ? (analisis?.muletillasTerminos ?? [])
         : resaltado === "anglicismos"
@@ -172,7 +176,11 @@ export function TarjetaDictado(props: {
 
   const marca = resaltado ? TONOS[resaltado].marca : "";
   const nCorr = h.corrections.reduce((n, c) => n + c.count, 0);
-  const ignoradas = h.corrections.filter((c) => c.aplicadas === 0).length;
+  // En las mismas unidades que `nCorr` —veces, no términos—: si no, un término
+  // corregido ×3 y otro que no llegó ×2 salían «5 correcciones (1 sin aplicar)».
+  const ignoradas = h.corrections
+    .filter((c) => c.aplicadas === 0)
+    .reduce((n, c) => n + c.count, 0);
 
   return (
     <li className="group rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/60">
@@ -311,8 +319,8 @@ export function TarjetaDictado(props: {
                 activo={resaltado === "correcciones"}
                 onHover={setResaltado}
               >
-                {h.corrections.length}{" "}
-                {h.corrections.length === 1 ? "corrección" : "correcciones"}
+                {/* El mismo número que el renglón de arriba, no otro. */}
+                {nCorr} {nCorr === 1 ? "corrección" : "correcciones"}
               </Indicativo>
             )}
             {analisis && analisis.muletillas > 0 && (
