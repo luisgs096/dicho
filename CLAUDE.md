@@ -100,11 +100,23 @@ conocimiento. Y se commitea con el resto.
   El diccionario personal del usuario manda sobre la tabla y sí admite cambiar
   una palabra por otra, porque lo escribió él.
 - `src-tauri/src/hotkey.rs` — hook global rdev; lee `settings.hotkey` en cada evento →
-  cambios de atajo aplican en vivo sin reiniciar. **Escape mientras grabas manda
-  `Cmd::Cancel`**: se tira el audio y no se transcribe nada. Ojo con la trampa —
+  cambios de atajo aplican en vivo sin reiniciar. **La tecla de cancelar (Escape de
+  fábrica) mientras grabas manda `Cmd::Cancel`**: se tira el audio y no se transcribe
+  nada. Ojo con la trampa —
   al cancelar el atajo *sigue apretado*, así que hay una bandera
   `esperando_soltar`; sin ella `all_down` seguiría siendo cierto y arrancaría un
   dictado nuevo en el acto.
+- `src-tauri/src/escribano.rs` — el **escribano**: un vigilante que sondea el
+  portapapeles cada 400 ms (mirando antes el contador de Windows, para no abrirlo
+  si no cambió) y, con una copia nueva, saca la onda 20 s ofreciendo corregirla.
+  Viene **encendido de fábrica** (el atajo `corregir_atajo` trae valor), así que
+  todo lo suyo tiene que funcionar para quien no tiene key: sin key no se ofrece,
+  y la casilla de LABS deja apagarlo aunque no deje encenderlo. Lo que se copia
+  con Dicho al frente no cuenta como copia nueva, y la ventana de destino de
+  «Sustituir» se apunta **al abrir la revisión**, no al pulsar: mientras lees
+  puedes copiar otra cosa en otra ventana. Encenderlo clava la onda, pero sólo
+  al encenderlo: si luego la desclavas, guardar otro ajuste no la vuelve a
+  clavar; sin clavar, la onda no se esconde mientras se ofrece.
 - **La ventana del HUD mide 104 de alto** (96 → 112 → 104). Arriba asoma el botón
   del menú, que al pasarle el ratón crece y saca halo; el aire **no se reparte a
   medias**: la cápsula va pegada abajo (`items-end` + `pb-2`), así que quedan 22 px
@@ -722,6 +734,15 @@ conocimiento. Y se commitea con el resto.
   función principal de la app, por culpa de una de laboratorio que no pudo
   arrancar. Va en `Option` y degrada. Regla: en un hilo que sostiene algo más que
   su propia tarea, no hay `unwrap` ni `expect` que valga.
+  **Y un pánico no necesita un `expect` escrito** (24/09). El mismo
+  `Corrector::nuevo` hacía `Instant::now() - 60 s` para forzar la primera
+  lectura del diccionario. En Windows `Instant` cuenta desde el arranque del
+  equipo y **no baja de cero**: la resta no satura, aborta. Con «Iniciar con
+  Windows» y un inicio de sesión rápido Dicho arranca antes de ese minuto, y el
+  pánico se llevaba el hook y el atajo de dictar, sin línea en el log. En Linux
+  no se reproduce (ahí `Instant` tiene signo). Para «todavía no pasó» se usa
+  `Option<Instant>`, nunca una resta al reloj; `cargo clippy -- -W
+  clippy::unchecked_time_subtraction` las encuentra todas.
 - **Nada de manos con dedos sueltos a 48×16** (20/09/2026). La mano que
   chasqueaba los dedos en el silbido era un puño con **un dedo levantado**, y a
   cinco píxeles eso no se lee como un chasquido: se lee como una peineta. Lo vio
@@ -1025,16 +1046,16 @@ de descarga del README caducaría en cada versión. **El updater no la usa**: `l
 sigue apuntando a la URL con el número de versión, para que una descarga a medias no se
 mezcle con la release siguiente. La copia es sólo para humanos.
 
-**Dos limitaciones conocidas**, ninguna urgente:
+**Una limitación conocida**, no urgente, y otra que ya se resolvió:
 
 - El vigilante espera 3 s tras el cierre pero **no espera a que el instalador termine**.
   Bastó siempre hasta ahora, pero con un disco lento o un antivirus escaneando podría
   arrancar la app a media instalación y el instalador la mataría. Si vuelve a quedarse
   cerrada tras actualizar, el arreglo es esperar a que desaparezca el proceso del
   instalador antes del primer intento.
-- **La comprobación sólo ocurre al *abrir* la ventana de Ajustes.** Con la ventana ya
-  abierta no vuelve a mirar nunca. El botón de buscar siempre funciona. La mejora, si se
-  quiere, es volver a comprobar cuando la ventana recupera el foco.
+- **La comprobación va al abrir Ajustes y al volver a ella**, como mucho una vez cada
+  diez minutos (`useUpdater`): con la ventana abierta de fondo durante horas, la campanita
+  se entera al recuperar el foco. El botón de buscar siempre va.
 
 **Auditoría de secretos** (hecha el 27/08 antes del primer reparto a terceros; conviene
 repetirla cada vez que se publique). Todo limpio:
