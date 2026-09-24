@@ -10,6 +10,31 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
+## 0.16.0 — 24 de septiembre de 2026
+
+- **El atajo del escribano se cambia desde el teclado de Inicio**, en su pestaña
+  verde, igual que los de dictar y cancelar. No te deja elegir uno que choque con
+  los otros dos.
+- **El escribano necesita tu key de Groq, que es gratis.** LABS te lo dice y trae
+  un botón que te lleva a conseguirla; sin key ya no sale a cada Ctrl+C. Ahora
+  se ofrece **8 segundos**, no 20, y si desclavas la onda ya no se vuelve a clavar
+  sola al tocar otro ajuste.
+- **«Sustituir» pega la corrección donde copiaste el texto**, aunque mientras
+  leías hayas copiado otra cosa en otra ventana. Lo que copias dentro de Dicho, o
+  tu dictado recién pegado, ya no lo hace saltar.
+- **Si Groq falla y tienes el modelo local descargado, transcribe con él** en vez
+  de perder el dictado. Tarda unos segundos más.
+- **Arreglado: con el motor local, el primer dictado después de un rato se
+  perdía.** Y si Dicho arrancaba en el primer minuto tras encender el PC, el
+  atajo de dictar podía dejar de funcionar.
+- **Gasta menos.** Escondida, la onda ya no sigue animándose por detrás, y
+  Ajustes deja de ocupar memoria cuando la cierras.
+- **La limpiada con servilleta por fin se ve entera**, y al bajarse del carrito
+  la carita mira a los lados. Las notas del silbido son de dos tipos y ya no se
+  pisan, y los ojos que te siguen sólo se marean si les das dos vueltas.
+- **El diccionario ya no duplica**: «tailwind → Tailwind CSS» daba «Tailwind CSS
+  CSS». E «iPhone» ya no sale «IPhone».
+
 ## 0.15.0 — 21 de septiembre de 2026
 
 - **Los ojitos te siguen.** Una de las caritas de reposo sigue el cursor por toda
