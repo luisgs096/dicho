@@ -346,6 +346,9 @@ fn corregir_seleccion(
     };
 
     crate::escribano::desarmar();
+    // Nueva generación, como al dictar: si no, el `hide_hud_later` del dictado
+    // anterior (2,4 s) esconde la onda a mitad de la corrección.
+    hud_gen.fetch_add(1, Ordering::SeqCst);
     show_hud(app, hud_gen);
     emit_state(app, "corrigiendo", None);
     let t0 = Instant::now();

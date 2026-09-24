@@ -27,7 +27,7 @@
 //! compartida: no se nota, y evita montar una ventana fantasma sólo para esto.
 
 use crate::settings::SettingsState;
-use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use tauri::AppHandle;
@@ -122,11 +122,16 @@ pub fn vigilar(app: AppHandle, settings: SettingsState) {
     });
 }
 
+/// Cada oferta nueva invalida el plazo de la anterior.
+static OFERTA: AtomicU64 = AtomicU64::new(0);
+
 /// Programa el desarme: si nadie pulsa, la onda vuelve a lo suyo.
 pub fn desarmar_luego(app: AppHandle) {
+    let mia = OFERTA.fetch_add(1, Ordering::SeqCst) + 1;
     std::thread::spawn(move || {
         std::thread::sleep(ESPERA);
-        if ARMADO.swap(false, Ordering::SeqCst) {
+        // Sólo caduca la última oferta: una copia nueva reinicia los 20 s.
+        if OFERTA.load(Ordering::SeqCst) == mia && ARMADO.swap(false, Ordering::SeqCst) {
             crate::pipeline::escribano_expirado(&app);
         }
     });
