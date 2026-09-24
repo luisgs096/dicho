@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "revision",
+  "description": "La ventana de revisión: escuchar el texto corregido y poder cerrarse",
+  "windows": ["revision"],
+  "permissions": [
+    "core:event:default",
+    "core:window:allow-close"
+  ]
+}

@@ -56,6 +56,10 @@ export function useUpdater() {
     let hechos = 0;
     let total = 0;
     setEstado({ fase: "descargando", version: update.version, hechos: 0, total: 0 });
+    // Cerrar Ajustes la destruye, y la descarga vive aquí: mientras dura, que
+    // cerrarla sólo la esconda. Si todo va bien no hace falta soltarlo, porque
+    // el instalador cierra Dicho entero.
+    await invoke("ajustes_ocupada", { on: true }).catch(console.warn);
     try {
       // Antes de nada, dejar programado el relanzamiento: el instalador mata
       // Dicho y por ese camino su propio `/R` no vuelve a abrirlo.
@@ -80,6 +84,7 @@ export function useUpdater() {
       await relaunch();
     } catch (e) {
       setEstado({ fase: "error", mensaje: String(e) });
+      invoke("ajustes_ocupada", { on: false }).catch(console.warn);
     }
   }, []);
 

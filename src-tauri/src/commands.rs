@@ -102,9 +102,15 @@ pub fn escribano_sustituir(app: AppHandle, state: State<'_, SettingsState>) -> R
     }
     crate::inject::pegar().map_err(|e| e.to_string())?;
     if let Some(v) = app.get_webview_window("revision") {
-        let _ = v.hide();
+        let _ = v.close();
     }
     Ok(())
+}
+
+/// Lo que la ventana de revisión tiene que enseñar al abrirse.
+#[tauri::command]
+pub fn revision_pendiente() -> Option<serde_json::Value> {
+    pipeline::REVISION.lock().ok().and_then(|r| r.clone())
 }
 
 /// Clic en la onda cuando está en modo escribano: corrige lo copiado.
@@ -489,6 +495,18 @@ for ($i = 0; $i -lt 20; $i++) {{
 Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
 "
     )
+}
+
+/// Ajustes está a media actualización: cerrarla ahora la esconde en vez de
+/// destruirla (ver `on_window_event` en lib.rs), porque la descarga vive en
+/// su webview y se cortaría.
+pub static AJUSTES_OCUPADA: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Lo avisa el updater al empezar a descargar, y al fallar para soltarlo.
+#[tauri::command]
+pub fn ajustes_ocupada(on: bool) {
+    AJUSTES_OCUPADA.store(on, Ordering::SeqCst);
 }
 
 #[tauri::command]

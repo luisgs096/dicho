@@ -381,14 +381,7 @@ fn corregir_seleccion(
             // producir, en bucle.
             crate::escribano::ya_visto(&corregido);
             // Y se abre la revisión: el usuario ve qué cambió y decide.
-            if let Some(v) = app.get_webview_window("revision") {
-                let _ = v.emit(
-                    "revision",
-                    serde_json::json!({ "original": original, "corregido": corregido }),
-                );
-                let _ = v.show();
-                let _ = v.set_focus();
-            }
+            abrir_revision(app, &original, &corregido);
             diag(app, &format!(
                 "Corregido: {}→{} palabras en {} ms",
                 original.split_whitespace().count(),
@@ -412,6 +405,42 @@ fn corregir_seleccion(
             hide_hud_later(app, hud_gen, 3200);
         }
     }
+}
+
+/// Lo último que se mandó a revisar. La ventana lo pide al montarse
+/// (`revision_pendiente`): si se acaba de crear, todavía no escucha eventos.
+pub(crate) static REVISION: Mutex<Option<serde_json::Value>> = Mutex::new(None);
+
+/// La ventana de revisión se crea al usarla y se destruye al cerrarla: casi
+/// nunca está abierta, y oculta cuesta un proceso de WebView2 entero.
+fn abrir_revision(app: &AppHandle, original: &str, corregido: &str) {
+    let datos = serde_json::json!({ "original": original, "corregido": corregido });
+    if let Ok(mut r) = REVISION.lock() {
+        *r = Some(datos.clone());
+    }
+    let v = match app.get_webview_window("revision") {
+        Some(v) => {
+            let _ = v.emit("revision", datos);
+            v
+        }
+        None => {
+            let Some(cfg) = app.config().app.windows.iter().find(|w| w.label == "revision")
+            else {
+                return;
+            };
+            // Desde el hilo del pipeline, nunca desde un comando síncrono: en
+            // Windows construir una ventana ahí se bloquea.
+            match tauri::WebviewWindowBuilder::from_config(app, cfg).and_then(|b| b.build()) {
+                Ok(v) => v,
+                Err(e) => {
+                    diag(app, &format!("Revisión: no se pudo abrir la ventana ({e})"));
+                    return;
+                }
+            }
+        }
+    };
+    let _ = v.show();
+    let _ = v.set_focus();
 }
 
 /// Saca la onda a celebrar que acabas de actualizar. Una sola vez, al primer

@@ -26,7 +26,17 @@ fn focus_main(app: &tauri::AppHandle) {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
+        return;
     }
+    // Al cerrarla se destruye, y con ella su proceso de WebView2: aquí se
+    // vuelve a crear desde su configuración. En otro hilo, porque construir una
+    // ventana desde un manejador de eventos (la bandeja) se bloquea en Windows.
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if let Some(cfg) = app.config().app.windows.iter().find(|w| w.label == "main") {
+            let _ = tauri::WebviewWindowBuilder::from_config(&app, cfg).and_then(|b| b.build());
+        }
+    });
 }
 
 fn build_tray(app: &tauri::App) -> tauri::Result<()> {
@@ -209,10 +219,19 @@ pub fn run() {
             });
             Ok(())
         })
+        // Cerrar Ajustes ya no la oculta: la destruye, y su WebView2 se va con
+        // ella —de 30 a 55 MB de proceso de render que antes vivían toda la
+        // sesión—. La app sigue viva en la bandeja (la onda nunca se cierra) y
+        // `focus_main` la vuelve a crear.
+        //
+        // La excepción es una actualización a medias: la descarga vive en esa
+        // ventana, y destruirla la cortaría. Mientras dura, cerrar la esconde
+        // como antes (ver `commands::ajustes_ocupada`).
         .on_window_event(|window, event| {
-            // Cerrar la ventana principal la oculta: la app vive en la bandeja.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
+                if window.label() == "main"
+                    && commands::AJUSTES_OCUPADA.load(std::sync::atomic::Ordering::SeqCst)
+                {
                     let _ = window.hide();
                     api.prevent_close();
                 }
@@ -246,6 +265,8 @@ pub fn run() {
             commands::hud_encima,
             commands::hud_nivel,
             commands::programar_relanzamiento,
+            commands::ajustes_ocupada,
+            commands::revision_pendiente,
         ])
         .run(ctx)
         .expect("error while running tauri application");
