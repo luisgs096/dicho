@@ -1327,11 +1327,13 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                     );
                     let level_app = app.clone();
                     // Máximo ~30 eventos/s hacia el HUD para no saturar el IPC.
-                    let last_emit = Arc::new(Mutex::new(Instant::now() - Duration::from_secs(1)));
+                    // `None` y no `now() - 1 s`: en Windows restar al reloj
+                    // recién arrancado el equipo aborta (ver autotype.rs).
+                    let last_emit = Arc::new(Mutex::new(None::<Instant>));
                     match AudioRecorder::start(move |rms| {
                         let mut last = last_emit.lock().unwrap();
-                        if last.elapsed() >= Duration::from_millis(33) {
-                            *last = Instant::now();
+                        if last.is_none_or(|t| t.elapsed() >= Duration::from_millis(33)) {
+                            *last = Some(Instant::now());
                             drop(last);
                             let _ =
                                 level_app.emit("audio-level", serde_json::json!({ "level": rms }));

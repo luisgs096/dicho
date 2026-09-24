@@ -97,7 +97,11 @@ pub struct Corrector {
     /// El diccionario del usuario, con su hora de lectura. Sin reemplazo es
     /// una palabra protegida: el usuario dijo que se escribe así.
     dicc: Vec<(String, Option<String>)>,
-    dicc_leido: Instant,
+    /// `None` = todavía no se ha leído. No se finge una lectura vieja restando
+    /// al reloj: en Windows `Instant` cuenta desde el arranque y no baja de
+    /// cero, así que `Instant::now() - 60 s` con el equipo recién encendido
+    /// **aborta el hilo** — y éste es el del hook, el del atajo de dictar.
+    dicc_leido: Option<Instant>,
     tx: Sender<Reemplazo>,
     /// Lo levanta el hilo que teclea. Nuestras propias teclas vuelven por el
     /// hook, y sin esto el corrector se leería a sí mismo.
@@ -120,8 +124,8 @@ impl Corrector {
             settings,
             store,
             dicc: Vec::new(),
-            // Forzar la primera lectura en cuanto se cierre una palabra.
-            dicc_leido: Instant::now() - REFRESCO_DICCIONARIO,
+            // La primera lectura, en cuanto se cierre una palabra.
+            dicc_leido: None,
             tx,
             escribiendo,
         }
@@ -228,14 +232,17 @@ impl Corrector {
         if self.palabra.is_empty() {
             return;
         }
-        if self.dicc_leido.elapsed() >= REFRESCO_DICCIONARIO {
+        if self
+            .dicc_leido
+            .is_none_or(|t| t.elapsed() >= REFRESCO_DICCIONARIO)
+        {
             self.dicc = self
                 .store
                 .dict_pairs()
                 .into_iter()
                 .map(|(t, r)| (t.to_lowercase(), r))
                 .collect();
-            self.dicc_leido = Instant::now();
+            self.dicc_leido = Some(Instant::now());
         }
         // El diccionario del usuario manda sobre la tabla: lo escribió él. Y
         // también cuando no trae reemplazo: una palabra protegida es justo
@@ -347,7 +354,7 @@ mod pruebas_diccionario {
             store,
             dicc: Vec::new(),
             // Que la primera palabra lea el diccionario de verdad, por `dict_pairs`.
-            dicc_leido: Instant::now() - REFRESCO_DICCIONARIO,
+            dicc_leido: None,
             tx,
             escribiendo: Arc::new(AtomicBool::new(false)),
         };
