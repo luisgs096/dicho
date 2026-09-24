@@ -50,7 +50,9 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     let mut builder = TrayIconBuilder::with_id("tray")
         .menu(&menu)
         .show_menu_on_left_click(true)
-        .tooltip("Dicho — mantén Ctrl+Win y habla")
+        // Sin nombrar teclas: el atajo se cambia en Inicio y esto se escribe
+        // una sola vez, al arrancar. Con «Ctrl+Win» mentía a quien lo cambió.
+        .tooltip("Dicho — mantén tu atajo y habla")
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => focus_main(app),
             "quit" => app.exit(0),

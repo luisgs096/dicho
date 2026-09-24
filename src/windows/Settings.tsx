@@ -272,7 +272,7 @@ const LABS_CSS = `
 const TAB_META: Record<Tab, { title: string; desc: string }> = {
   inicio: {
     title: "Inicio",
-    desc: "Tu atajo para dictar y cómo se ve la onda flotante mientras hablas.",
+    desc: "Tus atajos de teclado, la onda flotante y los experimentos de LABS.",
   },
   diccionario: {
     title: "Diccionario",
@@ -280,7 +280,7 @@ const TAB_META: Record<Tab, { title: string; desc: string }> = {
   },
   historial: {
     title: "Historial",
-    desc: "Todo lo que has dictado, con las correcciones que aplicó tu diccionario.",
+    desc: "Tus últimos 100 dictados —el buscador mira en todos—, con las correcciones que aplicó tu diccionario.",
   },
   ajustes: {
     title: "Ajustes",
@@ -1334,18 +1334,17 @@ export default function Settings() {
                               Todo lo demás se hace sobre la onda misma
                             </p>
                             <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                              Pásale el ratón por encima y aparece un botón con
-                              un + arriba a la derecha. Ahí puedes{" "}
-                              <strong>clavarla</strong> para que se quede
-                              siempre a la vista, o{" "}
-                              <strong>cambiarla de sitio</strong> —y entonces
-                              los botones se convierten en «listo» y «devolverla
-                              a su sitio»—. Clavada y sin dictar se pone
-                              translúcida para no estorbar.
+                              Arrástrala desde cualquier punto para cambiarla de
+                              sitio: cada pantalla recuerda el suyo. Al pasarle
+                              el ratón por encima salen dos botones arriba a la
+                              derecha: <strong>clavarla</strong> para que se
+                              quede siempre a la vista y{" "}
+                              <strong>devolverla a su sitio</strong>. Clavada y
+                              sin dictar se pone translúcida para no estorbar.
                             </p>
                             <p className="mt-2 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-                              Si la onda no está a la vista, enciéndela abajo o
-                              dicta una vez: sale sola.
+                              Si la onda no está a la vista, dicta una vez: sale
+                              sola.
                             </p>
                           </div>
 
@@ -1368,7 +1367,8 @@ export default function Settings() {
                             debajo. Apagándolo vuelve a ser un cristal que se
                             atraviesa — y entonces su menú deja de existir, así
                             que sólo podrás moverla o clavarla volviendo a
-                            encender esto.
+                            encender esto. Clavada lo atrapa siempre, esté como
+                            esté esto: si no, no habría forma de desclavarla.
                           </p>
                         </>
                       )}
@@ -1381,8 +1381,8 @@ export default function Settings() {
                 <Section
                   id="labs"
                   tono="labs"
-                  title="LABS · El modo Editor"
-                  hint="Un solo interruptor: si lo enciendes, la onda te deja alternar entre Estándar y Editor justo antes de hablar."
+                  title="LABS"
+                  hint="Tres experimentos, cada uno con su interruptor: el modo Editor —que te deja alternar en la onda entre Estándar y Editor justo antes de hablar—, el escribano y la corrección mientras escribes."
                 >
                   {settings ? (
                     <div className="flex flex-col gap-2.5">
@@ -1826,7 +1826,7 @@ export default function Settings() {
                           Local — Parakeet V3 (privado, gratis)
                         </option>
                         <option value="groq" disabled={!hasKey}>
-                          Cloud — Groq Whisper turbo{" "}
+                          Cloud — Groq Whisper large-v3{" "}
                           {hasKey ? "" : "(requiere API key)"}
                         </option>
                       </select>
@@ -1839,10 +1839,11 @@ export default function Settings() {
 
                     <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
                       <strong className="text-slate-600 dark:text-slate-300">
-                        Cómo te redacta se elige en Inicio,
+                        Cómo te redacta se elige en la onda,
                       </strong>{" "}
-                      en la sección LABS: ahí están los tres niveles, con un
-                      ejemplo de lo que hace cada uno.
+                      justo antes de hablar: Estándar o Editor. El Editor se
+                      enciende en Inicio, en la sección LABS, con un ejemplo de
+                      lo que hace.
                     </p>
 
                     <label className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-300">
@@ -1974,7 +1975,8 @@ export default function Settings() {
                     <div className="flex items-center gap-3">
                       <p className="flex-1 text-sm text-blue-600 dark:text-sky-400">
                         ✓ Groq conectado. Arriba, en «Motor de transcripción»,
-                        ya puedes elegir el motor cloud y la limpieza con IA.
+                        ya puedes elegir el motor cloud; la limpieza con IA
+                        —Estándar o Editor— se elige en la onda.
                       </p>
                       <button
                         className={btnGhostCls}
