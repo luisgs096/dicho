@@ -24,7 +24,7 @@
         "label": "hud",
         "title": "Dicho HUD",
         "width": 360,
-        "height": 96,
+        "height": 104,
         "resizable": false,
         "maximizable": false,
         "minimizable": false,
