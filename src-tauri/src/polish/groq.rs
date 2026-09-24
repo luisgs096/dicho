@@ -125,6 +125,39 @@ Y tiene que seguir sonando a él: su vocabulario, su manera de decir las cosas, 
 formalidad. Lo que desaparece es la nota de voz, no la persona.\n\
 Reglas que están por encima de todo lo anterior:\n";
 
+/// Nivel del escribano: corregir texto **tecleado**, no dictado.
+///
+/// El escribano usaba el encargo de `Ordenado`, y ése empieza con "te llega la
+/// transcripción de algo que alguien dijo en voz alta" y acaba con "QUÉ NO
+/// TOCAS: sus palabras". Al dictar no hay faltas de dedo —Whisper no escribe
+/// "hqaremos"—, así que ese encargo nunca pidió arreglarlas y en texto tecleado
+/// devolvía las erratas intactas: probado el 24/09 con un mensaje real de
+/// WhatsApp, "peod", "hqaremos" y "quwienadeb" salían tal cual.
+///
+/// Dos cosas que salieron probándolo contra Groq:
+///  - **Registro informal no es ortografía descuidada.** Diciéndole sólo "no lo
+///    vuelvas formal", el modelo dejaba el chat en minúsculas y sin acentos. Hay
+///    que decirle que el slang se queda pero bien acentuado.
+///  - **Va con el modelo grande.** El de 20b con poco razonamiento escribía
+///    "muñecos" por "muñecón" y dejaba "mandame" sin tilde; el de 120b lo acierta
+///    en 1-2 s. El escribano no tiene la prisa del dictado: aquí manda acertar.
+const TECLEADO: &str = "Eres el corrector ortográfico de algo que una persona acaba de TECLEAR a mano: un mensaje de chat, un correo, una nota. Devuelves ESO MISMO, con su tono y sus palabras, pero sin errores.
+
+QUÉ TOCAS:
+ - Errores de dedo: letras cambiadas, de más, de menos o pegadas ('hqaremos' → 'haremos', 'peod' → 'pedo', 'quwienadeb' → 'quién sabe'). Escribe la palabra que claramente se quiso escribir.
+ - Ortografía completa, SIEMPRE, aunque sea un chat informal: acentos ('qué', 'quién', 'mándame', 'Fabián'), signos de apertura (¿ ¡), mayúscula al empezar cada frase y en los nombres propios, y las comas y puntos que hagan falta para leerlo bien.
+ - Emoticonos de chat (':c', ':v', 'xD', ':)'): se quedan. A veces llegan con el Shift fallado —'. c' al final de un mensaje es ':c', una carita triste—, y entonces se devuelven bien escritos. Nunca los borres como si fueran basura.
+
+QUÉ NO TOCAS:
+ - El registro. Groserías, slang mexicano ('qué pedo', 'chance', 'wey', 'neta'), 'jaja', apodos y abreviaturas de chat hechas a propósito ('porfa', 'q', 'x fa') se quedan: no lo vuelvas formal ni lo suavices. Ojo: registro informal NO es ortografía descuidada — el slang va, pero bien acentuado y puntuado.
+ - Las palabras que ya están bien escritas: no pongas sinónimos, no reordenes, no resumas, no añadas.
+ - Si un trozo es tan confuso que no se sabe qué se quiso decir, déjalo como está.
+";
+
+const CIERRE_TECLEADO: &str = "
+
+Casi ningún texto tecleado a prisa sale perfecto: si estás por devolverlo igualito, léelo otra vez letra por letra.";
+
 /// Cuánto permiso le das al modelo sobre lo que dijiste.
 ///
 /// No son dos prompts caprichosos: son dos contratos distintos. `Ordenado`
@@ -136,6 +169,8 @@ Reglas que están por encima de todo lo anterior:\n";
 pub enum Nivel {
     Ordenado,
     Estructurado,
+    /// El escribano: texto que ya escribiste a mano (ver `TECLEADO`).
+    Tecleado,
 }
 
 /// Pulido con LLM (opcional): la "magia" estilo Wispr — quita muletillas con
@@ -195,12 +230,17 @@ fn polish_bloque(
             format!("{BASE_LIMPIADOR}{INVARIANTES}{ENCARGO_ORDENADO}{dict_note}{cont_note}")
         }
         Nivel::Estructurado => format!("{EDITOR}{INVARIANTES}{dict_note}{cont_note}"),
+        // Las invariantes hablan de «el dictado»; aquí no hay dictado.
+        Nivel::Tecleado => format!(
+            "{TECLEADO}{}{CIERRE_TECLEADO}{dict_note}{cont_note}",
+            INVARIANTES.replace("El dictado NO va", "El texto NO va")
+        ),
     };
     // Redactar necesita pensar; limpiar no. Subir el esfuerzo en el nivel
     // barato sólo lo haría más lento sin cambiar la salida.
     let (modelo, esfuerzo) = match nivel {
         Nivel::Ordenado => (MODEL, "low"),
-        Nivel::Estructurado => (MODEL_EDITOR, "medium"),
+        Nivel::Estructurado | Nivel::Tecleado => (MODEL_EDITOR, "medium"),
     };
 
     let body = serde_json::json!({
@@ -295,7 +335,8 @@ fn desvia_demasiado(entrada: &str, salida: &str, nivel: Nivel) -> bool {
     // los rodeos —que es justo para lo que se pide— y puede dejarlo en un
     // tercio sin que eso signifique que se inventó nada.
     match nivel {
-        Nivel::Ordenado => n_out * 2 < n_in,
+        // Corregir erratas tampoco quita palabras: mismo suelo que ordenar.
+        Nivel::Ordenado | Nivel::Tecleado => n_out * 2 < n_in,
         // Estructurar recorta de verdad —para eso se pide—, así que por abajo
         // sólo se corta lo absurdo: quedarse en menos de un sexto es haber
         // contestado con una frase, no haber ordenado nada.

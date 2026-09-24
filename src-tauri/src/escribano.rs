@@ -42,10 +42,14 @@ const SONDEO: Duration = Duration::from_millis(400);
 /// copias por otro motivo y 20 s de onda plantada delante eran demasiados.
 const ESPERA: Duration = Duration::from_secs(8);
 
-/// Lo último que vio el vigilante. Sirve para dos cosas: detectar el cambio, y
-/// que **lo que escribimos nosotros no se cuente como copia del usuario** — sin
-/// esto, guardar el texto corregido en el portapapeles rearmaría el escribano
-/// con su propia salida, en bucle.
+/// Lo último que Dicho dejó en el portapapeles a propósito, para que **no se
+/// cuente como copia del usuario** — sin esto, guardar el texto corregido en el
+/// portapapeles rearmaría el escribano con su propia salida, en bucle.
+///
+/// Se gasta al verlo una vez. Antes guardaba también lo que copiaba el usuario,
+/// y copiar dos veces el mismo mensaje —dejar pasar la oferta y volver a
+/// copiarlo— no hacía nada: parecía que el escribano se lanzaba cuando quería.
+/// Que el contenido haya cambiado ya lo dice el contador de Windows.
 static VISTO: OnceLock<Mutex<String>> = OnceLock::new();
 
 /// El escribano está armado y esperando un clic.
@@ -114,6 +118,9 @@ pub fn vigilar(app: AppHandle, settings: SettingsState) {
             }
         }
         let mut ultima = version_portapapeles();
+        // Sin contador (fuera de Windows) la única pista de una copia nueva es
+        // que el texto cambie.
+        let mut ultimo_texto = String::new();
         loop {
             std::thread::sleep(SONDEO);
             let activo = settings
@@ -144,9 +151,15 @@ pub fn vigilar(app: AppHandle, settings: SettingsState) {
             {
                 let Ok(mut v) = visto().lock() else { continue };
                 if *v == texto {
+                    v.clear();
                     continue;
                 }
-                *v = texto.clone();
+            }
+            if version == 0 {
+                if ultimo_texto == texto {
+                    continue;
+                }
+                ultimo_texto = texto.clone();
             }
             // Sin key de Groq no hay con qué corregir: ofrecerse es prometer
             // algo que al hacer clic acaba en un error, y en cada Ctrl+C del

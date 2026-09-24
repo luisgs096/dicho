@@ -393,7 +393,9 @@ fn corregir_seleccion(
     };
     let nivel = match modo {
         PolishKind::GroqEstructurado => polish::groq::Nivel::Estructurado,
-        _ => polish::groq::Nivel::Ordenado,
+        // No `Ordenado`: ése es para dictados y no toca palabras, así que las
+        // erratas de lo que escribiste a mano volvían intactas.
+        _ => polish::groq::Nivel::Tecleado,
     };
     match polish::groq::polish(&original, &ctx, nivel) {
         Ok(corregido) => {
