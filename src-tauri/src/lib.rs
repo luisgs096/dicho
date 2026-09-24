@@ -14,6 +14,8 @@ mod settings;
 mod store;
 mod stt;
 mod sync;
+#[cfg(test)]
+mod pruebas_diccionario;
 
 use std::sync::{mpsc, Arc, Mutex, RwLock};
 use tauri::Manager;
