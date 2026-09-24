@@ -327,23 +327,42 @@ const secuencia = (pasos: Paso[]): string => {
   const total = pasos.reduce((a, x) => a + x.ms, 0);
   const id = `sq${seqN++}`;
   const seg = (total / 1000).toFixed(3);
-  let css = "";
+  // Un <g> por DIBUJO, no por paso. Una historia repite mucho los mismos
+  // cuadros —mascar es alternar dos— y cada paso copiaba el dibujo entero: el
+  // chicle eran 83 pasos para 32 dibujos distintos, ~5.000 nodos en el DOM y
+  // ~13 MB del renderer. Aquí cada dibujo sale una vez y su keyframe lleva
+  // todas las ventanas en que se ve. Se ve igual: los gestos anidados arrancan
+  // todos al montar, así que siguen en fase como antes.
+  const tramos = new Map<string, [number, number][]>();
   let t = 0;
-  const cuerpo = pasos
-    .map((paso, i) => {
-      const ini = ((t / total) * 100).toFixed(4);
-      t += paso.ms;
-      const fin = ((t / total) * 100).toFixed(4);
-      const entra = i === 0 ? "0%{opacity:1}" : `0%{opacity:0}${ini}%{opacity:1}`;
-      const sale = i === pasos.length - 1 ? "" : `${fin}%{opacity:0}100%{opacity:0}`;
-      css += `@keyframes ${id}_${i}{${entra}${sale}}`;
-      return (
-        `<g style="animation-name:${id}_${i};animation-duration:${seg}s;` +
-        `animation-timing-function:steps(1,end);animation-iteration-count:infinite">` +
-        `${paso.v}</g>`
-      );
-    })
-    .join("");
+  for (const paso of pasos) {
+    const ini = t;
+    t += paso.ms;
+    const l = tramos.get(paso.v) ?? [];
+    const ult = l[l.length - 1];
+    // Dos pasos iguales seguidos no deberían darse, pero si se dan son un tramo.
+    if (ult && ult[1] === ini) ult[1] = t;
+    else l.push([ini, t]);
+    tramos.set(paso.v, l);
+  }
+  const pct = (ms: number) => ((ms / total) * 100).toFixed(4);
+  let css = "";
+  let cuerpo = "";
+  let i = 0;
+  for (const [v, l] of tramos) {
+    let k = l[0][0] === 0 ? "" : "0%{opacity:0}";
+    for (const [a, z] of l) {
+      k += `${pct(a)}%{opacity:1}`;
+      if (z < total) k += `${pct(z)}%{opacity:0}`;
+    }
+    if (l[l.length - 1][1] < total) k += "100%{opacity:0}";
+    css += `@keyframes ${id}_${i}{${k}}`;
+    cuerpo +=
+      `<g style="animation-name:${id}_${i};animation-duration:${seg}s;` +
+      `animation-timing-function:steps(1,end);animation-iteration-count:infinite">` +
+      `${v}</g>`;
+    i++;
+  }
   return `<style>${css}</style><g class="seq">${cuerpo}</g>`;
 };
 
