@@ -1687,7 +1687,7 @@ export default function Settings() {
               <Section
                 id="diccionario"
                 title="Diccionario personal"
-                hint="Nombres propios, marcas o términos que Dicho debe escribir exactamente así. Con reemplazo corrige transcripciones erróneas; cada corrección aplicada queda marcada en el Historial."
+                hint="Con reemplazo, Dicho cambia el término por el reemplazo en todo lo que escribe, en cualquier modo, y lo marca en el Historial. Sin reemplazo es una pista para Groq: la oye mejor con «No traducir nunca» y la respeta al redactar en Estándar y Editor. En Tal cual con el motor local, sin reemplazo no cambia nada."
               >
                 <div className="mb-3 flex gap-2">
                   <input

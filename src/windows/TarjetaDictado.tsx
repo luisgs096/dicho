@@ -384,16 +384,17 @@ function Indicativo(props: {
   );
 }
 
-/** Un reemplazo del diccionario. Si el modelo lo ignoró se dice, en vez de
- *  dejar creer que se aplicó: es la señal de que tu diccionario no se está
- *  respetando en los modos con IA. */
+/** Un reemplazo del diccionario. Desde la 0.12 el diccionario se aplica
+ *  después de pulir, así que si el reemplazo no está en el texto final no es
+ *  que el modelo lo ignorara: es que reescribió o quitó el término antes de
+ *  que el diccionario pasara. Se dice, en vez de dejar creer que se aplicó. */
 function ChipCorreccion({ c }: { c: Correction }) {
   const ignorada = c.aplicadas === 0;
   return (
     <span
       title={
         ignorada
-          ? "El modelo no respetó esta palabra de tu diccionario"
+          ? "El modelo cambió esta palabra antes de que tu diccionario pudiera corregirla: en el texto final no está"
           : "Corregido por tu diccionario"
       }
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${
@@ -406,7 +407,7 @@ function ChipCorreccion({ c }: { c: Correction }) {
       <span>→</span>
       <span>{c.replacement}</span>
       {c.count > 1 && <span className="opacity-60">×{c.count}</span>}
-      {ignorada && <span className="ml-0.5 italic opacity-80">la ignoró</span>}
+      {ignorada && <span className="ml-0.5 italic opacity-80">no llegó</span>}
     </span>
   );
 }

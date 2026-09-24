@@ -86,7 +86,8 @@ export interface Correction {
   replacement: string;
   /** Cuántas veces hacía falta corregir, contadas sobre el texto crudo. */
   count: number;
-  /** Cuántas llegaron de verdad al texto final. Con 0, el modelo la ignoró. */
+  /** Cuántas están de verdad en el texto final. Con 0, el término ya no estaba
+   *  cuando pasó el diccionario: el modelo lo reescribió o lo quitó. */
   aplicadas: number;
 }
 
