@@ -2262,10 +2262,14 @@ export const BAJANDO: Variant = {
  * alrededor en vez de quedarse quieto: acaba de llegar. La pupila se desplaza
  * dentro del ojo en lugar de moverse el ojo entero — mover el ojo completo se
  * lee como que tiembla la cara, mover lo de dentro se lee como que mira.
+ *
+ * Lleva la vagoneta debajo, igual que el último cuadro de `BAJANDO`: el HUD
+ * pasa de una a otra sin fundido, y sin ella el carrito desaparecería de un
+ * fotograma al siguiente. Se va con la cara, en el fundido hacia el reposo.
  */
 export const CURIOSEANDO: Variant = {
   status: "",
-  scene: `${flip(
+  scene: `${spr(VAGONETA, 9, 14)}${flip(
     [
       spr(["XXX", "X..", "X..", "XXX"], LX, 2) + spr(["XXX", "X..", "X..", "XXX"], RX, 2),
       spr(OJO, LX, 2) + spr(OJO, RX, 2),

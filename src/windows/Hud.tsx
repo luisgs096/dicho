@@ -11,6 +11,7 @@ import {
   CARITA_CANCELADO,
   FACE_CSS,
   BAJANDO,
+  CURIOSEANDO,
   LIMPIADAS,
   MAREO,
   RODANDO,
@@ -63,6 +64,12 @@ const VOMITO = MAREO.length;
  *  acabar se queda en su último cuadro —la cara sola— y el fundido se lo come
  *  sin que la barandilla vuelva a bajar. */
 const BAJARSE_MS = 1200;
+
+/** Ya en el suelo, mira a los lados: una vuelta entera de `CURIOSEANDO`. Es el
+ *  final que prometía la bajada —«queda la cara mirando a los lados»— y que el
+ *  HUD nunca llegó a enseñar: de la barandilla saltaba directo al reposo, que
+ *  puede ser el dormido. */
+const CURIOSEAR_MS = 2400;
 
 /** Y un escalón más, al que **no** se llega meneando: limpiarse la boca. Del
  *  cuarto tiempo se encarga el reloj, que no se le puede pedir al usuario que
@@ -457,6 +464,8 @@ export default function Hud() {
   const [fundiendo, setFundiendo] = useState(false);
   /** Bajándose del carrito: la barandilla se levanta y se va. */
   const [bajando, setBajando] = useState(false);
+  /** Recién bajada: mira a los lados antes de volver al reposo. */
+  const [curioseando, setCurioseando] = useState(false);
   /** Clavada en pantalla: no se esconde al acabar el dictado. */
   const [pin, setPin] = useState(false);
   const [opacidadReposo, setOpacidadReposo] = useState(0.45);
@@ -578,7 +587,14 @@ export default function Hud() {
   // y la carita de la vagoneta.
   useEffect(() => {
     const un = listen<boolean>("hud-arrastre", (e) => {
-      if (e.payload) arrastro.current = true;
+      if (e.payload) {
+        arrastro.current = true;
+        // Agarrada otra vez: vuelve a la vagoneta, se estuviera bajando o
+        // mirando alrededor. Sin esto su temporizador seguía corriendo y
+        // fundía la pantalla con la onda en la mano.
+        setBajando(false);
+        setCurioseando(false);
+      }
       setRodando(e.payload);
       // Soltaste sin haberte mareado: toca bajarse. Si hubo mareo, la bajada
       // espera a que termine esa historia — se encadena desde el fundido.
@@ -662,29 +678,48 @@ export default function Hud() {
     return () => clearTimeout(t);
   }, [mareo]);
 
-  // Bajarse del carrito dura lo que dura su flipbook, y luego funde a reposo.
+  // Bajarse del carrito dura lo que dura su flipbook, y sin corte pasa a mirar
+  // a los lados: las dos escenas llevan la cara y la vagoneta en el mismo sitio,
+  // así que lo único que cambia es que los ojos empiezan a moverse.
   useEffect(() => {
     if (!bajando) return;
-    const t = setTimeout(() => setFundiendo(true), BAJARSE_MS);
+    const t = setTimeout(() => {
+      setBajando(false);
+      setCurioseando(true);
+    }, BAJARSE_MS);
     return () => clearTimeout(t);
   }, [bajando]);
+
+  // Después de curiosear, funde a reposo. Si mientras tanto empiezas a dictar
+  // (o salta el escribano), manda eso: se deja de curiosear en el acto, y el
+  // fundido no llega a caer en mitad del dictado.
+  useEffect(() => {
+    if (!curioseando) return;
+    if (rec.state !== "idle") {
+      setCurioseando(false);
+      return;
+    }
+    const t = setTimeout(() => setFundiendo(true), CURIOSEAR_MS);
+    return () => clearTimeout(t);
+  }, [curioseando, rec.state]);
 
   // El fundido: la pantalla baja a cero, se cambia la carita por debajo y vuelve
   // a subir. Los 200 ms son los mismos que declara la transición de la escena.
   //
   // Al salir del mareo **se encadena la bajada**: el bicho acaba de vomitar
-  // encima de un carrito, así que todavía tiene que bajarse de él. Sólo si ya
-  // estaba bajándose se vuelve a reposo de verdad.
+  // encima de un carrito, así que todavía tiene que bajarse de él. Si el fundido
+  // viene de curiosear, ya se bajó: vuelve a reposo de verdad.
   useEffect(() => {
     if (!fundiendo) return;
     const t = setTimeout(() => {
       // Si sigues arrastrando no te has bajado de nada: vuelve a la vagoneta.
-      setBajando(!bajando && !rodando);
+      setBajando(mareo > 0 && !rodando);
+      setCurioseando(false);
       setMareo(0);
       setFundiendo(false);
     }, 200);
     return () => clearTimeout(t);
-  }, [fundiendo, bajando, rodando]);
+  }, [fundiendo, mareo, rodando]);
 
   // La ref del mareo, al día en cada render.
   useEffect(() => {
@@ -821,6 +856,7 @@ export default function Hud() {
     !encima &&
     !rodando &&
     !bajando &&
+    !curioseando &&
     mareo === 0
       ? opacidadReposo
       : 1;
@@ -832,13 +868,22 @@ export default function Hud() {
     mareo === LIMPIANDO ? limpiada.current.v : mareo > 0 ? MAREO[mareo - 1] : null;
   // Las escenas que cuentan un final se ven una sola vez y se quedan en su
   // último cuadro hasta que llega lo siguiente: el vómito hasta la limpiada, y
-  // la limpiada y la bajada mientras funden.
+  // la limpiada, la bajada y el curioseo mientras funden.
   const unaVez =
-    mareo === VOMITO || mareo === LIMPIANDO || (bajando && !mareada);
+    mareo === VOMITO ||
+    mareo === LIMPIANDO ||
+    ((bajando || curioseando) && !mareada);
   const cancelada = rec.state === "cancelado" ? CARITA_CANCELADO : null;
   // Arrastrándola: va en la vagoneta. Pierde contra el mareo, que es lo que
-  // pasa si además la zarandeas.
-  const encarrito = bajando ? BAJANDO : rodando ? RODANDO : null;
+  // pasa si además la zarandeas. El curioseo, sólo en reposo: si empiezas a
+  // dictar recién soltada, manda el dictado.
+  const encarrito = bajando
+    ? BAJANDO
+    : rodando
+      ? RODANDO
+      : curioseando && rec.state === "idle"
+        ? CURIOSEANDO
+        : null;
   // Modo escribano: acabas de copiar algo y la onda se ofrece a corregirlo.
   // Es la misma carita que mientras corrige —pluma y pergamino— y eso es
   // deliberado: el usuario ve «modo escribano» y lo que cambia es la leyenda,
