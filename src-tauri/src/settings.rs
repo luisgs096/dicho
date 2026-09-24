@@ -233,7 +233,7 @@ pub fn cargar_de(path: &std::path::Path) -> AppSettings {
 
 
 fn leer(path: &std::path::Path) -> AppSettings {
-    match fs::read_to_string(&path) {
+    match fs::read_to_string(path) {
         Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|e| {
             log::warn!("settings.json inválido ({e}), usando defaults");
             AppSettings::default()

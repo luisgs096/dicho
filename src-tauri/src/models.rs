@@ -141,9 +141,12 @@ async fn download_inner(app: &AppHandle) -> anyhow::Result<()> {
             start = 0;
         }
 
+        // Sin truncar a propósito: se reanuda donde se quedó. El set_len de
+        // abajo recorta lo que sobre si el servidor ignoró el Range.
         let mut file = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
+            .truncate(false)
             .open(&part_path)?;
         {
             use std::io::{Seek, SeekFrom, Write};

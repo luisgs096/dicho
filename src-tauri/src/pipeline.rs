@@ -512,10 +512,6 @@ pub(crate) fn recolocar_hud(app: &AppHandle) {
     }
 }
 
-/// Modo "colócalo donde quieras", desde Ajustes: deja el HUD a la vista y
-/// agarrable hasta que el usuario diga que ya.
-///
-/// Sin esto sólo se podría mover durante los pocos segundos que dura un
 // ─── dictado en curso ───────────────────────────────────────────────────────
 
 /// Un trozo de audio mandado a transcribir mientras el usuario sigue hablando.
