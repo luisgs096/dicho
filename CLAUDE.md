@@ -44,6 +44,14 @@ conocimiento. Y se commitea con el resto.
   Lo que sí heredó su trabajo: `hide_hud_later` y el final del estreno ahora
   miran `ARRASTRANDO`, que es lo que de verdad no se puede interrumpir — una
   onda que se esconde mientras la llevas agarrada.
+  **Parakeet se carga en paralelo al habla y `procesar` tiene que esperarla**
+  (`absorb_load(..., true)`): al pulsar el atajo la carga sale en un hilo, y los
+  tics que la recogen no corren mientras grabas. Esa espera se perdió el 26/08 al
+  pasar a transcribir en vivo y, con el motor local, el primer dictado de cada
+  pausa se perdía con «Modelo local no cargado» hasta el 24/09.
+  La onda se esconde y se enseña **siempre** con `ocultar_ventana` /
+  `mostrar_ventana`, nunca con `hide()`/`show()` a secas (ver el gotcha de
+  WebView2). Y la ventana de revisión la crea `abrir_revision` al corregir.
 - `src-tauri/src/chunker.rs` — dónde partir el audio: corta en pausas (4 ventanas de
   100 ms bajo un umbral relativo al pico del hablante), nunca en seco. Con tests.
 - `src-tauri/src/overlay.rs` — Win32 (windows-sys): área de trabajo del monitor de
@@ -128,6 +136,25 @@ conocimiento. Y se commitea con el resto.
   que Tauri construya la aplicación (ver el gotcha de `state()`).
   `add_history` recibe una struct `NuevoDictado` y no ocho parámetros posicionales:
   con tres enteros seguidos nadie acierta el orden y el compilador no avisa.
+  Para la sincronización, cada término lleva la hora de su último cambio
+  (`updated_ms`) y lo borrado deja una **lápida** en `borrados`: sin ellas, lo
+  borrado volvía en la siguiente fusión y una edición no llegaba nunca al otro
+  equipo. La lápida de un dictado lleva la huella SHA-256 del crudo, no el texto,
+  porque viaja a Drive. «Cloud» y «cloud» son el mismo término (el diccionario
+  casa sin distinguir mayúsculas): `dict_add` reescribe la fila en vez de meter
+  otra.
+- `src-tauri/src/polish/mod.rs` — `aplicar_diccionario`: el diccionario del
+  usuario, **en una sola pasada** y después de pulir, en todos los modos
+  (`rules::polish` ya no lo aplica). Todos los términos van en un solo patrón,
+  del más largo al más corto, y los reemplazos **ya escritos** también están en
+  él para dejarlos como están: con una pasada por término, «tailwind → Tailwind
+  CSS» daba «Tailwind CSS CSS» cada vez que el modelo ya lo había escrito bien, y
+  «node → Node.js» con «js → JavaScript» daba «Node.JavaScript». La mayúscula de
+  principio de frase sólo se respeta si el reemplazo va entero en minúsculas —si
+  no, «iPhone» salía «IPhone»—. `corrections` cuenta los chips con la misma
+  pasada. Las pruebas de punta a punta viven en `pruebas_diccionario.rs`, y sus
+  `procesar`/`escribano` son **espejos** de `pipeline.rs`: si allí cambia el
+  orden de pulir, aplicar y contar, hay que cambiarlo también ahí.
 - `src/windows/TarjetaDictado.tsx` — una tarjeta del historial. Un renglón siempre
   visible (fecha, modo, cuántas correcciones) y el detalle detrás de un botón "i":
   los chips de corrección, los tiempos desglosados, las muletillas y los
@@ -138,15 +165,26 @@ conocimiento. Y se commitea con el resto.
   falta. Ojo con el borde de palabra: el de JavaScript sólo cuenta ASCII, así que
   hay un `conBordes()` propio o "más bien" y "¿sabes?" no se cuentan jamás.
 - `src/windows/Settings.tsx` — ventana principal con sidebar de tres: **Inicio**
-  (editor visual del atajo con teclado laptop/extendido + la onda flotante entera:
-  vista previa, "Ver las 26 caritas", "Mover la onda flotante", "Devolverla a su
-  sitio" e interruptor de arrastrable), Diccionario, Historial (chips de correcciones
+  (los **tres atajos en un solo teclado gráfico** —dictar en azul, cancelar en
+  naranja, escribano en verde—, la onda flotante con su vista previa y "Ver las 26
+  caritas", y LABS), Diccionario, Historial (chips de correcciones
   + filtro), y **Ajustes** anclado abajo con lo de debajo del capó (motores, "no
   traducir", modelo local, key de Groq, cuenta de Google, autostart, novedades y
   actualizaciones). El reparto es deliberado: en Inicio lo que se usa a diario y se
   ve; en Ajustes lo que se toca una vez. Ojo: `update()` en este archivo es el que
   guarda **ajustes**, no el de versiones; el de versiones se destructura como
   `actualizacion`/`buscarActualizacion`.
+  El teclado de atajos (`KeyboardPicker`) tiene un **destino** —cuál de los tres
+  se edita— y cada pestaña rechaza lo que chocaría con las otras dos, porque cada
+  choque rompe algo distinto en `hotkey.rs`: la tecla de cancelar dentro del
+  atajo de dictar lo cancela solo (la repetición del teclado llega con el
+  dictado en marcha); dentro del atajo del escribano, lo despide en vez de
+  corregir; y un atajo contenido en otro salta por el camino. El del escribano
+  es un disparo y no un mantener, así que además exige una tecla normal. Las
+  reglas viven en `problemaAtajoEscribano`/`seSolapan`; los choques con Windows
+  o apps (Win+Mayús+S, Ctrl+C…) sólo avisan. Una tecla compartida (el Win de los
+  de fábrica) se pinta con el color del atajo que se está editando.
+  **Cerrar esta ventana la destruye** (ver el gotcha de las ventanas).
 - `herramientas/banco-de-prompts.py` — corre varias formulaciones del prompt contra
   dictados reales de `mike.db` y mide cuánto cambian de verdad (palabras, ratio,
   suspensivos, muletillas que sobreviven, si la salida es idéntica al crudo). Existe
@@ -315,19 +353,46 @@ conocimiento. Y se commitea con el resto.
   pasos sueltos —un minuto de vaivén serían trescientos pasos y así son treinta—.
   Y no se cortan al cambiar de paso porque las animaciones de CSS **arrancan
   todas a la vez**, así que van en fase aunque estén en grupos distintos.
+  `secuencia()` mete **un `<g>` por dibujo, no por paso**: una historia repite
+  mucho (mascar es alternar dos cuadros) y copiar el dibujo en cada paso eran
+  ~5.000 nodos para el chicle. El keyframe de cada dibujo lleva todas las
+  ventanas en que se ve.
+  **Lo que sube flotando va por carriles** (`carril()`, `CARRIL_A` en x=33 y
+  `CARRIL_B` en x=41, keyframe `asciende`): las notas del silbido —dos tipos,
+  la corchea ♪ y las dos corcheas unidas ♫— y los ZZZ del dormido. Cada carril
+  sólo tiene una cosa a la vez (se ve el 60 % del ciclo, que es el viaje entero)
+  y cada carril lleva su propio ciclo, así que no suben en fila pero **no se
+  tocan nunca**, por construcción. Suben a saltos de un píxel. Medido en 6.000
+  instantes: antes 6.644 choques y 2.415 píxeles fuera del lienzo en el silbido;
+  ahora cero.
 - `src-tauri/src/commands.rs` — `hud_cursor` devuelve dónde está el cursor
-  **respecto al centro de la onda**, de -1 a 1. Existe porque desde el webview no
+  **respecto al centro de la onda**, en palmos de 600 px. Existe porque desde el webview no
   se puede saber: el HUD sólo recibe eventos de ratón cuando el cursor está
   encima de él. Lo pregunta la carita de los ojos que te siguen cada 70 ms y
   **sólo mientras esa carita está a la vista**; las otras cuatro no gastan nada.
-  El divisor es una **distancia fija de 600 px** y no el tamaño de la pantalla:
-  así los ojos llegan al tope del recorrido a un palmo de la onda, en vez de
-  necesitar cruzar un 4K entero para que la pupila se mueva un píxel.
+  El divisor es una **distancia fija de 600 px lógicos** y no el tamaño de la
+  pantalla: así los ojos llegan al tope del recorrido a un palmo de la onda, en
+  vez de necesitar cruzar un 4K entero para que la pupila se mueva un píxel. Y
+  lógicos, no físicos: Windows da el cursor en físicos, y con 600 a secas el palmo
+  medía 240 px de verdad en una 4K al 250 %. No recorta: la pupila recorta sola y
+  el gesto de marearla necesita el ángulo real. Con la onda escondida devuelve
+  `None` y el HUD pregunta cada 600 ms en vez de cada 70.
 - `src/windows/Hud.tsx` — HUD con dos estilos conmutables desde Ajustes
   (`settings.hud_style`, evento `settings-changed` para refrescar al vuelo). Se
   agarra por cualquier punto: el `pointerdown` sólo dispara `hud_arrastrar` y el
-  seguimiento del cursor lo hace Win32, no el webview. Escucha `hud-colocar`
-  para saber si está en modo colocación (aro punteado + "Arrástrame"):
+  seguimiento del cursor lo hace Win32, no el webview; `hud-arrastre` le dice
+  cuándo se cruzó el umbral y cuándo se soltó.
+  La escena entra por `dangerouslySetInnerHTML` con el objeto `{ __html }`
+  **memorizado por la escena** (`escenaHtml`): ver el gotcha de React 19.
+  Los ojos que te siguen (`OJOS_SIGUEN`): la pupila va en casillas enteras
+  (`casillaPupila`, -1/0/1 con histéresis), sólo se pregunta al cursor con los
+  ojos de verdad a la vista (`ojosAVista`), y se marea **sólo si le das dos
+  vueltas en 3 s** (`VUELTAS_MAREO`, con un tope de un cuarto de vuelta por
+  muestra para que saltos al azar no sumen). Antes bastaban tres saltos rápidos
+  del cursor, y eso lo hace cualquiera que trabaje deprisa.
+  Las transiciones que cuentan un final —la limpiada, bajarse del carrito— llevan
+  la clase `una-vez` (ver el gotcha) y la limpiada dura lo que dice
+  `LIMPIADAS[i].ms` más `REMATE_LIMPIA`, sin que un meneo la interrumpa.
   - `tamagotchi` (default): pantalla LCD pixel (viewBox `0 2 48 16`), 26 caritas =
     5 variaciones × 5 estados elegidas al azar por transición, reacción por idioma
     en "listo" (heurística es/en sobre el texto). La variable CSS `--lvl` lleva el
@@ -474,6 +539,34 @@ conocimiento. Y se commitea con el resto.
   `dangerouslySetInnerHTML`, así que cada render reescribe el interior del `<svg>`
   y se lleva por delante los `<g>` que llevan las animaciones. Un componente que
   pinte caritas debe redibujarse **sólo cuando la carita cambia**.
+  **Y no basta con que la cadena sea la misma** (24/09/2026). React 19 compara
+  `dangerouslySetInnerHTML` **por identidad del objeto**: al actualizar mira
+  `nextProp === lastProp` y, si no es el mismo objeto, reescribe el `innerHTML`
+  sin comprobar el texto (react-dom 19.2.8, `updateProperties`). Con
+  `{{ __html: v.scene }}` —un objeto nuevo en cada render— la carita se
+  reescribía al pasarle el ratón, al pulsarla, cada vez que avanzaba la cinta de
+  capacidad: medido, 20 reescrituras en 10 pasadas del ratón, y las historias de
+  un minuto volvían a empezar en cada una. El `useMemo` de la escena no lo
+  evitaba porque memorizaba la cadena, no el objeto. Regla: **el objeto `{ __html }`
+  se memoriza** (`useMemo` por la escena) o es una constante de módulo.
+  Para comprobarlo hay que mover el ratón de verdad (`page.mouse.move` en
+  Playwright): un `pointerenter` sintético no llega a React, que escucha
+  `pointerover`/`pointerout`, y la prueba sale en verde sin probar nada.
+- **Una transición que cuenta un final se enseña una vez, entera** (24/09). Los
+  flipbooks van en bucle, y el HUD las cortaba con un temporizador propio: la
+  limpiada estaba 0,9 s a la vista con un flip de 1,2 s, así que la de la lengua
+  nunca llegaba a su sonrisa; y al fundir al final exacto del ciclo, el fundido
+  pillaba otra vez el primer cuadro (la barandilla volvía a bajar al irse). Por
+  eso existe la clase `una-vez` (iteración 1 y `forwards`: se queda en el último
+  cuadro) y la duración vive en **una sola constante** que usan el flip y el
+  HUD. Y lo que es el final de una historia no se interrumpe: un meneo a media
+  limpiada la devolvía al vómito, y la de la servilleta no llegaba a verse nunca.
+- **Dos cosas que suben por la misma columna a ritmos distintos se atraviesan**
+  (24/09). Las notas del silbido y los ZZZ salían de casi el mismo sitio con
+  duraciones distintas: la rápida alcanzaba a la lenta. No se arregla afinando
+  retrasos, se arregla con carriles (ver `carril()` en el mapa). Y se mide, no se
+  mira: el banco cuenta cajas que se tocan, píxeles fuera y rects a medio píxel
+  sobre miles de instantes.
 - **El Release se crea sobre un commit que GitHub ya tiene que conocer** (el fallo de
   la 0.8.2, 14/09). `gh release create` sin `--target` pone el tag en la rama por
   defecto: publicando desde una rama, el tag apuntaría a un `main` sin ese código y el
@@ -501,6 +594,16 @@ conocimiento. Y se commitea con el resto.
   `cargo clean` del perfil afectado — y son dos: `cargo clean -p tauri` sólo
   limpia **debug**, para release hace falta `--release`. La cura completa fue
   `cargo clean --release` (3,6 GB, ~40 min de recompilación).
+- **Los tests de Rust también corren fuera de Windows** (24/09), y conviene:
+  una sesión en la nube es Linux. El crate compila con dos condiciones. Una, que
+  todo lo de Win32 vaya tras su `#[cfg(windows)]` —dos se habían despegado y
+  `cargo test` ni compilaba—. Dos, que haya de dónde enlazar ONNX Runtime:
+  `ort-sys` descarga sus binarios de `cdn.pyke.io`, que el proxy de la sesión
+  bloquea, así que se usa la `libonnxruntime.so` de la rueda de PyPI
+  (`pip download onnxruntime==1.24.2`) con `ORT_LIB_LOCATION` apuntando a su
+  carpeta, `ORT_PREFER_DYNAMIC_LINK=1` y la misma carpeta en `LD_LIBRARY_PATH`.
+  Además, las librerías de sistema de Tauri en Linux: `libgtk-3-dev`,
+  `libwebkit2gtk-4.1-dev`, `libsoup-3.0-dev`, `libasound2-dev`, `libxdo-dev`.
 - **`aws-lc-sys` necesita NASM y este equipo no lo tiene.** Sale al reconstruir
   desde cero (antes vivía de un artefacto cacheado de hace meses):
   `NASM command not found`. En vez de instalar NASM se usa la salida oficial del
@@ -632,6 +735,32 @@ conocimiento. Y se commitea con el resto.
   caritas de reposo, así que tienen que estar **definidas antes**. Si viven mil
   líneas más abajo, el módulo revienta al cargar con un `ReferenceError` — y el
   compilador **no avisa**, lo dice el navegador con la ventana en blanco.
+- **Esconder una ventana no esconde su WebView2** (24/09/2026).
+  `WebviewWindow::hide()` sólo oculta la ventana; el control de WebView2 se queda
+  con `IsVisible = TRUE` (tauri-runtime-wry 2.11 no lo toca), así que la página
+  sigue animando y con sus temporizadores a pleno: la onda escondida gastaba
+  30-45 ms de hilo principal por segundo, todo el día. Microsoft lo documenta:
+  al esconder la ventana madre hay que poner `IsVisible = FALSE`, que es lo que
+  hace `Webview::hide()`. De ahí `ocultar_ventana`/`mostrar_ventana` en
+  `pipeline.rs` (al mostrar, primero el WebView2). **Pendiente de probar en
+  Windows**: si la onda sale en blanco o tarde al dictar, es esto.
+- **Ajustes y la revisión se destruyen al cerrarse** (24/09). Cada ventana es un
+  proceso de WebView2 de 30-55 MB, y Ajustes nace visible en cada arranque.
+  Consecuencias para quien toque esto: `get_webview_window("main")` puede
+  devolver `None` y hay que recrearla desde su configuración
+  (`WebviewWindowBuilder::from_config`) **fuera del hilo del bucle de eventos**
+  —desde la bandeja se bloquea en Windows—; la revisión nace sin escuchar
+  eventos, así que **pide ella su texto** al montarse (`revision_pendiente`); y a
+  media actualización Ajustes sólo se esconde (`AJUSTES_OCUPADA`), porque la
+  descarga vive en su webview.
+  Y cada ventana necesita **su capacidad**: la de revisión no tenía ninguna,
+  Tauri le rechazaba `listen` y `close`, y salía vacía con un «Cerrar» muerto
+  desde que se creó. `core:window:default` no incluye `allow-hide` ni
+  `allow-close`: hay que pedirlos.
+- **Todo lo que Dicho deja en el portapapeles lo ve el vigilante del escribano**
+  (24/09). Pegar un dictado pasa ~430 ms por el portapapeles, y el vigilante,
+  que sondea cada 400 ms, se ofrecía a corregir el dictado recién pegado. Quien
+  escriba en el portapapeles a propósito llama antes a `escribano::ya_visto`.
 - **El HUD atrapa el ratón o lo deja pasar, pero no a medias.** Nació siendo un
   cristal (`set_ignore_cursor_events(true)` → `WS_EX_TRANSPARENT`) para no comerse
   los clics de lo que hubiera debajo, y eso es justo lo que impedía arrastrarlo.
