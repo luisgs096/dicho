@@ -820,6 +820,7 @@ fn procesar(
     held: Duration,
     engine: EngineKind,
     parakeet: &mut Option<ParakeetStt>,
+    parakeet_loading: &mut Option<std::thread::JoinHandle<anyhow::Result<ParakeetStt>>>,
     groq: &mut GroqStt,
 ) {
     let outcome = (|| -> anyhow::Result<StopResult> {
@@ -849,6 +850,13 @@ fn procesar(
         }
 
         let t0 = Instant::now();
+        // Si el modelo local se está cargando (arranque en frío o más de 10 s
+        // sin dictar), aquí se espera lo poco que le falte. Sin esto la carga
+        // acaba en su hilo, nadie la recoge y el dictado se pierde con «Modelo
+        // local no cargado». La espera existía y se perdió en 035b6e6.
+        if engine == EngineKind::Parakeet && parakeet.is_none() {
+            absorb_load(parakeet, parakeet_loading, true)?;
+        }
         let (raw, engine_name) = if vivo.hay_trozos() {
             // Casi todo llegó transcrito mientras hablabas; aquí sólo se espera
             // al último trozo.
@@ -1036,6 +1044,9 @@ fn procesar(
             hide_hud_later(app, hud_gen, 150);
         }
         Err(e) => {
+            // Que quede escrito: hasta ahora este error sólo vivía 3,2 s en la
+            // onda y en dicho.log no quedaba ni el motivo.
+            diag(app, &format!("Dictado perdido: {e:#}"));
             emit_state(
                 app,
                 "error",
@@ -1149,6 +1160,7 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                         held,
                         engine_activo,
                         &mut parakeet,
+                        &mut parakeet_loading,
                         &mut groq,
                     );
                     last_use = Instant::now();
