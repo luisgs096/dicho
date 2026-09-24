@@ -1425,7 +1425,10 @@ export const V: Record<FaceState, Variant[]> = {
             spr(BOCA_CHICA, 21, 12),
             spr(BOCA_CHICA, 21, 12),
             spr(BOCA_CHICA, 21, 12),
-            spr(BOSTEZO, 19, 7),
+            // En y=10, donde van las bocas de V. En y=7 —la altura de las
+            // escenas del carrito, que tienen la cara más arriba— abría la
+            // boca entre los dos ojos y se leía como una nariz.
+            spr(BOSTEZO, 19, 10),
           ],
           "1.2s",
         )}
