@@ -1342,7 +1342,7 @@ export const V: Record<FaceState, Variant[]> = {
       status: "Anotando…",
       scene: `${flip([eyes(OJO, 5), eyes(OJO, 6)], ".6s")}${spr(RAYA, 20, 13)}
         <g class="a-lapiz">${spr(tint(LAPIZ, "a"), 39, 8)}</g>
-        <g class="a-renglon"><rect x="34" y="13" width="11" height="1" fill="var(--a)"/></g>`,
+        <g class="a-renglon"><rect x="34" y="13" width="12" height="1" fill="var(--a)"/></g>`,
     },
     {
       // Comilona: la onda de tu voz entra por la derecha y el Pac-Man se la va
@@ -1360,7 +1360,7 @@ export const V: Record<FaceState, Variant[]> = {
             (h, i) =>
               `<g style="animation-delay:${(i * 0.2).toFixed(1)}s"><rect x="44" y="${
                 12.5 - h / 2
-              }" width="2" height="${h}"/></g>`,
+              }" width="2" height="${h}" style="--h:${h}"/></g>`,
           )
           .join("")}</g>`,
     },
@@ -2665,17 +2665,22 @@ ${FLIP_CSS}
   @keyframes winkA { 0% { opacity: 1; } 35% { opacity: 0; } 72% { opacity: 1; } }
   @keyframes winkB { 0% { opacity: 0; } 35% { opacity: 1; } 72% { opacity: 0; } }
 
-  /* Barras y boca movidas por el volumen real de tu voz (--lvl: 0…1). */
-  .vu rect { fill: var(--a); transform-box: fill-box; transform-origin: center bottom;
-             transition: transform .07s linear; }
-  .vu .v1 { transform: scaleY(calc(.16 + var(--lvl, .1) * .55)); }
-  .vu .v2 { transform: scaleY(calc(.2 + var(--lvl, .1) * .8)); }
-  .vu .v3 { transform: scaleY(calc(.16 + var(--lvl, .1) * .42)); }
-  /* La onda que se come el Pac-Man también respira con tu voz: la barra viaja
-     en el <g> y el nivel escala el <rect>, así los dos transforms conviven. */
+  /* Barras y boca movidas por el volumen real de tu voz (--lvl: 0…1). La
+     escala se redondea a doceavos, que es lo que miden las barras: alturas de
+     pixel entero. Sin transicion, que volveria a pasar por medio pixel; el
+     suavizado ya lo hace el HUD sobre --lvl. */
+  .vu rect { fill: var(--a); transform-box: fill-box; transform-origin: center bottom; }
+  .vu .v1 { transform: scaleY(calc(round(nearest, (.16 + var(--lvl, .1) * .55) * 12, 1) / 12)); }
+  .vu .v2 { transform: scaleY(calc(round(nearest, (.2 + var(--lvl, .1) * .8) * 12, 1) / 12)); }
+  .vu .v3 { transform: scaleY(calc(round(nearest, (.16 + var(--lvl, .1) * .42) * 12, 1) / 12)); }
+  /* La onda que se come el Pac-Man tambien respira con tu voz: la barra viaja
+     en el <g> y el nivel escala el <rect>, asi los dos transforms conviven.
+     Crece de dos en dos (1, 3, 5, 7 px) alrededor de su centro, que cae en
+     medio pixel: con altura impar los dos bordes quedan en fila entera. --h
+     es la altura dibujada de cada barra; no es una duracion, asi que el
+     gotcha de las variables no la toca. */
   .a-onda rect { fill: var(--a); transform-box: fill-box; transform-origin: center center;
-                 transform: scaleY(calc(.4 + var(--lvl, .1) * .85));
-                 transition: transform .07s linear; }
+                 transform: scaleY(calc((2 * round(nearest, (var(--h) * (.4 + var(--lvl, .1) * .85) - 1) / 2, 1) + 1) / var(--h))); }
 
   @keyframes resp { 0% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
   @keyframes mira { 0% { transform: translateX(0); } 30% { transform: translateX(-1px); }
@@ -2715,8 +2720,11 @@ ${FLIP_CSS}
   @keyframes renglon { 0% { transform: scaleX(0); } 20% { transform: scaleX(.25); }
                        40% { transform: scaleX(.5); } 60% { transform: scaleX(.75); }
                        80% { transform: scaleX(1); } 90% { transform: scaleX(0); } }
-  @keyframes barra { 0% { transform: scaleX(.1); } 25% { transform: scaleX(.35); }
-                     50% { transform: scaleX(.6); } 75% { transform: scaleX(.85); }
+  /* Escalas que dan pixeles enteros: la barra mide 10, y con .35 y .85 medía
+     3,5 y 8,5 px, medio pixel suelto. El renglon del lapiz mide 12 por lo
+     mismo: sus cuartos son 3, 6 y 9. */
+  @keyframes barra { 0% { transform: scaleX(.1); } 25% { transform: scaleX(.3); }
+                     50% { transform: scaleX(.6); } 75% { transform: scaleX(.8); }
                      95% { transform: scaleX(1); } }
   @keyframes punto { 0% { opacity: .18; } 25% { opacity: 1; } 60% { opacity: .18; } }
   @keyframes foco { 0% { opacity: .18; } 45% { opacity: 1; } }
