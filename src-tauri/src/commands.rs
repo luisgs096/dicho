@@ -33,15 +33,20 @@ pub fn save_settings(
         .read()
         .map(|s| s.ultima_version_vista.clone())
         .unwrap_or_default();
-    // Con el escribano encendido la onda **tiene que estar clavada**: el gesto
-    // es copiar y darle un clic, y una onda que se esconde a los tres segundos
-    // no se puede pulsar. Se fuerza aquí y no en la interfaz para que valga
-    // también si alguien edita el settings.json a mano.
-    if !new_settings.corregir_atajo.is_empty() {
+    // Encender el escribano deja la onda clavada: el gesto es copiar y darle un
+    // clic. Sólo **al encenderlo**, no en cada guardado: si luego la desclavas
+    // desde su menú, tocar cualquier otro ajuste no puede volver a clavarla a
+    // tus espaldas — y una instalación nueva, que ya trae el escribano puesto,
+    // no amanece con la onda clavada por marcar una casilla. Sin clavar, la
+    // onda se queda a la vista mientras se ofrece (ver `hud_encima`).
+    let encendiendo = !new_settings.corregir_atajo.is_empty()
+        && state.read().map(|s| s.corregir_atajo.is_empty()).unwrap_or(false);
+    if encendiendo {
         new_settings.hud_pin = true;
     }
     settings::save(&app, &new_settings).map_err(|e| e.to_string())?;
-    aplicar_raton_hud(&app, new_settings.hud_arrastrable);
+    let arrastrable = new_settings.hud_arrastrable;
+    let visible = new_settings.hud_enabled;
 
     // Solo release toca la entrada Run: un build dev registraría target/debug/mike.exe,
     // que al arrancar Windows abre consola y busca un dev server que no existe.
@@ -63,6 +68,16 @@ pub fn save_settings(
         }
     }
     *state.write().unwrap() = new_settings;
+    // Después de escribir el estado, no antes: `aplicar_raton_hud` lee de ahí
+    // si está clavada, y con el estado viejo decidía con el pin de antes.
+    aplicar_raton_hud(&app, arrastrable);
+    // Apagar la onda con ella a la vista —clavada— la esconde ya, no al
+    // siguiente dictado.
+    if !visible {
+        if let Some(hud) = app.get_webview_window("hud") {
+            pipeline::ocultar_ventana(&hud);
+        }
+    }
     // El HUD (webview aparte) escucha esto para refrescar su estilo.
     let _ = app.emit("settings-changed", ());
     Ok(())
@@ -409,15 +424,19 @@ pub fn hud_encima(app: AppHandle, on: bool) {
     // Un respiro antes de irse: rozarla de pasada no debe hacerla desaparecer
     // de golpe, y da margen a volver si el cursor se salió sin querer.
     //
-    // Las cuatro guardas de abajo son las mismas que mira `hide_hud_later`, y
-    // por la misma razón: durante esos 700 ms puede pasar cualquier cosa —que
-    // empieces a dictar, que la claves, que la muevas— y esconderla entonces
-    // sería quitarte de delante algo que sí querías ver.
+    // Las guardas de abajo son las de `hide_hud_later` y por la misma razón:
+    // durante esos 700 ms puede pasar cualquier cosa —que empieces a dictar,
+    // que la claves, que la muevas, que el escribano se ofrezca— y esconderla
+    // entonces sería quitarte de delante algo que sí querías ver.
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(700));
         if pipeline::RATON_ENCIMA.load(Ordering::SeqCst)
             || pipeline::grabando()
             || pipeline::hud_clavado(&app)
+            || pipeline::ARRASTRANDO.load(Ordering::SeqCst)
+            // Ofreciéndose se queda sus 20 s aunque no esté clavada: si se
+            // fuera al pasarle el ratón, el clic que pide no llegaría nunca.
+            || crate::escribano::ARMADO.load(Ordering::SeqCst)
         {
             return;
         }
