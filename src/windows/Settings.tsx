@@ -1505,11 +1505,14 @@ export default function Settings() {
                           settings.corregir_atajo.length > 0
                             ? "border-emerald-500 bg-white ring-2 ring-emerald-500/30 dark:border-emerald-400 dark:bg-slate-900 dark:ring-emerald-400/30"
                             : "border-emerald-200/80 bg-white/50 dark:border-emerald-900/60 dark:bg-slate-900/40"
-                        } ${hasKey ? "" : "cursor-not-allowed opacity-50"}`}
+                        } ${hasKey || settings.corregir_atajo.length > 0 ? "" : "cursor-not-allowed opacity-50"}`}
                       >
+                        {/* Sin key no se puede encender, pero sí apagar: viene
+                            encendido de fábrica, y sin esto quien no tiene key
+                            no tenía forma de quitárselo. */}
                         <input
                           type="checkbox"
-                          disabled={!hasKey}
+                          disabled={!hasKey && settings.corregir_atajo.length === 0}
                           checked={settings.corregir_atajo.length > 0}
                           onChange={(e) =>
                             update({

@@ -354,9 +354,16 @@ fn corregir_seleccion(
     // Sin IA no hay nada que ofrecer: el pulido por reglas apenas cambia texto
     // ya escrito, y hacer el numerito de copiar y pegar para nada confunde.
     if modo == PolishKind::Rules {
-        emit_state(app, "error", Some(serde_json::json!({
-            "message": "Enciende el modo Editor en LABS para corregir texto escrito"
-        })));
+        // Dos motivos, dos mensajes. Sin key no hay IA con la que corregir. Con
+        // ella, el nivel sigue en «Tal cual» —así queda al conectar Groq— y LABS
+        // ya sale encendido de fábrica: mandar ahí era mandar a una casilla ya
+        // marcada. Lo que falta es elegir el nivel, y eso va en la onda.
+        let message = if groq::get_api_key().is_err() {
+            "El escribano necesita la key de Groq: conéctala en Ajustes"
+        } else {
+            "Elige Estándar o Editor en la onda para corregir texto escrito"
+        };
+        emit_state(app, "error", Some(serde_json::json!({ "message": message })));
         hide_hud_later(app, hud_gen, 3200);
         return;
     }

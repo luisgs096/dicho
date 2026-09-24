@@ -139,6 +139,13 @@ pub fn vigilar(app: AppHandle, settings: SettingsState) {
                 }
                 *v = texto.clone();
             }
+            // Sin key de Groq no hay con qué corregir: ofrecerse es prometer
+            // algo que al hacer clic acaba en un error, y en cada Ctrl+C del
+            // día. Se mira aquí, con una copia nueva ya confirmada, y no en
+            // cada vuelta: el Administrador de credenciales no es gratis.
+            if crate::stt::groq::get_api_key().is_err() {
+                continue;
+            }
             // Copió algo nuevo: la onda se ofrece. Y se apunta dónde estaba,
             // que es donde habrá que devolver el texto si pulsa «Sustituir».
             recordar_foco();
