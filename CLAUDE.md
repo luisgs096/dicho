@@ -108,7 +108,7 @@ conocimiento. Y se commitea con el resto.
   dictado nuevo en el acto.
 - `src-tauri/src/escribano.rs` — el **escribano**: un vigilante que sondea el
   portapapeles cada 400 ms (mirando antes el contador de Windows, para no abrirlo
-  si no cambió) y, con una copia nueva, saca la onda 20 s ofreciendo corregirla.
+  si no cambió) y, con una copia nueva, saca la onda 8 s ofreciendo corregirla.
   Viene **encendido de fábrica** (el atajo `corregir_atajo` trae valor), así que
   todo lo suyo tiene que funcionar para quien no tiene key: sin key no se ofrece,
   y la casilla de LABS deja apagarlo aunque no deje encenderlo. Lo que se copia

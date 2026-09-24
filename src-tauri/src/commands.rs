@@ -433,7 +433,7 @@ pub fn hud_encima(app: AppHandle, on: bool) {
             || pipeline::grabando()
             || pipeline::hud_clavado(&app)
             || pipeline::ARRASTRANDO.load(Ordering::SeqCst)
-            // Ofreciéndose se queda sus 20 s aunque no esté clavada: si se
+            // Ofreciéndose se queda sus 8 s aunque no esté clavada: si se
             // fuera al pasarle el ratón, el clic que pide no llegaría nunca.
             || crate::escribano::ARMADO.load(Ordering::SeqCst)
         {

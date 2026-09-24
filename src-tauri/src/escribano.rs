@@ -37,9 +37,10 @@ const SONDEO: Duration = Duration::from_millis(400);
 
 /// Cuánto se queda la onda ofreciéndose antes de volver a lo suyo.
 ///
-/// Suficiente para leer, seleccionar el siguiente trozo y decidir; poco para que
-/// no se quede ahí plantada si copiaste algo por otro motivo, que es lo normal.
-const ESPERA: Duration = Duration::from_secs(20);
+/// Lo justo para decidir si la quieres: en la onda no hay nada que leer, el
+/// texto se lee en la revisión. Eran 20 s y Luis pidió 8, porque casi siempre
+/// copias por otro motivo y 20 s de onda plantada delante eran demasiados.
+const ESPERA: Duration = Duration::from_secs(8);
 
 /// Lo último que vio el vigilante. Sirve para dos cosas: detectar el cambio, y
 /// que **lo que escribimos nosotros no se cuente como copia del usuario** — sin
@@ -177,7 +178,7 @@ pub fn desarmar_luego(app: AppHandle) {
     let mia = OFERTA.fetch_add(1, Ordering::SeqCst) + 1;
     std::thread::spawn(move || {
         std::thread::sleep(ESPERA);
-        // Sólo caduca la última oferta: una copia nueva reinicia los 20 s.
+        // Sólo caduca la última oferta: una copia nueva reinicia la cuenta.
         if OFERTA.load(Ordering::SeqCst) == mia && ARMADO.swap(false, Ordering::SeqCst) {
             crate::pipeline::escribano_expirado(&app);
         }

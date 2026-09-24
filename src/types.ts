@@ -74,7 +74,7 @@ export type RecordingState =
    *  lectura —pluma y pergamino— porque no está escuchando nada. */
   | { state: "corrigiendo" }
   /** Acabas de copiar algo y la onda **se ofrece** a corregirlo: misma carita
-   *  de escribano, esperando un clic. Se desarma sola a los 20 s. */
+   *  de escribano, esperando un clic. Se desarma sola a los 8 s. */
   | { state: "escribano"; palabras: number }
   /** Primer arranque tras actualizar: la carita lo celebra una vez. */
   | { state: "actualizado"; version: string }
