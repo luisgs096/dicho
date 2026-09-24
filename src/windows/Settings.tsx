@@ -535,6 +535,31 @@ const PAPELES: Record<Destino, { clase: string; titulo: string }> =
     },
   };
 
+/**
+ * «Necesita tu key de Groq, que es gratis», con un botón que lleva a los pasos
+ * para sacarla (Ajustes → Conectar Groq). Lo usan las dos cosas de LABS que
+ * corrigen con IA —el Editor y el escribano— y el teclado cuando se edita el
+ * atajo del escribano. Va dentro de tarjetas que son un label: sin el
+ * preventDefault, el clic acabaría en la casilla.
+ */
+function NecesitaKey({ onIr }: { onIr: () => void }) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+      Necesita tu key de Groq, que es gratis.
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          onIr();
+        }}
+        className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 transition-colors hover:bg-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:hover:bg-amber-500/25"
+      >
+        Cómo conseguirla →
+      </button>
+    </span>
+  );
+}
+
 function Cap(props: {
   k: KbKey;
   papel: Papel;
@@ -961,6 +986,23 @@ export default function Settings() {
     },
   };
 
+  // Lleva a los pasos para sacar la key de Groq, que viven en Ajustes. El
+  // desplazamiento espera al render siguiente: al pulsar, la pestaña de
+  // Ajustes todavía no está pintada y su sección no existe.
+  const [irA, setIrA] = useState<string | null>(null);
+  const irAGroq = () => {
+    if (plegado.cerradas.includes("groq")) plegado.alternar("groq");
+    setTab("ajustes");
+    setIrA("seccion-groq");
+  };
+  useEffect(() => {
+    if (!irA) return;
+    document
+      .getElementById(irA)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setIrA(null);
+  }, [irA, tab]);
+
   const [avisoTecla, setAvisoTecla] = useState<string | null>(null);
 
   const googleLogin = () => {
@@ -1138,9 +1180,10 @@ export default function Settings() {
                         : "Con este atajo la onda corrige lo que tengas copiado sin que le hagas clic: es la otra forma de llamar al escribano. Máximo 4 teclas, con un modificador y una tecla normal."}
                   </p>
                   {destinoTecla === "corregir" && !hasKey && (
-                    <p className="mb-2 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-                      El escribano corrige con el mismo motor que el modo Editor,
-                      así que necesita la key de Groq (en Ajustes).
+                    <p className="mb-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                      El escribano corrige con el mismo motor que el modo
+                      Editor.
+                      <NecesitaKey onIr={irAGroq} />
                     </p>
                   )}
                   {destinoTecla === "corregir" &&
@@ -1418,8 +1461,12 @@ export default function Settings() {
                           settings.hud_niveles
                             ? "border-emerald-500 bg-white ring-2 ring-emerald-500/30 dark:border-emerald-400 dark:bg-slate-900 dark:ring-emerald-400/30"
                             : "border-emerald-200/80 bg-white/50 dark:border-emerald-900/60 dark:bg-slate-900/40"
-                        } ${hasKey ? "" : "cursor-not-allowed opacity-50"}`}
+                        } ${hasKey ? "" : "cursor-not-allowed"}`}
                       >
+                        {/* Sin key, la casilla no se enciende, pero la tarjeta no
+                            se vela: hay que poder leer qué hace para decidir si
+                            vale la pena sacar la key, y el aviso con su botón
+                            tiene que verse entero. */}
                         <input
                           type="checkbox"
                           disabled={!hasKey}
@@ -1444,11 +1491,7 @@ export default function Settings() {
                             <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                               ~2-3 s
                             </span>
-                            {!hasKey && (
-                              <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
-                                necesita la key de Groq (Ajustes)
-                              </span>
-                            )}
+                            {!hasKey && <NecesitaKey onIr={irAGroq} />}
                           </span>
                           <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
                             El <strong>Estándar</strong> quita muletillas y
@@ -1498,7 +1541,7 @@ export default function Settings() {
                           settings.corregir_atajo.length > 0
                             ? "border-emerald-500 bg-white ring-2 ring-emerald-500/30 dark:border-emerald-400 dark:bg-slate-900 dark:ring-emerald-400/30"
                             : "border-emerald-200/80 bg-white/50 dark:border-emerald-900/60 dark:bg-slate-900/40"
-                        } ${hasKey || settings.corregir_atajo.length > 0 ? "" : "cursor-not-allowed opacity-50"}`}
+                        } ${hasKey || settings.corregir_atajo.length > 0 ? "" : "cursor-not-allowed"}`}
                       >
                         {/* Sin key no se puede encender, pero sí apagar: viene
                             encendido de fábrica, y sin esto quien no tiene key
@@ -1526,28 +1569,35 @@ export default function Settings() {
                                 {hotkeyLabel(settings.corregir_atajo)}
                               </span>
                             )}
+                            {/* Sin key, lo que hace falta es la key: el teclado
+                                no deja guardar el atajo del escribano sin ella,
+                                así que ofrecer «cambiar atajo» sería mandar a un
+                                botón apagado. */}
+                            {!hasKey && <NecesitaKey onIr={irAGroq} />}
                             {/* El atajo se cambia en el teclado de arriba, con
                                 los otros dos: aquí sólo se enciende. Esto lleva
                                 allí con el escribano ya elegido. */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                setDestinoTecla("corregir");
-                                if (
-                                  settings.secciones_plegadas.includes("atajo")
-                                )
-                                  plegado.alternar("atajo");
-                                document
-                                  .getElementById("seccion-atajo")
-                                  ?.scrollIntoView({ behavior: "smooth" });
-                              }}
-                              className="text-[10px] font-medium text-emerald-700 underline decoration-dotted underline-offset-2 hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-200"
-                            >
-                              {settings.corregir_atajo.length > 0
-                                ? "cambiar atajo"
-                                : "elegir atajo"}
-                            </button>
+                            {hasKey && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setDestinoTecla("corregir");
+                                  if (
+                                    settings.secciones_plegadas.includes("atajo")
+                                  )
+                                    plegado.alternar("atajo");
+                                  document
+                                    .getElementById("seccion-atajo")
+                                    ?.scrollIntoView({ behavior: "smooth" });
+                                }}
+                                className="text-[10px] font-medium text-emerald-700 underline decoration-dotted underline-offset-2 hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-200"
+                              >
+                                {settings.corregir_atajo.length > 0
+                                  ? "cambiar atajo"
+                                  : "elegir atajo"}
+                              </button>
+                            )}
                           </span>
                           <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
                             Copia un texto en cualquier programa y la onda se

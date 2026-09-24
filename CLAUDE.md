@@ -196,6 +196,11 @@ conocimiento. Y se commitea con el resto.
   reglas viven en `problemaAtajoEscribano`/`seSolapan`; los choques con Windows
   o apps (Win+Mayús+S, Ctrl+C…) sólo avisan. Una tecla compartida (el Win de los
   de fábrica) se pinta con el color del atajo que se está editando.
+  Lo de LABS que corrige con IA —el Editor y el escribano— dice sin key que la
+  necesita (`NecesitaKey`), con un botón que salta a Ajustes → Conectar Groq
+  (`irAGroq`: cambia de pestaña y el desplazamiento espera al render siguiente,
+  porque al pulsar la sección todavía no existe). Las tarjetas no se velan sin
+  key: hay que poder leer qué hacen para decidir si vale la pena sacarla.
   **Cerrar esta ventana la destruye** (ver el gotcha de las ventanas).
 - `herramientas/banco-de-prompts.py` — corre varias formulaciones del prompt contra
   dictados reales de `mike.db` y mide cuánto cambian de verdad (palabras, ratio,
