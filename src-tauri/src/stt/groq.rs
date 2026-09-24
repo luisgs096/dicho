@@ -102,12 +102,19 @@ impl GroqStt {
     }
 }
 
-/// El timeout se pone por petición (`transcribe_blocking`), no en el cliente:
-/// un trozo de 20 s y un audio completo de 10 min no esperan lo mismo.
-fn cliente() -> reqwest::Client {
-    reqwest::Client::builder()
-        .build()
-        .expect("no se pudo crear el cliente HTTP")
+/// Un solo cliente para todo lo que va a api.groq.com —voz y pulido—: así el
+/// pulido reutiliza la conexión que acaba de abrir la transcripción en vez de
+/// negociar TCP y TLS otra vez. El timeout va por petición: un trozo de 20 s y
+/// un audio completo de 10 min no esperan lo mismo.
+pub fn cliente() -> reqwest::Client {
+    static CLIENTE: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENTE
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .build()
+                .expect("no se pudo crear el cliente HTTP")
+        })
+        .clone()
 }
 
 fn wav_bytes(samples: &[f32]) -> anyhow::Result<Vec<u8>> {

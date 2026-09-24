@@ -219,11 +219,12 @@ fn polish_bloque(
 
     let palabras = text.split_whitespace().count();
     let timeout = Duration::from_secs((30 + palabras as u64 / 100).min(120));
-    let client = reqwest::Client::builder().timeout(timeout).build()?;
+    let client = crate::stt::groq::cliente();
     let out = tauri::async_runtime::block_on(async move {
         let resp = client
             .post(CHAT_URL)
             .bearer_auth(key)
+            .timeout(timeout)
             .json(&body)
             .send()
             .await
