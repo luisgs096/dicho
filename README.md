@@ -27,7 +27,7 @@ los dictados de siempre se rinden y te traducen media frase sin permiso.
    **Más información** → **Ejecutar de todas formas**.
 3. Ya está. Se instala sin preguntar nada y se abre sola.
 
-La primera vez que dictes se descarga el motor de voz (unos 670 MB). Eso pasa una sola vez
+Al abrirse por primera vez descarga el motor de voz (unos 670 MB). Eso pasa una sola vez
 y después funciona sin internet.
 
 > Sólo Windows 10 y 11 de 64 bits (Intel o AMD). No hay versión para Mac, Linux ni para los
@@ -40,14 +40,14 @@ y después funciona sin internet.
 3. Suelta.
 
 El texto aparece solo, ya con sus mayúsculas y sus comas, donde estuvieras escribiendo. El
-atajo se puede cambiar por el que quieras desde Ajustes.
+atajo se puede cambiar por el que quieras en la pantalla de Inicio de la app.
 
 Mientras tanto, una cápsula flotante te va diciendo en qué anda:
 
 <img src="docs/estados.png" alt="Los cinco estados de la onda flotante" width="860">
 
 Puedes arrastrarla con el ratón hasta donde no te estorbe, y cada pantalla recuerda su
-propio rincón. Si prefieres algo más sobrio, en Ajustes hay un estilo clásico de barras.
+propio rincón. Si prefieres algo más sobrio, en Inicio hay un estilo clásico de barras.
 
 ### Las 26 caritas
 
@@ -86,12 +86,14 @@ Si el micrófono no captó nada, la cápsula se pone naranja y lo dice. No pega 
 inventa lo que no oyó.
 
 **¿Se actualiza sola?**
-Sí. Cada vez que abres Ajustes mira si hay versión nueva; si la hay, la descarga, la
-instala y se vuelve a abrir en unos segundos. No hay que volver a pasar por aquí.
+Casi. Cada vez que abres la ventana de Dicho mira si hay versión nueva; si la hay, te lo
+dice, y con un clic en **Actualizar ahora** la descarga, la instala y se vuelve a abrir en
+unos segundos. No hay que volver a pasar por aquí.
 
 **¿Dónde quedan mis dictados?**
-En tu equipo y en ningún otro sitio, en `%APPDATA%\dev.mike.app`. Desde la ventana de
-Historial puedes buscarlos y ver qué corrigió en cada uno.
+En tu equipo, en `%APPDATA%\dev.mike.app`, y sólo salen de ahí si activas la
+sincronización con Google Drive. Desde la ventana de Historial puedes buscarlos y ver qué
+corrigió en cada uno.
 
 **¿Cómo lo desinstalo?**
 Configuración de Windows → Aplicaciones → Dicho → Desinstalar. Se instala sólo para tu
@@ -124,9 +126,10 @@ App [Tauri 2](https://tauri.app) + React 19 + Tailwind 4 para Windows. Codename 
    - **Local**: Parakeet V3 vía `transcribe-rs`/ONNX. Se carga a RAM al empezar a dictar y
      se libera a los 10 s de inactividad (~670 MB sólo mientras se usa).
    - **Cloud (opcional)**: Groq Whisper large-v3 con API key gratuita; mejor spanglish.
-3. Limpieza del texto: reglas locales (muletillas, diccionario, puntuación) o LLM vía Groq,
-   que trocea por bloques los dictados largos y descarta el pulido si sale truncado. Se
-   inyecta con `enigo` en la app activa.
+3. Limpieza del texto: reglas locales (sonidos de relleno como «eh» o «mmm», espacios y
+   puntuación) o LLM vía Groq, que trocea por bloques los dictados largos y descarta el
+   pulido si sale truncado o se pone a contestar. Después, en todos los modos, el
+   diccionario del usuario en una sola pasada. Se inyecta con `enigo` en la app activa.
 4. Todo queda en SQLite con las correcciones que aplicó el diccionario.
 
 **Spanglish sin traducciones.** Los modelos de voz fijan un solo idioma por cada tramo de
@@ -137,7 +140,7 @@ las pausas para que cada tramo decida por su cuenta.
 **El HUD** es una cápsula flotante estilo tamagotchi: pantalla LCD con rejilla de píxeles,
 micrófono pixel-art y 26 animaciones repartidas en cinco estados. Se coloca en el monitor
 de la ventana activa, se puede arrastrar, y guarda una posición por pantalla. El botón
-**Ver animaciones** de Ajustes abre el catálogo completo, que se genera del mismo
+**Ver las 26 caritas** de Inicio abre el catálogo completo, que se genera del mismo
 `faces.ts` que usa la app.
 
 Las imágenes de este README salen de ese mismo archivo, así que enseñan exactamente lo que

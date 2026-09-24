@@ -91,10 +91,8 @@ pub async fn download(app: AppHandle) -> anyhow::Result<()> {
     let result = download_inner(&app).await;
     DOWNLOADING.store(false, Ordering::SeqCst);
     match &result {
-        Ok(()) => {
-            emit_progress(&app, "", total_bytes(), true, None);
-            let _ = app.emit("model-ready", ());
-        }
+        // El `done` del progreso es el aviso de "listo": Ajustes no escucha otro.
+        Ok(()) => emit_progress(&app, "", total_bytes(), true, None),
         Err(e) => emit_progress(&app, "", 0, false, Some(e.to_string())),
     }
     result
@@ -141,9 +139,12 @@ async fn download_inner(app: &AppHandle) -> anyhow::Result<()> {
             start = 0;
         }
 
+        // Sin truncar a propósito: se reanuda donde se quedó. El set_len de
+        // abajo recorta lo que sobre si el servidor ignoró el Range.
         let mut file = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
+            .truncate(false)
             .open(&part_path)?;
         {
             use std::io::{Seek, SeekFrom, Write};

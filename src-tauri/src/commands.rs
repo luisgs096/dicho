@@ -25,15 +25,28 @@ pub fn save_settings(
         .read()
         .map(|s| s.hud_posiciones.clone())
         .unwrap_or_default();
-    // Con el escribano encendido la onda **tiene que estar clavada**: el gesto
-    // es copiar y darle un clic, y una onda que se esconde a los tres segundos
-    // no se puede pulsar. Se fuerza aquí y no en la interfaz para que valga
-    // también si alguien edita el settings.json a mano.
-    if !new_settings.corregir_atajo.is_empty() {
+    // Tampoco la versión vista: la apunta el arranque, y Ajustes puede haber
+    // leído los ajustes antes (su ventana nace visible y le gana la carrera al
+    // setup, que además no avisa con settings-changed). Guardar su copia vieja
+    // haría celebrar otra vez la misma actualización en el siguiente arranque.
+    new_settings.ultima_version_vista = state
+        .read()
+        .map(|s| s.ultima_version_vista.clone())
+        .unwrap_or_default();
+    // Encender el escribano deja la onda clavada: el gesto es copiar y darle un
+    // clic. Sólo **al encenderlo**, no en cada guardado: si luego la desclavas
+    // desde su menú, tocar cualquier otro ajuste no puede volver a clavarla a
+    // tus espaldas — y una instalación nueva, que ya trae el escribano puesto,
+    // no amanece con la onda clavada por marcar una casilla. Sin clavar, la
+    // onda se queda a la vista mientras se ofrece (ver `hud_encima`).
+    let encendiendo = !new_settings.corregir_atajo.is_empty()
+        && state.read().map(|s| s.corregir_atajo.is_empty()).unwrap_or(false);
+    if encendiendo {
         new_settings.hud_pin = true;
     }
     settings::save(&app, &new_settings).map_err(|e| e.to_string())?;
-    aplicar_raton_hud(&app, new_settings.hud_arrastrable);
+    let arrastrable = new_settings.hud_arrastrable;
+    let visible = new_settings.hud_enabled;
 
     // Solo release toca la entrada Run: un build dev registraría target/debug/mike.exe,
     // que al arrancar Windows abre consola y busca un dev server que no existe.
@@ -55,6 +68,16 @@ pub fn save_settings(
         }
     }
     *state.write().unwrap() = new_settings;
+    // Después de escribir el estado, no antes: `aplicar_raton_hud` lee de ahí
+    // si está clavada, y con el estado viejo decidía con el pin de antes.
+    aplicar_raton_hud(&app, arrastrable);
+    // Apagar la onda con ella a la vista —clavada— la esconde ya, no al
+    // siguiente dictado.
+    if !visible {
+        if let Some(hud) = app.get_webview_window("hud") {
+            pipeline::ocultar_ventana(&hud);
+        }
+    }
     // El HUD (webview aparte) escucha esto para refrescar su estilo.
     let _ = app.emit("settings-changed", ());
     Ok(())
@@ -78,7 +101,22 @@ pub fn escribano_sustituir(app: AppHandle, state: State<'_, SettingsState>) -> R
         .map(|s| s.apps_sin_correccion.clone())
         .unwrap_or_default();
 
-    let hwnd = crate::escribano::foco_anterior();
+    // Lo que se pega es la corrección y en la ventana de la corrección, las dos
+    // cosas guardadas al abrir la revisión. El portapapeles y el foco apuntado
+    // por el vigilante pueden haber cambiado mientras leías: copiar otra cosa
+    // en otra ventana hacía pegar esa otra cosa en esa otra ventana.
+    let revision = pipeline::REVISION.lock().ok().and_then(|r| r.clone());
+    let corregido = revision
+        .as_ref()
+        .and_then(|r| r["corregido"].as_str())
+        .ok_or("No hay ninguna corrección que sustituir.")?
+        .to_string();
+    let hwnd = revision
+        .as_ref()
+        .and_then(|r| r["destino"].as_i64())
+        .unwrap_or(0) as isize;
+    crate::escribano::ya_visto(&corregido);
+    crate::inject::copiar(&corregido).map_err(|e| e.to_string())?;
     if !crate::overlay::devolver_foco(hwnd) {
         return Err("No pude volver a la ventana donde estabas. El texto sigue copiado: pégalo tú.".into());
     }
@@ -94,9 +132,15 @@ pub fn escribano_sustituir(app: AppHandle, state: State<'_, SettingsState>) -> R
     }
     crate::inject::pegar().map_err(|e| e.to_string())?;
     if let Some(v) = app.get_webview_window("revision") {
-        let _ = v.hide();
+        let _ = v.close();
     }
     Ok(())
+}
+
+/// Lo que la ventana de revisión tiene que enseñar al abrirse.
+#[tauri::command]
+pub fn revision_pendiente() -> Option<serde_json::Value> {
+    pipeline::REVISION.lock().ok().and_then(|r| r.clone())
 }
 
 /// Clic en la onda cuando está en modo escribano: corrige lo copiado.
@@ -222,13 +266,12 @@ pub async fn google_logout(app: AppHandle) -> Result<(), String> {
     crate::sync::logout(app).await.map_err(|e| e.to_string())
 }
 
-/// Decide si el ratón atraviesa el HUD o lo agarra.
+/// Decide si el HUD atrapa el ratón o lo deja pasar.
 ///
 /// El HUD nació siendo un cristal (`ignore_cursor_events`) para no comerse los
 /// clics de lo que hubiera debajo. Para poder arrastrarlo hay que dejar que los
 /// atrape, y es todo o nada: no hay forma de hacer transparente sólo una parte
 /// de la ventana. Por eso es un ajuste y no una decisión nuestra.
-/// Decide si el HUD atrapa el ratón o lo deja pasar.
 ///
 /// La regla de que **clavada lo atrapa sí o sí** vive aquí dentro y no en cada
 /// llamada, que es de donde venía el fallo: cuatro sitios la decidían y dos se
@@ -247,32 +290,43 @@ pub fn aplicar_raton_hud(app: &AppHandle, arrastrable: bool) {
     }
 }
 
-/// Empieza a arrastrar el HUD: lo llama el propio HUD al recibir el ratón.
-///
-/// El seguimiento del cursor se va a un hilo aparte porque dura lo que dure el
-/// gesto —segundos— y no puede quedarse ocupando el hilo de comandos.
-/// Dónde está el cursor **respecto al centro de la onda**, de -1 a 1.
+/// Dónde está el cursor **respecto al centro de la onda**, en unidades de
+/// 600 px lógicos: 1 es un palmo a la derecha (o abajo), -1 un palmo a la
+/// izquierda (o arriba).
 ///
 /// Lo pregunta la carita de los ojos que te siguen, unas quince veces por
 /// segundo y **sólo mientras esa carita está a la vista**. Un hilo en Rust
 /// emitiendo eventos todo el rato saldría más caro: la mayor parte del tiempo no
-/// hay nadie mirando.
+/// hay nadie mirando. Con la onda escondida contesta `None`, y el HUD pregunta
+/// más despacio hasta que vuelve a verse.
 ///
 /// El divisor no es el tamaño de la pantalla sino una distancia de referencia
-/// fija (600 px): así los ojos llegan al tope del recorrido a un palmo de la
-/// onda, que es donde estás cuando la miras, en vez de tener que cruzar un
-/// monitor 4K entero para que la pupila se mueva un píxel.
+/// fija: así los ojos llegan al tope del recorrido a un palmo de la onda, que es
+/// donde estás cuando la miras. Y va en píxeles **lógicos**: Windows da el
+/// cursor en físicos, y con 600 a secas el palmo medía 240 px de verdad en una
+/// 4K al 250 %, así que ahí la pupila se iba al tope casi sin mover el ratón.
+///
+/// No se recorta a ±1: la pupila recorta por su cuenta, y el gesto de marearla
+/// —darle vueltas— necesita el ángulo de verdad, también de lejos.
 #[tauri::command]
 pub fn hud_cursor(app: AppHandle) -> Option<(f32, f32)> {
     let hud = app.get_webview_window("hud")?;
+    if !hud.is_visible().unwrap_or(false) {
+        return None;
+    }
     let pos = hud.outer_position().ok()?;
     let tam = hud.outer_size().ok()?;
+    let palmo = 600.0 * hud.scale_factor().unwrap_or(1.0) as f32;
     let (cx, cy) = crate::overlay::cursor_pos()?;
-    let dx = (cx as f32 - (pos.x as f32 + tam.width as f32 / 2.0)) / 600.0;
-    let dy = (cy as f32 - (pos.y as f32 + tam.height as f32 / 2.0)) / 600.0;
-    Some((dx.clamp(-1.0, 1.0), dy.clamp(-1.0, 1.0)))
+    let dx = (cx as f32 - (pos.x as f32 + tam.width as f32 / 2.0)) / palmo;
+    let dy = (cy as f32 - (pos.y as f32 + tam.height as f32 / 2.0)) / palmo;
+    Some((dx, dy))
 }
 
+/// Empieza a arrastrar el HUD: lo llama el propio HUD al recibir el ratón.
+///
+/// El seguimiento del cursor se va a un hilo aparte porque dura lo que dure el
+/// gesto —segundos— y no puede quedarse ocupando el hilo de comandos.
 #[tauri::command]
 pub fn hud_arrastrar(app: AppHandle, state: State<'_, SettingsState>) {
     let Some(hud) = app.get_webview_window("hud") else {
@@ -369,20 +423,24 @@ pub fn hud_encima(app: AppHandle, on: bool) {
     // Un respiro antes de irse: rozarla de pasada no debe hacerla desaparecer
     // de golpe, y da margen a volver si el cursor se salió sin querer.
     //
-    // Las cuatro guardas de abajo son las mismas que mira `hide_hud_later`, y
-    // por la misma razón: durante esos 700 ms puede pasar cualquier cosa —que
-    // empieces a dictar, que la claves, que la muevas— y esconderla entonces
-    // sería quitarte de delante algo que sí querías ver.
+    // Las guardas de abajo son las de `hide_hud_later` y por la misma razón:
+    // durante esos 700 ms puede pasar cualquier cosa —que empieces a dictar,
+    // que la claves, que la muevas, que el escribano se ofrezca— y esconderla
+    // entonces sería quitarte de delante algo que sí querías ver.
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(700));
         if pipeline::RATON_ENCIMA.load(Ordering::SeqCst)
             || pipeline::grabando()
             || pipeline::hud_clavado(&app)
+            || pipeline::ARRASTRANDO.load(Ordering::SeqCst)
+            // Ofreciéndose se queda sus 8 s aunque no esté clavada: si se
+            // fuera al pasarle el ratón, el clic que pide no llegaría nunca.
+            || crate::escribano::ARMADO.load(Ordering::SeqCst)
         {
             return;
         }
         if let Some(hud) = app.get_webview_window("hud") {
-            let _ = hud.hide();
+            pipeline::ocultar_ventana(&hud);
         }
     });
 }
@@ -405,9 +463,9 @@ pub fn hud_pin(app: AppHandle, state: State<'_, SettingsState>, on: bool) -> Res
     if let Some(hud) = app.get_webview_window("hud") {
         if on {
             pipeline::recolocar_hud(&app);
-            let _ = hud.show();
+            pipeline::mostrar_ventana(&hud);
         } else if !pipeline::grabando() {
-            let _ = hud.hide();
+            pipeline::ocultar_ventana(&hud);
         }
     }
     Ok(())
@@ -434,18 +492,6 @@ pub fn hud_log(app: AppHandle, msg: String) {
     pipeline::diag(&app, &format!("HUD-JS: {msg}"));
 }
 
-/// Deja programado el relanzamiento de Dicho tras una actualización.
-///
-/// El instalador NSIS trae su propio `/R` para volver a abrir la app, y el
-/// plugin del updater se lo pasa. Pero sólo funciona si Dicho ya está cerrado
-/// cuando arranca el instalador: si lo encuentra abierto entra por
-/// `CheckIfAppIsRunning`, lo mata, y por ese camino el relanzamiento nunca
-/// llega. Que es justo lo que pasa al actualizar desde dentro de la app.
-///
-/// Así que el relanzamiento lo programa la app antes de empezar: un PowerShell
-/// suelto que espera a que el proceso desaparezca y lo vuelve a abrir. Es
-/// inofensivo aunque el `/R` funcione — la guardia de instancia única hace que
-/// el segundo arranque enfoque al primero y se cierre.
 /// El script vigilante, en su propia función para poder probarlo sin lanzar nada.
 fn script_relanzador(exe: &str) -> String {
     // Con BOM: un .ps1 sin él se lee como ANSI y los acentos rompen el parseo.
@@ -472,29 +518,55 @@ Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
     )
 }
 
+/// Ajustes está a media actualización: cerrarla ahora la esconde en vez de
+/// destruirla (ver `on_window_event` en lib.rs), porque la descarga vive en
+/// su webview y se cortaría.
+pub static AJUSTES_OCUPADA: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Lo avisa el updater al empezar a descargar, y al fallar para soltarlo.
+#[tauri::command]
+pub fn ajustes_ocupada(on: bool) {
+    AJUSTES_OCUPADA.store(on, Ordering::SeqCst);
+}
+
+/// Deja programado el relanzamiento de Dicho tras una actualización.
+///
+/// El instalador NSIS trae su propio `/R` para volver a abrir la app, y el
+/// plugin del updater se lo pasa. Pero sólo funciona si Dicho ya está cerrado
+/// cuando arranca el instalador: si lo encuentra abierto entra por
+/// `CheckIfAppIsRunning`, lo mata, y por ese camino el relanzamiento nunca
+/// llega. Que es justo lo que pasa al actualizar desde dentro de la app.
+///
+/// Así que el relanzamiento lo programa la app antes de empezar: un PowerShell
+/// suelto que espera a que el proceso desaparezca y lo vuelve a abrir. Es
+/// inofensivo aunque el `/R` funcione — la guardia de instancia única hace que
+/// el segundo arranque enfoque al primero y se cierre.
 #[tauri::command]
 pub fn programar_relanzamiento(app: AppHandle) -> Result<(), String> {
-    use std::os::windows::process::CommandExt;
-    // Sin ventana y desacoplado del padre: si no, muere con la app.
-    const DETACHED_PROCESS: u32 = 0x0000_0008;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let script = std::env::temp_dir().join("dicho-relanzar.ps1");
     let contenido = script_relanzador(&exe.display().to_string());
     std::fs::write(&script, contenido).map_err(|e| e.to_string())?;
 
-    std::process::Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            &script.to_string_lossy(),
-        ])
-        .creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW)
-        .spawn()
-        .map_err(|e| e.to_string())?;
+    let mut relanzador = std::process::Command::new("powershell");
+    relanzador.args([
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        &script.to_string_lossy(),
+    ]);
+    // Sin ventana y desacoplado del padre: si no, muere con la app. Va tras su
+    // propio cfg para que el crate compile —y sus tests corran— fuera de Windows.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        relanzador.creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW);
+    }
+    relanzador.spawn().map_err(|e| e.to_string())?;
 
     pipeline::diag(&app, "Updater: relanzamiento programado");
     Ok(())

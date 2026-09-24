@@ -14,9 +14,16 @@ static SPACE_BEFORE_PUNCT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\s+([,.;:!?])").unwrap());
 static DUP_PUNCT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"([,.;:]){2,}").unwrap());
 
-/// Limpieza local instantánea: quita muletillas, aplica el diccionario personal
-/// y normaliza espacios/puntuación. Determinista y sin red.
-pub fn polish(text: &str, ctx: &PolishCtx) -> String {
+/// Limpieza local instantánea: quita muletillas y normaliza espacios y
+/// puntuación. Determinista y sin red.
+///
+/// **El diccionario no se aplica aquí**, y es a propósito: lo aplica
+/// `polish::aplicar_diccionario` después de pulir, en todos los modos
+/// (pipeline.rs). Aplicarlo también aquí lo hacía dos veces en Tal cual —
+/// «Tailwind CSS CSS» —, en orden alfabético en vez de del más largo al más
+/// corto, y con un `replace_all` de `&str`, que lee `$` como grupo de captura:
+/// «$PATH» desaparecía del texto.
+pub fn polish(text: &str, _ctx: &PolishCtx) -> String {
     // 1. Filtra tokens que son pura muletilla, conservando su puntuación colgante.
     let mut kept: Vec<String> = Vec::new();
     for token in text.split_whitespace() {
@@ -45,22 +52,13 @@ pub fn polish(text: &str, ctx: &PolishCtx) -> String {
     }
     let mut out = kept.join(" ");
 
-    // 2. Diccionario personal: reemplazos literales con límite de palabra.
-    for (term, replacement) in &ctx.dictionary {
-        if let Some(to) = replacement {
-            if let Ok(re) = Regex::new(&format!(r"(?i)\b{}\b", regex::escape(term))) {
-                out = re.replace_all(&out, to.as_str()).into_owned();
-            }
-        }
-    }
-
-    // 3. Normalización.
+    // 2. Normalización.
     out = SPACE_BEFORE_PUNCT.replace_all(&out, "$1").into_owned();
     out = DUP_PUNCT.replace_all(&out, "$1").into_owned();
     out = MULTI_SPACE.replace_all(&out, " ").into_owned();
     let mut out = out.trim().to_string();
 
-    // 4. Primera letra en mayúscula.
+    // 3. Primera letra en mayúscula.
     if let Some(first) = out.chars().next() {
         if first.is_lowercase() {
             let upper: String = first.to_uppercase().collect();
@@ -87,9 +85,12 @@ mod tests {
         assert_eq!(r, "Hola, quiero decir algo, importante");
     }
 
+    /// El diccionario lo pone el pipeline después de pulir, no esto: aquí
+    /// sólo se comprueba que las dos cosas juntas dan lo de siempre.
     #[test]
     fn aplica_diccionario() {
-        let r = polish("me gusta wispr flow", &ctx());
+        let c = ctx();
+        let r = crate::polish::aplicar_diccionario(&polish("me gusta wispr flow", &c), &c.dictionary);
         assert_eq!(r, "Me gusta Wispr flow");
     }
 

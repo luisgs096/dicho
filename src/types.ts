@@ -12,7 +12,7 @@ export interface AppSettings {
   hotkey: string[];
   /** Tecla para cancelar a media grabación. `null` la desactiva. */
   cancelar: string | null;
-  /** Atajo para corregir lo que tengas seleccionado. Vacío = apagado. */
+  /** Atajo del escribano: corrige lo que acabas de copiar. Vacío = apagado. */
   corregir_atajo: string[];
   engine: EngineKind;
   polish: PolishKind;
@@ -74,7 +74,7 @@ export type RecordingState =
    *  lectura —pluma y pergamino— porque no está escuchando nada. */
   | { state: "corrigiendo" }
   /** Acabas de copiar algo y la onda **se ofrece** a corregirlo: misma carita
-   *  de escribano, esperando un clic. Se desarma sola a los 20 s. */
+   *  de escribano, esperando un clic. Se desarma sola a los 8 s. */
   | { state: "escribano"; palabras: number }
   /** Primer arranque tras actualizar: la carita lo celebra una vez. */
   | { state: "actualizado"; version: string }
@@ -86,8 +86,10 @@ export interface Correction {
   replacement: string;
   /** Cuántas veces hacía falta corregir, contadas sobre el texto crudo. */
   count: number;
-  /** Cuántas llegaron de verdad al texto final. Con 0, el modelo la ignoró. */
-  aplicadas: number;
+  /** Cuántas están de verdad en el texto final. Con 0, el término ya no estaba
+   *  cuando pasó el diccionario: el modelo lo reescribió o lo quitó. Ausente en
+   *  los dictados anteriores a la 0.11, que no lo apuntaban. */
+  aplicadas?: number;
 }
 
 export interface HistoryItem {
@@ -127,8 +129,10 @@ export const KEY_LABELS: Record<string, string> = {
   MetaRight: "Win Der",
   Alt: "Alt",
   AltGr: "AltGr",
-  ShiftLeft: "Shift",
-  ShiftRight: "Shift Der",
+  // Mayús y no Shift: es lo que lleva impreso el teclado en español, lo que
+  // pinta el teclado gráfico de Inicio y lo que dicen todos los textos.
+  ShiftLeft: "Mayús",
+  ShiftRight: "Mayús Der",
   Space: "Espacio",
   Escape: "Esc",
   Tab: "Tab",

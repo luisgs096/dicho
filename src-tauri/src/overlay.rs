@@ -369,17 +369,6 @@ pub fn assert_topmost(hwnd: isize) {
 #[cfg(not(windows))]
 pub fn assert_topmost(_hwnd: isize) {}
 
-/// Pega la ventana al cursor hasta que se suelte el botón del ratón, y devuelve
-/// dónde quedó.
-///
-/// No se usa el arrastre nativo de Windows (`WM_NCLBUTTONDOWN` con `HTCAPTION`,
-/// que es lo que hace `start_dragging()` de Tauri): abre un bucle modal que
-/// activa la ventana, y el HUD está declarado no activable a propósito para no
-/// robarle el foco a lo que estás escribiendo. Seguir el cursor a mano cuesta
-/// treinta líneas y no toca el foco de nadie.
-///
-/// Corre en su propio hilo: bloquea mientras dure el gesto.
-#[cfg(windows)]
 /// Cuánto tiene que viajar el ratón antes de que la onda se despegue.
 ///
 /// Existe desde que la onda se arrastra **siempre**, sin modo de colocación. Sin
@@ -389,6 +378,7 @@ pub fn assert_topmost(_hwnd: isize) {}
 ///
 /// Seis píxeles es lo que separa un clic de un arrastre. Por debajo no se toca
 /// la ventana, así que el clic llega limpio a lo que haya dentro.
+#[cfg(windows)]
 const UMBRAL_ARRASTRE: i32 = 6;
 
 /// Dónde está el cursor, en píxeles de pantalla.
@@ -412,11 +402,21 @@ pub fn cursor_pos() -> Option<(i32, i32)> {
     None
 }
 
-/// Pega la ventana al cursor hasta que se suelte el botón.
+/// Pega la ventana al cursor hasta que se suelte el botón del ratón, y devuelve
+/// dónde quedó.
+///
+/// No se usa el arrastre nativo de Windows (`WM_NCLBUTTONDOWN` con `HTCAPTION`,
+/// que es lo que hace `start_dragging()` de Tauri): abre un bucle modal que
+/// activa la ventana, y el HUD está declarado no activable a propósito para no
+/// robarle el foco a lo que estás escribiendo. Seguir el cursor a mano cuesta
+/// treinta líneas y no toca el foco de nadie.
 ///
 /// `al_arrancar` se llama **una sola vez**, al cruzar el umbral: es lo que le
 /// dice al HUD que ya va montado de verdad (el aro punteado y la carita de la
 /// montaña rusa). `al_menear` salta en cada vaivén.
+///
+/// Corre en su propio hilo: bloquea mientras dure el gesto.
+#[cfg(windows)]
 pub fn arrastrar_con_cursor(
     hwnd: isize,
     mut al_arrancar: impl FnMut(),

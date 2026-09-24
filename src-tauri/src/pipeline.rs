@@ -29,12 +29,13 @@ pub enum Cmd {
     Start,
     Stop,
     /// Te arrepentiste a media frase: se tira el audio y no se transcribe ni se
-    /// pega nada. Lo manda el Escape mientras grabas.
+    /// pega nada. Lo manda la tecla de cancelar (Escape de fábrica) mientras
+    /// grabas.
     Cancel,
     /// El modelo terminó de descargarse; se cargará al dictar.
     ModelReady,
-    /// Corregir lo que el usuario tenga seleccionado, sin dictar nada. Es el
-    /// mismo motor de redacción del dictado aplicado a texto que ya existía.
+    /// Corregir lo que el usuario acaba de copiar, sin dictar nada. Es el mismo
+    /// motor de redacción del dictado aplicado a texto que ya existía.
     Corregir,
     /// Quitar de en medio el escribano: está ofreciéndose y no quieres nada.
     /// Lo manda **la misma tecla que cancela un dictado**, que es la que el
@@ -221,7 +222,7 @@ fn show_hud(app: &AppHandle, gen: &Arc<AtomicU64>) {
     };
     let area = area_hud(app);
     let (x, y) = place_hud(app, &hud, area);
-    let _ = hud.show();
+    mostrar_ventana(&hud);
     let _ = hud.set_always_on_top(true);
     let hwnd = overlay::hwnd_of(&hud).unwrap_or(0);
     overlay::assert_topmost(hwnd);
@@ -245,8 +246,13 @@ fn show_hud(app: &AppHandle, gen: &Arc<AtomicU64>) {
         // eso llega *después* de moverla: por cada cambio hay que recolocar dos
         // veces (ahora, con el tamaño viejo, y al tick siguiente, con el nuevo).
         let mut recolocar = 2;
-        for i in 0..80 {
-            std::thread::sleep(Duration::from_millis(if i == 0 { 70 } else { 250 }));
+        // Mientras dure el dictado —hasta 10 min— y 20 s más. Con el tope fijo
+        // de 80 vueltas (70 ms + 79 × 250 ms = 19,8 s) dejaba de reafirmar el
+        // topmost y de seguirte de pantalla a mitad de un dictado largo.
+        let mut vuelta = 0u32;
+        while vuelta < 80 || GRABANDO.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(if vuelta == 0 { 70 } else { 250 }));
+            vuelta += 1;
             if gen.load(Ordering::SeqCst) != expected {
                 return;
             }
@@ -283,6 +289,29 @@ pub(crate) fn hud_clavado(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
+/// Esconde la onda **y le dice a WebView2 que ya no se ve**.
+///
+/// `WebviewWindow::hide()` sólo oculta la ventana: el control de WebView2 se
+/// queda con `IsVisible = TRUE` (tauri-runtime-wry 2.11 no lo toca), así que
+/// para Chromium la página sigue a la vista y no frena ni animaciones ni
+/// temporizadores. La onda escondida seguía animando su carita todo el día:
+/// medido en Chromium, 30-45 ms de hilo principal por segundo con una historia
+/// de reposo puesta. `Webview::hide()` es el que llama a `SetIsVisible(false)`,
+/// que según Microsoft es lo que hay que hacer al esconder la ventana madre.
+pub(crate) fn ocultar_ventana(w: &tauri::WebviewWindow) {
+    let wv: &tauri::Webview = w.as_ref();
+    let _ = wv.hide();
+    let _ = w.hide();
+}
+
+/// Lo contrario, y en este orden: primero el WebView2, para que la ventana no
+/// aparezca con el lienzo en blanco.
+pub(crate) fn mostrar_ventana(w: &tauri::WebviewWindow) {
+    let wv: &tauri::Webview = w.as_ref();
+    let _ = wv.show();
+    let _ = w.show();
+}
+
 fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
     let expected = gen.load(Ordering::SeqCst);
     let app = app.clone();
@@ -298,21 +327,20 @@ fn hide_hud_later(app: &AppHandle, gen: &Arc<AtomicU64>, delay_ms: u64) {
                 if hud_clavado(&app) || RATON_ENCIMA.load(Ordering::SeqCst) {
                     emit_state(&app, "idle", None);
                 } else {
-                    let _ = hud.hide();
+                    ocultar_ventana(&hud);
                 }
             }
         }
     });
 }
 
-/// Corrige el texto que el usuario tenga seleccionado, con el mismo motor que
+/// Corrige el texto que el usuario acaba de copiar, con el mismo motor que
 /// redacta los dictados.
 ///
-/// Es LABS y se nota en una cosa: aquí el texto de partida **ya existe**, así
-/// que equivocarse cuesta más que en un dictado. Por eso, si el pulido falla o
-/// lo descarta una guarda, **no se pega nada**: se deja lo que el usuario
-/// escribió y se le dice. Sustituir su texto por una versión peor sería el peor
-/// resultado posible.
+/// Aquí el texto de partida **ya existe**, así que equivocarse cuesta más que
+/// en un dictado. Por eso, si el pulido falla o lo descarta una guarda, **no se
+/// pega nada**: se deja lo que el usuario escribió y se le dice. Sustituir su
+/// texto por una versión peor sería el peor resultado posible.
 fn corregir_seleccion(
     app: &AppHandle,
     settings: &SettingsState,
@@ -326,9 +354,16 @@ fn corregir_seleccion(
     // Sin IA no hay nada que ofrecer: el pulido por reglas apenas cambia texto
     // ya escrito, y hacer el numerito de copiar y pegar para nada confunde.
     if modo == PolishKind::Rules {
-        emit_state(app, "error", Some(serde_json::json!({
-            "message": "Enciende el modo Editor en LABS para corregir texto escrito"
-        })));
+        // Dos motivos, dos mensajes. Sin key no hay IA con la que corregir. Con
+        // ella, el nivel sigue en «Tal cual» —así queda al conectar Groq— y LABS
+        // ya sale encendido de fábrica: mandar ahí era mandar a una casilla ya
+        // marcada. Lo que falta es elegir el nivel, y eso va en la onda.
+        let message = if groq::get_api_key().is_err() {
+            "El escribano necesita la key de Groq: conéctala en Ajustes"
+        } else {
+            "Elige Estándar o Editor en la onda para corregir texto escrito"
+        };
+        emit_state(app, "error", Some(serde_json::json!({ "message": message })));
         hide_hud_later(app, hud_gen, 3200);
         return;
     }
@@ -346,6 +381,9 @@ fn corregir_seleccion(
     };
 
     crate::escribano::desarmar();
+    // Nueva generación, como al dictar: si no, el `hide_hud_later` del dictado
+    // anterior (2,4 s) esconde la onda a mitad de la corrección.
+    hud_gen.fetch_add(1, Ordering::SeqCst);
     show_hud(app, hud_gen);
     emit_state(app, "corrigiendo", None);
     let t0 = Instant::now();
@@ -370,25 +408,19 @@ fn corregir_seleccion(
             // sabe qué significa esa combinación en la app que hay delante.
             //
             // Quien decide pegar es el usuario, desde la ventana de revisión.
+            //
+            // Antes de copiar, no después: que el vigilante no tome nuestra
+            // propia salida por una copia del usuario. Sin esto el escribano se
+            // rearmaría con lo que acaba de producir, en bucle.
+            crate::escribano::ya_visto(&corregido);
             if let Err(e) = crate::inject::copiar(&corregido) {
                 diag(app, &format!("Corregir: no se pudo copiar ({e})"));
                 emit_state(app, "error", Some(serde_json::json!({ "message": e.to_string() })));
                 hide_hud_later(app, hud_gen, 3200);
                 return;
             }
-            // Que el vigilante no tome nuestra propia salida por una copia del
-            // usuario: sin esto el escribano se rearmaría con lo que acaba de
-            // producir, en bucle.
-            crate::escribano::ya_visto(&corregido);
             // Y se abre la revisión: el usuario ve qué cambió y decide.
-            if let Some(v) = app.get_webview_window("revision") {
-                let _ = v.emit(
-                    "revision",
-                    serde_json::json!({ "original": original, "corregido": corregido }),
-                );
-                let _ = v.show();
-                let _ = v.set_focus();
-            }
+            abrir_revision(app, &original, &corregido);
             diag(app, &format!(
                 "Corregido: {}→{} palabras en {} ms",
                 original.split_whitespace().count(),
@@ -414,11 +446,49 @@ fn corregir_seleccion(
     }
 }
 
-/// Saca la onda a celebrar que acabas de actualizar. Una sola vez, al primer
-/// arranque con la versión nueva.
-///
-/// No se enseña si tienes la onda apagada: quien la apagó no quiere verla, y
-/// menos por sorpresa nada más encender el ordenador. El estilo ya no importa:
+/// Lo último que se mandó a revisar. La ventana lo pide al montarse
+/// (`revision_pendiente`): si se acaba de crear, todavía no escucha eventos.
+pub(crate) static REVISION: Mutex<Option<serde_json::Value>> = Mutex::new(None);
+
+/// La ventana de revisión se crea al usarla y se destruye al cerrarla: casi
+/// nunca está abierta, y oculta cuesta un proceso de WebView2 entero.
+fn abrir_revision(app: &AppHandle, original: &str, corregido: &str) {
+    // El destino viaja con la revisión y no se lee al pulsar «Sustituir»: para
+    // entonces el vigilante lo habrá movido si el usuario copió otra cosa en
+    // otra ventana mientras leía.
+    let datos = serde_json::json!({
+        "original": original,
+        "corregido": corregido,
+        "destino": crate::escribano::foco_anterior(),
+    });
+    if let Ok(mut r) = REVISION.lock() {
+        *r = Some(datos.clone());
+    }
+    let v = match app.get_webview_window("revision") {
+        Some(v) => {
+            let _ = v.emit("revision", datos);
+            v
+        }
+        None => {
+            let Some(cfg) = app.config().app.windows.iter().find(|w| w.label == "revision")
+            else {
+                return;
+            };
+            // Desde el hilo del pipeline, nunca desde un comando síncrono: en
+            // Windows construir una ventana ahí se bloquea.
+            match tauri::WebviewWindowBuilder::from_config(app, cfg).and_then(|b| b.build()) {
+                Ok(v) => v,
+                Err(e) => {
+                    diag(app, &format!("Revisión: no se pudo abrir la ventana ({e})"));
+                    return;
+                }
+            }
+        }
+    };
+    let _ = v.show();
+    let _ = v.set_focus();
+}
+
 /// La onda se ofrece a corregir lo que el usuario acaba de copiar.
 ///
 /// No usa la «generación» del HUD como el dictado porque no compite con él: si
@@ -437,7 +507,7 @@ pub(crate) fn armar_escribano(app: &AppHandle, texto: &str) {
     };
     crate::escribano::ARMADO.store(true, Ordering::SeqCst);
     place_hud(app, &hud, area_hud(app));
-    let _ = hud.show();
+    mostrar_ventana(&hud);
     let _ = hud.set_always_on_top(true);
     emit_state(
         app,
@@ -457,10 +527,15 @@ pub(crate) fn escribano_expirado(app: &AppHandle) {
     if hud_clavado(app) {
         emit_state(app, "idle", None);
     } else if let Some(hud) = app.get_webview_window("hud") {
-        let _ = hud.hide();
+        ocultar_ventana(&hud);
     }
 }
 
+/// Saca la onda a celebrar que acabas de actualizar. Una sola vez, al primer
+/// arranque con la versión nueva.
+///
+/// No se enseña si tienes la onda apagada: quien la apagó no quiere verla, y
+/// menos por sorpresa nada más encender el ordenador. El estilo ya no importa:
 /// la barra de carga y el destello con la versión son los mismos en los dos, y
 /// sólo cambia qué se revela al final —la cara o las cinco barritas—.
 pub(crate) fn celebrar_actualizacion(app: &AppHandle, version: &str) {
@@ -478,7 +553,7 @@ pub(crate) fn celebrar_actualizacion(app: &AppHandle, version: &str) {
     // Sale primero en reposo y arranca un respiro después. El primer tiempo del
     // guion es la cápsula normal, y emitir a la vez que el show() se lo come el
     // primer pintado: la barra aparecería ya a medio llenar.
-    let _ = hud.show();
+    mostrar_ventana(&hud);
     std::thread::sleep(Duration::from_millis(120));
     emit_state(
         app,
@@ -499,7 +574,7 @@ pub(crate) fn celebrar_actualizacion(app: &AppHandle, version: &str) {
         if hud_clavado(&app) {
             emit_state(&app, "idle", None);
         } else if let Some(hud) = app.get_webview_window("hud") {
-            let _ = hud.hide();
+            ocultar_ventana(&hud);
         }
     });
 }
@@ -512,10 +587,6 @@ pub(crate) fn recolocar_hud(app: &AppHandle) {
     }
 }
 
-/// Modo "colócalo donde quieras", desde Ajustes: deja el HUD a la vista y
-/// agarrable hasta que el usuario diga que ya.
-///
-/// Sin esto sólo se podría mover durante los pocos segundos que dura un
 // ─── dictado en curso ───────────────────────────────────────────────────────
 
 /// Un trozo de audio mandado a transcribir mientras el usuario sigue hablando.
@@ -700,9 +771,6 @@ fn cola_de(texto: &str, max: usize) -> String {
     texto.chars().skip(n - max).collect()
 }
 
-/// Opciones de transcripción según los ajustes. Con "no traducir" jamás se fija
-/// idioma —es justo lo que empuja al motor a traducir el otro— y se le pasa una
-/// muestra de spanglish como contexto de estilo.
 /// Añade los términos del diccionario al oído de Whisper.
 ///
 /// Se hace aparte de `opts_de` porque ahí no hay base de datos y porque el
@@ -727,6 +795,9 @@ fn con_diccionario(mut opts: SttOpts, store: &std::sync::Arc<crate::store::Store
     opts
 }
 
+/// Opciones de transcripción según los ajustes. Con "no traducir" jamás se fija
+/// idioma —es justo lo que empuja al motor a traducir el otro— y se le pasa una
+/// muestra de spanglish como contexto de estilo.
 fn opts_de(s: &crate::settings::AppSettings) -> SttOpts {
     SttOpts {
         language: if s.no_traducir {
@@ -770,12 +841,25 @@ fn transcribir_completo(
     opts: &SttOpts,
     parakeet: &mut Option<ParakeetStt>,
     groq: &mut GroqStt,
+    modelo_local: Option<&std::path::Path>,
 ) -> anyhow::Result<(String, &'static str)> {
     match engine {
         EngineKind::Groq => match groq.transcribe(pcm, opts) {
             Ok(t) => Ok((t, "groq")),
             Err(e) => {
-                // Fallback transparente al motor local.
+                // Respaldo en el motor local. Con Groq puesto el modelo no está
+                // en memoria —sólo se carga al dictar con Parakeet—, así que sin
+                // esto el respaldo no saltaba nunca: se carga aquí si está
+                // descargado. Sin red, esperar la carga es mejor que perder el
+                // dictado; el reposo lo vuelve a soltar a los 10 s.
+                if parakeet.is_none() {
+                    if let Some(dir) = modelo_local {
+                        match ParakeetStt::load(dir) {
+                            Ok(m) => *parakeet = Some(m),
+                            Err(e2) => log::warn!("Respaldo local: no cargó ({e2:#})"),
+                        }
+                    }
+                }
                 if let Some(p) = parakeet.as_mut() {
                     log::warn!("Groq falló ({e}), usando Parakeet local");
                     Ok((parakeet_por_trozos(p, pcm, opts)?, "parakeet"))
@@ -824,6 +908,7 @@ fn procesar(
     held: Duration,
     engine: EngineKind,
     parakeet: &mut Option<ParakeetStt>,
+    parakeet_loading: &mut Option<std::thread::JoinHandle<anyhow::Result<ParakeetStt>>>,
     groq: &mut GroqStt,
 ) {
     let outcome = (|| -> anyhow::Result<StopResult> {
@@ -853,6 +938,18 @@ fn procesar(
         }
 
         let t0 = Instant::now();
+        // Si el modelo local se está cargando (arranque en frío o más de 10 s
+        // sin dictar), aquí se espera lo poco que le falte. Sin esto la carga
+        // acaba en su hilo, nadie la recoge y el dictado se pierde con «Modelo
+        // local no cargado». La espera existía y se perdió en 035b6e6.
+        if engine == EngineKind::Parakeet && parakeet.is_none() {
+            absorb_load(parakeet, parakeet_loading, true)?;
+        }
+        // Para el respaldo de Groq, si el modelo local está en disco.
+        let modelo_local = (engine == EngineKind::Groq
+            && matches!(models::status(app), ModelStatus::Ready))
+        .then(|| models::model_dir(app));
+        let modelo_local = modelo_local.as_deref();
         let (raw, engine_name) = if vivo.hay_trozos() {
             // Casi todo llegó transcrito mientras hablabas; aquí sólo se espera
             // al último trozo.
@@ -860,11 +957,11 @@ fn procesar(
                 Some(texto) => (texto, "groq"),
                 None => {
                     log::warn!("Troceo incompleto: se reintenta el audio entero");
-                    transcribir_completo(pcm, engine, &vivo.opts, parakeet, groq)?
+                    transcribir_completo(pcm, engine, &vivo.opts, parakeet, groq, modelo_local)?
                 }
             }
         } else {
-            transcribir_completo(pcm, engine, &vivo.opts, parakeet, groq)?
+            transcribir_completo(pcm, engine, &vivo.opts, parakeet, groq, modelo_local)?
         };
         let stt_ms = t0.elapsed().as_millis() as i64;
         log::info!("STT [{engine_name}] {stt_ms} ms: {raw}");
@@ -1040,6 +1137,9 @@ fn procesar(
             hide_hud_later(app, hud_gen, 150);
         }
         Err(e) => {
+            // Que quede escrito: hasta ahora este error sólo vivía 3,2 s en la
+            // onda y en dicho.log no quedaba ni el motivo.
+            diag(app, &format!("Dictado perdido: {e:#}"));
             emit_state(
                 app,
                 "error",
@@ -1153,6 +1253,7 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                         held,
                         engine_activo,
                         &mut parakeet,
+                        &mut parakeet_loading,
                         &mut groq,
                     );
                     last_use = Instant::now();
@@ -1259,11 +1360,13 @@ pub fn spawn(app: AppHandle, rx: Receiver<Cmd>, settings: SettingsState, store: 
                     );
                     let level_app = app.clone();
                     // Máximo ~30 eventos/s hacia el HUD para no saturar el IPC.
-                    let last_emit = Arc::new(Mutex::new(Instant::now() - Duration::from_secs(1)));
+                    // `None` y no `now() - 1 s`: en Windows restar al reloj
+                    // recién arrancado el equipo aborta (ver autotype.rs).
+                    let last_emit = Arc::new(Mutex::new(None::<Instant>));
                     match AudioRecorder::start(move |rms| {
                         let mut last = last_emit.lock().unwrap();
-                        if last.elapsed() >= Duration::from_millis(33) {
-                            *last = Instant::now();
+                        if last.is_none_or(|t| t.elapsed() >= Duration::from_millis(33)) {
+                            *last = Some(Instant::now());
                             drop(last);
                             let _ =
                                 level_app.emit("audio-level", serde_json::json!({ "level": rms }));

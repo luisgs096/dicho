@@ -24,7 +24,7 @@
         "label": "hud",
         "title": "Dicho HUD",
         "width": 360,
-        "height": 96,
+        "height": 104,
         "resizable": false,
         "maximizable": false,
         "minimizable": false,
@@ -49,7 +49,8 @@
         "alwaysOnTop": true,
         "skipTaskbar": false,
         "visible": false,
-        "center": true
+        "center": true,
+        "create": false
       }
     ],
     "security": {

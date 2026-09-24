@@ -21,6 +21,12 @@ export function useUpdater() {
   // El objeto Update trae el handle de descarga; no cabe en el estado de React
   // porque no es serializable ni debe disparar re-render.
   const pendiente = useRef<Update | null>(null);
+  // La fase de ahora, para leerla desde un listener sin meter la consulta
+  // dentro de un actualizador de estado (que debe ser puro).
+  const fase = useRef(estado.fase);
+  fase.current = estado.fase;
+  /** Cuándo se miró por última vez sin que nadie lo pidiera. */
+  const ultimaMirada = useRef(0);
 
   const buscar = useCallback(async (manual: boolean) => {
     if (manual) setEstado({ fase: "buscando" });
@@ -50,6 +56,10 @@ export function useUpdater() {
     let hechos = 0;
     let total = 0;
     setEstado({ fase: "descargando", version: update.version, hechos: 0, total: 0 });
+    // Cerrar Ajustes la destruye, y la descarga vive aquí: mientras dura, que
+    // cerrarla sólo la esconda. Si todo va bien no hace falta soltarlo, porque
+    // el instalador cierra Dicho entero.
+    await invoke("ajustes_ocupada", { on: true }).catch(console.warn);
     try {
       // Antes de nada, dejar programado el relanzamiento: el instalador mata
       // Dicho y por ese camino su propio `/R` no vuelve a abrirlo.
@@ -74,12 +84,14 @@ export function useUpdater() {
       await relaunch();
     } catch (e) {
       setEstado({ fase: "error", mensaje: String(e) });
+      invoke("ajustes_ocupada", { on: false }).catch(console.warn);
     }
   }, []);
 
   useEffect(() => {
     getVersion().then(setVersionActual).catch(console.error);
     // Una comprobación silenciosa al abrir la ventana…
+    ultimaMirada.current = Date.now();
     buscar(false);
     // …y otra cada vez que la ventana vuelve al frente. Antes se miraba **sólo**
     // al abrirla: con la ventana abierta de fondo durante horas, la campanita de
@@ -87,12 +99,17 @@ export function useUpdater() {
     // al recuperar el foco es el momento exacto en que el usuario va a verla.
     // No se vuelve a mirar si ya hay una esperando o se está instalando: sería
     // pisar el estado en mitad de la descarga.
+    //
+    // Al volver llegan `focus` y `visibilitychange` a la vez: sin el reloj eran
+    // dos consultas a GitHub por vuelta, y una por cada alt-tab. Con una cada
+    // diez minutos la campanita sigue enterándose a tiempo.
     const alVolver = () => {
       if (document.visibilityState !== "visible") return;
-      setEstado((e) => {
-        if (e.fase === "inactivo" || e.fase === "alDia") buscar(false);
-        return e;
-      });
+      if (fase.current !== "inactivo" && fase.current !== "alDia") return;
+      const ahora = Date.now();
+      if (ahora - ultimaMirada.current < 10 * 60_000) return;
+      ultimaMirada.current = ahora;
+      buscar(false);
     };
     window.addEventListener("focus", alVolver);
     document.addEventListener("visibilitychange", alVolver);

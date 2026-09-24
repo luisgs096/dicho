@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  CARITA_COMILONA,
+  CARITA_ERUCTO,
   ESTADOS,
   FACE_CSS,
   MIC_SVG,
@@ -7,11 +9,11 @@ import {
   cssVars,
   type FaceState,
 } from "./faces";
+import type { AppSettings } from "../types";
 
 /** Cuántas caritas hay de verdad. Estaba escrito a mano en dos sitios, así que
  *  añadir una dejaba mintiendo a los dos. */
 const CUANTAS_CARITAS = Object.values(V).reduce((n, v) => n + v.length, 0);
-import type { AppSettings } from "../types";
 
 type Estilo = AppSettings["hud_style"];
 
@@ -32,6 +34,10 @@ const BARRAS_CSS = `
   @keyframes vpdroop { 0%, 100% { height: 8px; } 15% { height: 13px; } 30%, 90% { height: 6px; } }
 `;
 const DESFASE = [0.22, 0.11, 0, 0.11, 0.22];
+
+/** El micro en un objeto fijo: React 19 compara `dangerouslySetInnerHTML` por
+ *  identidad, y un `{ __html }` nuevo en cada render reescribe el nodo. */
+const MIC_HTML = { __html: MIC_SVG };
 
 /** El mismo texto que enseña el HUD de verdad en cada estado. */
 const CLASSIC_TEXTO: Record<FaceState, string> = {
@@ -106,8 +112,32 @@ export default function VistaPrevia(props: {
   const meta = ESTADOS.find((e) => e.key === estado)!;
   // Una carita distinta en cada vuelta: el repertorio son 5 por estado y
   // enseñar siempre la misma haría creer que sólo hay una.
-  const vuelta = Math.floor(paso / TOUR.length);
-  const variante = V[estado][vuelta % V[estado].length];
+  //
+  // Seis vueltas y no cinco, por el eructo: «listo» tiene seis y la sexta
+  // sólo sale detrás de la comilona, como en el HUD. Antes el módulo de cada
+  // estado las emparejaba al azar: el eructo salía detrás del DJ y la
+  // comilona acababa en un «¡Listo!» cualquiera. Así, la quinta vuelta enseña
+  // el «Got it!» con el DJ y la sexta encadena la comilona con su eructo.
+  const vuelta = Math.floor(paso / TOUR.length) % 6;
+  const indice =
+    estado === "escuchando"
+      ? vuelta === 5
+        ? CARITA_COMILONA
+        : vuelta % 4
+      : estado === "listo"
+        ? vuelta === 5
+          ? CARITA_ERUCTO
+          : vuelta
+        : vuelta % V[estado].length;
+  const variante = V[estado][indice];
+  // Este componente no se redibuja sólo cada 2,6 s: lo arrastra cualquier
+  // render de Ajustes —cada tecla del teclado gráfico, cada settings-changed—.
+  // Con el objeto memorizado esos renders no reescriben el <svg> y la carita
+  // no vuelve a empezar; sólo lo hace al cambiar de estado, que es lo que toca.
+  const escenaHtml = useMemo(
+    () => ({ __html: variante.scene }),
+    [variante.scene],
+  );
 
   const vars = cssVars(dark) as React.CSSProperties;
 
@@ -117,15 +147,9 @@ export default function VistaPrevia(props: {
       className={`tama ${variante.sad ? "sad" : ""} ${variante.shake ? "shake" : ""}`}
     >
       <div className="screen">
-        <span
-          className="mic-px"
-          dangerouslySetInnerHTML={{ __html: MIC_SVG }}
-        />
+        <span className="mic-px" dangerouslySetInnerHTML={MIC_HTML} />
         <span className="scene">
-          <svg
-            viewBox="0 2 48 16"
-            dangerouslySetInnerHTML={{ __html: variante.scene }}
-          />
+          <svg viewBox="0 2 48 16" dangerouslySetInnerHTML={escenaHtml} />
         </span>
         <span className="status">{variante.status}</span>
       </div>

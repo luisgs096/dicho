@@ -72,6 +72,10 @@ pub fn inject_text(text: &str, conservar: bool) -> anyhow::Result<()> {
         arboard::Clipboard::new().context("No se pudo acceder al portapapeles")?;
     let previous = clipboard.get_text().ok();
 
+    // Lo que pega Dicho no es una copia del usuario. Sin esto el vigilante del
+    // escribano lee el dictado durante los ~430 ms que pasa en el portapapeles
+    // y se ofrece a corregirlo (y, al restaurar, lo que tenías copiado antes).
+    crate::escribano::ya_visto(text);
     clipboard
         .set_text(text.to_string())
         .context("No se pudo escribir al portapapeles")?;
@@ -89,6 +93,7 @@ pub fn inject_text(text: &str, conservar: bool) -> anyhow::Result<()> {
     thread::sleep(Duration::from_millis(350));
     if !conservar {
         if let Some(old) = previous {
+            crate::escribano::ya_visto(&old);
             let _ = clipboard.set_text(old);
         }
     }

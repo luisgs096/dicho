@@ -14,6 +14,8 @@ mod settings;
 mod store;
 mod stt;
 mod sync;
+#[cfg(test)]
+mod pruebas_diccionario;
 
 use std::sync::{mpsc, Arc, Mutex, RwLock};
 use tauri::Manager;
@@ -26,7 +28,17 @@ fn focus_main(app: &tauri::AppHandle) {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
+        return;
     }
+    // Al cerrarla se destruye, y con ella su proceso de WebView2: aquí se
+    // vuelve a crear desde su configuración. En otro hilo, porque construir una
+    // ventana desde un manejador de eventos (la bandeja) se bloquea en Windows.
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if let Some(cfg) = app.config().app.windows.iter().find(|w| w.label == "main") {
+            let _ = tauri::WebviewWindowBuilder::from_config(&app, cfg).and_then(|b| b.build());
+        }
+    });
 }
 
 fn build_tray(app: &tauri::App) -> tauri::Result<()> {
@@ -38,7 +50,9 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     let mut builder = TrayIconBuilder::with_id("tray")
         .menu(&menu)
         .show_menu_on_left_click(true)
-        .tooltip("Dicho — mantén Ctrl+Win y habla")
+        // Sin nombrar teclas: el atajo se cambia en Inicio y esto se escribe
+        // una sola vez, al arrancar. Con «Ctrl+Win» mentía a quien lo cambió.
+        .tooltip("Dicho — mantén tu atajo y habla")
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => focus_main(app),
             "quit" => app.exit(0),
@@ -137,9 +151,14 @@ pub fn run() {
                     std::thread::sleep(std::time::Duration::from_millis(900));
                     pipeline::recolocar_hud(&h);
                     if let Some(hud) = h.get_webview_window("hud") {
-                        let _ = hud.show();
+                        pipeline::mostrar_ventana(&hud);
                     }
                 });
+            } else if let Some(hud) = app.get_webview_window("hud") {
+                // La onda nace escondida pero con su WebView2 "a la vista":
+                // sin esto animaba su carita de reposo desde el arranque sin
+                // que nadie la viera. Ver `pipeline::ocultar_ventana`.
+                pipeline::ocultar_ventana(&hud);
             }
 
             // ¿Acabamos de actualizar? Se compara la versión de ahora con la
@@ -209,10 +228,19 @@ pub fn run() {
             });
             Ok(())
         })
+        // Cerrar Ajustes ya no la oculta: la destruye, y su WebView2 se va con
+        // ella —de 30 a 55 MB de proceso de render que antes vivían toda la
+        // sesión—. La app sigue viva en la bandeja (la onda nunca se cierra) y
+        // `focus_main` la vuelve a crear.
+        //
+        // La excepción es una actualización a medias: la descarga vive en esa
+        // ventana, y destruirla la cortaría. Mientras dura, cerrar la esconde
+        // como antes (ver `commands::ajustes_ocupada`).
         .on_window_event(|window, event| {
-            // Cerrar la ventana principal la oculta: la app vive en la bandeja.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
+                if window.label() == "main"
+                    && commands::AJUSTES_OCUPADA.load(std::sync::atomic::Ordering::SeqCst)
+                {
                     let _ = window.hide();
                     api.prevent_close();
                 }
@@ -246,6 +274,8 @@ pub fn run() {
             commands::hud_encima,
             commands::hud_nivel,
             commands::programar_relanzamiento,
+            commands::ajustes_ocupada,
+            commands::revision_pendiente,
         ])
         .run(ctx)
         .expect("error while running tauri application");

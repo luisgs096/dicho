@@ -114,7 +114,10 @@ export function TarjetaDictado(props: {
   const sinCambios = h.raw.trim() === h.polished.trim();
 
   const analisis = useMemo(() => {
-    if (!listas) return null;
+    // Sólo con el panel abierto, que es el único sitio donde se enseña. Hecho
+    // para las cien tarjetas a la vez, abrir la pestaña Historial costaba unos
+    // 64 ms en vez de 17: ~270 expresiones regulares por tarjeta.
+    if (!listas || !abierto) return null;
     // Las muletillas se cuentan por DIFERENCIA: las que estaban en el crudo y ya
     // no están en el final. Así una palabra que también es muletilla —"este
     // documento", "pues bien"— no infla el número, porque aparece en los dos.
@@ -139,7 +142,7 @@ export function TarjetaDictado(props: {
       palabrasCrudo: h.raw.split(/\s+/).filter(Boolean).length,
       palabrasFinal: h.polished.split(/\s+/).filter(Boolean).length,
     };
-  }, [h.raw, h.polished, listas]);
+  }, [h.raw, h.polished, listas, abierto]);
 
   // Cada indicador resalta sobre el texto donde se le ve. Las muletillas sólo
   // existen en el crudo; las correcciones, en el final.
@@ -160,7 +163,11 @@ export function TarjetaDictado(props: {
 
   const terminosResaltados =
     resaltado === "correcciones"
-      ? h.corrections.filter((c) => c.aplicadas > 0).map((c) => c.replacement)
+      ? h.corrections
+          // Sin el dato (dictados de antes de la 0.11) no se sabe si llegó:
+          // no se resalta nada en vez de adivinar.
+          .filter((c) => (c.aplicadas ?? 0) > 0)
+          .map((c) => c.replacement)
       : resaltado === "muletillas"
         ? (analisis?.muletillasTerminos ?? [])
         : resaltado === "anglicismos"
@@ -169,7 +176,11 @@ export function TarjetaDictado(props: {
 
   const marca = resaltado ? TONOS[resaltado].marca : "";
   const nCorr = h.corrections.reduce((n, c) => n + c.count, 0);
-  const ignoradas = h.corrections.filter((c) => c.aplicadas === 0).length;
+  // En las mismas unidades que `nCorr` —veces, no términos—: si no, un término
+  // corregido ×3 y otro que no llegó ×2 salían «5 correcciones (1 sin aplicar)».
+  const ignoradas = h.corrections
+    .filter((c) => c.aplicadas === 0)
+    .reduce((n, c) => n + c.count, 0);
 
   return (
     <li className="group rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/60">
@@ -308,8 +319,8 @@ export function TarjetaDictado(props: {
                 activo={resaltado === "correcciones"}
                 onHover={setResaltado}
               >
-                {h.corrections.length}{" "}
-                {h.corrections.length === 1 ? "corrección" : "correcciones"}
+                {/* El mismo número que el renglón de arriba, no otro. */}
+                {nCorr} {nCorr === 1 ? "corrección" : "correcciones"}
               </Indicativo>
             )}
             {analisis && analisis.muletillas > 0 && (
@@ -381,16 +392,17 @@ function Indicativo(props: {
   );
 }
 
-/** Un reemplazo del diccionario. Si el modelo lo ignoró se dice, en vez de
- *  dejar creer que se aplicó: es la señal de que tu diccionario no se está
- *  respetando en los modos con IA. */
+/** Un reemplazo del diccionario. Desde la 0.12 el diccionario se aplica
+ *  después de pulir, así que si el reemplazo no está en el texto final no es
+ *  que el modelo lo ignorara: es que reescribió o quitó el término antes de
+ *  que el diccionario pasara. Se dice, en vez de dejar creer que se aplicó. */
 function ChipCorreccion({ c }: { c: Correction }) {
   const ignorada = c.aplicadas === 0;
   return (
     <span
       title={
         ignorada
-          ? "El modelo no respetó esta palabra de tu diccionario"
+          ? "El modelo cambió esta palabra antes de que tu diccionario pudiera corregirla: en el texto final no está"
           : "Corregido por tu diccionario"
       }
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${
@@ -403,7 +415,7 @@ function ChipCorreccion({ c }: { c: Correction }) {
       <span>→</span>
       <span>{c.replacement}</span>
       {c.count > 1 && <span className="opacity-60">×{c.count}</span>}
-      {ignorada && <span className="ml-0.5 italic opacity-80">la ignoró</span>}
+      {ignorada && <span className="ml-0.5 italic opacity-80">no llegó</span>}
     </span>
   );
 }

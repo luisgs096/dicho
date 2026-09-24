@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-/// Red de seguridad del búfer de captura. El pipeline lo drena cada 500 ms
+/// Red de seguridad del búfer de captura. El pipeline lo drena cada 400 ms
 /// mientras hablas, así que en la práctica nunca se acerca a este tope; sólo
 /// protege si el consumidor se atasca.
 const MAX_SECONDS: usize = 600;

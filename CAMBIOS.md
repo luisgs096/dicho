@@ -10,20 +10,30 @@ Release cuando no le pasas `-Notas`.
 Formato, para que las dos cosas lo sigan leyendo: `## X.Y.Z — fecha`, y debajo
 guiones. Nada más.
 
-## 0.12.1 — 17 de septiembre de 2026
+## 0.16.0 — 24 de septiembre de 2026
 
-- **Tu diccionario ya no es una sugerencia: se aplica siempre.** Viajaba dentro
-  de las instrucciones que se le dan a la IA y la IA podía ignorarlo — y lo
-  ignoraba. Medido sobre tus últimos 400 dictados: 13 conservaban una palabra
-  que el diccionario tenía que haber cambiado («Cloud Code» seguía saliendo
-  «Cloud»). Ahora son 0.
-- **Y además Dicho ya oye tus palabras.** Tus términos viajan también al motor
-  de transcripción, así que escribe «Claude code» desde el principio en vez de
-  oír «Cloud Code» y corregirlo después. Con tope: la muestra que evita que te
-  traduzca nunca se recorta para hacerles sitio.
-- **Corregir un texto seleccionado ya no te cierra las conversaciones.** Para
-  leer la selección se pulsaba Ctrl+C por ti, y en una terminal eso no copia:
-  interrumpe. Ahora copias tú y Dicho sólo lee el portapapeles.
+- **El atajo del escribano se cambia desde el teclado de Inicio**, en su pestaña
+  verde, igual que los de dictar y cancelar. No te deja elegir uno que choque con
+  los otros dos.
+- **El escribano necesita tu key de Groq, que es gratis.** LABS te lo dice y trae
+  un botón que te lleva a conseguirla; sin key ya no sale a cada Ctrl+C. Ahora
+  se ofrece **8 segundos**, no 20, y si desclavas la onda ya no se vuelve a clavar
+  sola al tocar otro ajuste.
+- **«Sustituir» pega la corrección donde copiaste el texto**, aunque mientras
+  leías hayas copiado otra cosa en otra ventana. Lo que copias dentro de Dicho, o
+  tu dictado recién pegado, ya no lo hace saltar.
+- **Si Groq falla y tienes el modelo local descargado, transcribe con él** en vez
+  de perder el dictado. Tarda unos segundos más.
+- **Arreglado: con el motor local, el primer dictado después de un rato se
+  perdía.** Y si Dicho arrancaba en el primer minuto tras encender el PC, el
+  atajo de dictar podía dejar de funcionar.
+- **Gasta menos.** Escondida, la onda ya no sigue animándose por detrás, y
+  Ajustes deja de ocupar memoria cuando la cierras.
+- **La limpiada con servilleta por fin se ve entera**, y al bajarse del carrito
+  la carita mira a los lados. Las notas del silbido son de dos tipos y ya no se
+  pisan, y los ojos que te siguen sólo se marean si les das dos vueltas.
+- **El diccionario ya no duplica**: «tailwind → Tailwind CSS» daba «Tailwind CSS
+  CSS». E «iPhone» ya no sale «IPhone».
 
 ## 0.15.0 — 21 de septiembre de 2026
 
@@ -79,10 +89,6 @@ guiones. Nada más.
   al azar: con servilleta o con la lengua.
 - **La animación de estrenar versión dura un segundo más**, con los ojos en
   espiral más detallados y la boca abierta moviendo la lengua.
-- **Corrige mientras escribes** (LABS, apagado hasta que lo enciendas): al
-  terminar una palabra, si le falta la tilde, Dicho la pone.
-
-
 - **Corrige mientras escribes** (LABS, apagado hasta que lo enciendas). Al
   terminar una palabra, si le falta la tilde, Dicho la pone: «tambien» pasa a
   «también» e «informacion» a «información». Funciona en cualquier programa y
@@ -95,6 +101,21 @@ guiones. Nada más.
 - **Nada de lo que escribes se guarda, se manda a ningún sitio ni entra en el
   historial.** Y hay una lista de programas donde no actúa nunca, editable, con
   las terminales y los gestores de contraseñas ya puestos.
+
+## 0.12.1 — 17 de septiembre de 2026
+
+- **Tu diccionario ya no es una sugerencia: se aplica siempre.** Viajaba dentro
+  de las instrucciones que se le dan a la IA y la IA podía ignorarlo — y lo
+  ignoraba. Medido sobre tus últimos 400 dictados: 13 conservaban una palabra
+  que el diccionario tenía que haber cambiado («Cloud Code» seguía saliendo
+  «Cloud»). Ahora son 0.
+- **Y además Dicho ya oye tus palabras.** Tus términos viajan también al motor
+  de transcripción, así que escribe «Claude code» desde el principio en vez de
+  oír «Cloud Code» y corregirlo después. Con tope: la muestra que evita que te
+  traduzca nunca se recorta para hacerles sitio.
+- **Corregir un texto seleccionado ya no te cierra las conversaciones.** Para
+  leer la selección se pulsaba Ctrl+C por ti, y en una terminal eso no copia:
+  interrumpe. Ahora copias tú y Dicho sólo lee el portapapeles.
 
 ## 0.12.0 — 17 de septiembre de 2026
 

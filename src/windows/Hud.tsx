@@ -11,11 +11,15 @@ import {
   CARITA_CANCELADO,
   FACE_CSS,
   BAJANDO,
+  CURIOSEANDO,
   LIMPIADAS,
   MAREO,
   RODANDO,
   MIC_SVG,
+  PALETA_CLARA,
+  PALETA_OSCURA,
   V,
+  cssVars,
   type FaceState,
 } from "./faces";
 
@@ -23,39 +27,18 @@ function hudLog(msg: string) {
   invoke("hud_log", { msg }).catch(() => {});
 }
 
+/** El micro del LCD, en un objeto fijo: ver `escenaHtml` más abajo. */
+const MIC_HTML = { __html: MIC_SVG };
+
 // ─── paletas del tamagotchi (mismos colores de Dicho) ───────────────────────
-const LIGHT = {
-  a: "#2563eb",
-  m: "#17b394",
-  p: "#f06ea9",
-  w: "#ea7317",
-  s: "#38bdf8",
-  face: "#33415c",
-  faint: "#8296b2",
-  lcd: "#d7e1f0",
-  lcdBorder: "#bfcde2",
-  grid: "rgba(51,65,92,.07)",
-  shellA: "#cdd7e6",
-  shellB: "#aab9d0",
-  warnLcd: "#f7e3cd",
-  warnBorder: "#ecc9a0",
-};
-const DARK = {
-  a: "#38bdf8",
-  m: "#2dd4b4",
-  p: "#f472b6",
-  w: "#fb923c",
-  s: "#7dd3fc",
-  face: "#dbe6f6",
-  faint: "#5c6f8f",
-  lcd: "#0a1322",
-  lcdBorder: "#223052",
-  grid: "rgba(219,230,246,.05)",
-  shellA: "#263450",
-  shellB: "#16223a",
-  warnLcd: "#2b1d0e",
-  warnBorder: "#4a3520",
-};
+// Las de faces.ts, no una copia: la copia que vivía aquí se quedó sin
+// --pergamino, --pergaminoBorde y --tinta cuando nació el modo lectura, y en la
+// onda de verdad el LCD del escribano salía transparente, con el aro del color
+// de la cara y los huecos de los lentes pintados de negro. La vista previa y el
+// catálogo ya usaban las de faces.ts, pero ninguno enseña el pergamino: el
+// fallo sólo existía donde nadie lo miraba con calma.
+const LIGHT = PALETA_CLARA;
+const DARK = PALETA_OSCURA;
 
 // ─── modo clásico: barras que crecen con la intensidad de la voz ────────────
 /** Historial de niveles de voz que alimenta las barras. */
@@ -76,15 +59,44 @@ const PLANTON_MAREO = 1600;
  *  —mareada, aguantándose, vomita— y al último se llega meneando. */
 const VOMITO = MAREO.length;
 
-/** Lo que tarda en levantarse la barandilla y quedarse la cara sola. Un ciclo
- *  entero del flipbook de `BAJANDO`, ni más ni menos: si se enseña de más, el
- *  bucle vuelve a empezar y la barandilla baja sola otra vez. */
+/** Lo que tarda en levantarse la barandilla y quedarse la cara sola: un ciclo
+ *  entero del flipbook de `BAJANDO`. Va con la clase `una-vez`, así que al
+ *  acabar se queda en su último cuadro —la cara sola— y el fundido se lo come
+ *  sin que la barandilla vuelva a bajar. */
 const BAJARSE_MS = 1200;
+
+/** Ya en el suelo, mira a los lados: una vuelta entera de `CURIOSEANDO`. Es el
+ *  final que prometía la bajada —«queda la cara mirando a los lados»— y que el
+ *  HUD nunca llegó a enseñar: de la barandilla saltaba directo al reposo, que
+ *  puede ser el dormido. */
+const CURIOSEAR_MS = 2400;
 
 /** Y un escalón más, al que **no** se llega meneando: limpiarse la boca. Del
  *  cuarto tiempo se encarga el reloj, que no se le puede pedir al usuario que
  *  siga zarandeando para ver cómo se le pasa. */
 const LIMPIANDO = VOMITO + 1;
+
+/** Lo que se queda la cara limpia a la vista antes de fundir, con la limpiada
+ *  ya terminada y quieta en su último cuadro: sin esto la sonrisa del final
+ *  salía y se iba en el mismo instante. */
+const REMATE_LIMPIA = 800;
+
+/** Vueltas enteras alrededor de la onda que marean a los ojos que te siguen, y
+ *  en cuánto tiempo hay que darlas. Dos en tres segundos es un gesto que se
+ *  hace a propósito: trabajando, el cursor no rodea la onda ni una vez. */
+const VUELTAS_MAREO = 2;
+const VENTANA_VUELTAS = 3000;
+
+/** En qué casilla va la pupila en un eje: -1, 0 o 1, nunca a medio píxel —la
+ *  regla de las coordenadas enteras vale también para lo que mueve el cursor—.
+ *
+ *  Con histéresis: para salir del centro hay que pasar de 0,2 (120 px) y para
+ *  volver hay que bajar de 0,12. Con un solo umbral, el cursor parado justo en
+ *  la raya haría tiritar la pupila entre dos casillas. */
+function casillaPupila(v: number, actual: number): number {
+  const umbral = actual === 0 ? 0.2 : 0.12;
+  return v > umbral ? 1 : v < -umbral ? -1 : 0;
+}
 
 const CLASSIC_CSS = `
   .classic-shake { animation: cshake .55s ease-in-out; }
@@ -452,6 +464,8 @@ export default function Hud() {
   const [fundiendo, setFundiendo] = useState(false);
   /** Bajándose del carrito: la barandilla se levanta y se va. */
   const [bajando, setBajando] = useState(false);
+  /** Recién bajada: mira a los lados antes de volver al reposo. */
+  const [curioseando, setCurioseando] = useState(false);
   /** Clavada en pantalla: no se esconde al acabar el dictado. */
   const [pin, setPin] = useState(false);
   const [opacidadReposo, setOpacidadReposo] = useState(0.45);
@@ -463,10 +477,10 @@ export default function Hud() {
   const [encima, setEncima] = useState(false);
   /** Destello de relevo entre una carita del mareo y la siguiente. */
   const [relevo, setRelevo] = useState(false);
-  /** Cuál de las dos limpiadas tocó esta vez. Se sortea al entrar y se guarda en
-   *  una ref, que si no cada repintado sacaría otra y las dos se atropellarían
-   *  a mitad de la animación. */
-  const limpiada = useRef(LIMPIADAS[0].v);
+  /** Cuál de las dos limpiadas tocó esta vez, con lo que dura. Se sortea al
+   *  entrar y se guarda en una ref, que si no cada repintado sacaría otra y las
+   *  dos se atropellarían a mitad de la animación. */
+  const limpiada = useRef(LIMPIADAS[0]);
   const mareoDesde = useRef(0);
   /** El listener del arrastre se registra una vez y se quedaría con el `mareo`
    *  de aquel render; la ref le da siempre el de ahora. */
@@ -489,7 +503,7 @@ export default function Hud() {
   const [cap, setCap] = useState(0);
   const topeRef = useRef(600);
 
-  // El HUD está dibujado para un lienzo de 96 px de alto. Al saltar a un
+  // El HUD está dibujado para un lienzo de 104 px de alto. Al saltar a un
   // monitor con otro DPI, WebView2 a veces conserva su escala y nos deja un
   // lienzo más grande: se escala todo en bloque para llenarlo igual.
   useEffect(() => {
@@ -573,7 +587,14 @@ export default function Hud() {
   // y la carita de la vagoneta.
   useEffect(() => {
     const un = listen<boolean>("hud-arrastre", (e) => {
-      if (e.payload) arrastro.current = true;
+      if (e.payload) {
+        arrastro.current = true;
+        // Agarrada otra vez: vuelve a la vagoneta, se estuviera bajando o
+        // mirando alrededor. Sin esto su temporizador seguía corriendo y
+        // fundía la pantalla con la onda en la mano.
+        setBajando(false);
+        setCurioseando(false);
+      }
       setRodando(e.payload);
       // Soltaste sin haberte mareado: toca bajarse. Si hubo mareo, la bajada
       // espera a que termine esa historia — se encadena desde el fundido.
@@ -607,8 +628,10 @@ export default function Hud() {
       if (ahora - mareoDesde.current < PLANTON_MAREO) return;
       mareoDesde.current = ahora;
       // Tope en el vómito: al cuarto —la limpiada— no se llega meneando, se
-      // llega cuando el vómito termina.
-      setMareo((m) => Math.min(VOMITO, m + 1));
+      // llega cuando el vómito termina. Y la limpiada no se interrumpe: antes
+      // un meneo a media limpiada la devolvía al vómito, y la de la servilleta,
+      // que necesita su tiempo para leerse, no llegaba a verse nunca.
+      setMareo((m) => (m === LIMPIANDO ? m : Math.min(VOMITO, m + 1)));
     });
     return () => {
       un.then((f) => f());
@@ -630,7 +653,12 @@ export default function Hud() {
   useEffect(() => {
     if (mareo === 0) return;
     if (mareo === LIMPIANDO) {
-      const t = setTimeout(() => setFundiendo(true), 900);
+      // Entera y una sola vez (ver la clase una-vez en FACE_CSS), y un rato
+      // quieta en la cara limpia antes de fundir.
+      const t = setTimeout(
+        () => setFundiendo(true),
+        limpiada.current.ms + REMATE_LIMPIA,
+      );
       return () => clearTimeout(t);
     }
     const t = setTimeout(
@@ -641,7 +669,8 @@ export default function Hud() {
         }
         // El sorteo: las dos versiones se quedaron y sale una u otra.
         limpiada.current =
-          LIMPIADAS[Math.floor(Math.random() * LIMPIADAS.length)].v;
+          LIMPIADAS[Math.floor(Math.random() * LIMPIADAS.length)];
+        hudLog(`limpiada: ${limpiada.current.nombre}`);
         setMareo(LIMPIANDO);
       },
       mareo === VOMITO ? 2600 : 4200,
@@ -649,29 +678,48 @@ export default function Hud() {
     return () => clearTimeout(t);
   }, [mareo]);
 
-  // Bajarse del carrito dura lo que dura su flipbook, y luego funde a reposo.
+  // Bajarse del carrito dura lo que dura su flipbook, y sin corte pasa a mirar
+  // a los lados: las dos escenas llevan la cara y la vagoneta en el mismo sitio,
+  // así que lo único que cambia es que los ojos empiezan a moverse.
   useEffect(() => {
     if (!bajando) return;
-    const t = setTimeout(() => setFundiendo(true), BAJARSE_MS);
+    const t = setTimeout(() => {
+      setBajando(false);
+      setCurioseando(true);
+    }, BAJARSE_MS);
     return () => clearTimeout(t);
   }, [bajando]);
+
+  // Después de curiosear, funde a reposo. Si mientras tanto empiezas a dictar
+  // (o salta el escribano), manda eso: se deja de curiosear en el acto, y el
+  // fundido no llega a caer en mitad del dictado.
+  useEffect(() => {
+    if (!curioseando) return;
+    if (rec.state !== "idle") {
+      setCurioseando(false);
+      return;
+    }
+    const t = setTimeout(() => setFundiendo(true), CURIOSEAR_MS);
+    return () => clearTimeout(t);
+  }, [curioseando, rec.state]);
 
   // El fundido: la pantalla baja a cero, se cambia la carita por debajo y vuelve
   // a subir. Los 200 ms son los mismos que declara la transición de la escena.
   //
   // Al salir del mareo **se encadena la bajada**: el bicho acaba de vomitar
-  // encima de un carrito, así que todavía tiene que bajarse de él. Sólo si ya
-  // estaba bajándose se vuelve a reposo de verdad.
+  // encima de un carrito, así que todavía tiene que bajarse de él. Si el fundido
+  // viene de curiosear, ya se bajó: vuelve a reposo de verdad.
   useEffect(() => {
     if (!fundiendo) return;
     const t = setTimeout(() => {
       // Si sigues arrastrando no te has bajado de nada: vuelve a la vagoneta.
-      setBajando(!bajando && !rodando);
+      setBajando(mareo > 0 && !rodando);
+      setCurioseando(false);
       setMareo(0);
       setFundiendo(false);
     }, 200);
     return () => clearTimeout(t);
-  }, [fundiendo, bajando, rodando]);
+  }, [fundiendo, mareo, rodando]);
 
   // La ref del mareo, al día en cada render.
   useEffect(() => {
@@ -788,26 +836,7 @@ export default function Hud() {
   const gesto = `agarrable ${agarrando ? "agarrando" : ""} select-none`;
 
   const pal = dark ? DARK : LIGHT;
-  const vars = useMemo(
-    () =>
-      ({
-        "--a": pal.a,
-        "--m": pal.m,
-        "--p": pal.p,
-        "--w": pal.w,
-        "--s": pal.s,
-        "--face": pal.face,
-        "--faint": pal.faint,
-        "--lcd": pal.lcd,
-        "--lcdBorder": pal.lcdBorder,
-        "--grid": pal.grid,
-        "--shellA": pal.shellA,
-        "--shellB": pal.shellB,
-        "--warnLcd": pal.warnLcd,
-        "--warnBorder": pal.warnBorder,
-      }) as React.CSSProperties,
-    [pal],
-  );
+  const vars = useMemo(() => cssVars(dark) as React.CSSProperties, [dark]);
 
   const face = stateFor(rec);
   // ── acciones del menú de la onda ──────────────────────────────────────────
@@ -827,6 +856,7 @@ export default function Hud() {
     !encima &&
     !rodando &&
     !bajando &&
+    !curioseando &&
     mareo === 0
       ? opacidadReposo
       : 1;
@@ -835,11 +865,25 @@ export default function Hud() {
   // Zarandeada gana a todo: es el único momento en que la carita no cuenta en
   // qué va el dictado, y para entonces no hay dictado ninguno.
   const mareada =
-    mareo === LIMPIANDO ? limpiada.current : mareo > 0 ? MAREO[mareo - 1] : null;
+    mareo === LIMPIANDO ? limpiada.current.v : mareo > 0 ? MAREO[mareo - 1] : null;
+  // Las escenas que cuentan un final se ven una sola vez y se quedan en su
+  // último cuadro hasta que llega lo siguiente: el vómito hasta la limpiada, y
+  // la limpiada, la bajada y el curioseo mientras funden.
+  const unaVez =
+    mareo === VOMITO ||
+    mareo === LIMPIANDO ||
+    ((bajando || curioseando) && !mareada);
   const cancelada = rec.state === "cancelado" ? CARITA_CANCELADO : null;
   // Arrastrándola: va en la vagoneta. Pierde contra el mareo, que es lo que
-  // pasa si además la zarandeas.
-  const encarrito = bajando ? BAJANDO : rodando ? RODANDO : null;
+  // pasa si además la zarandeas. El curioseo, sólo en reposo: si empiezas a
+  // dictar recién soltada, manda el dictado.
+  const encarrito = bajando
+    ? BAJANDO
+    : rodando
+      ? RODANDO
+      : curioseando && rec.state === "idle"
+        ? CURIOSEANDO
+        : null;
   // Modo escribano: acabas de copiar algo y la onda se ofrece a corregirlo.
   // Es la misma carita que mientras corrige —pluma y pergamino— y eso es
   // deliberado: el usuario ve «modo escribano» y lo que cambia es la leyenda,
@@ -873,51 +917,113 @@ export default function Hud() {
   // mientras esa carita esta a la vista: desde el webview no se puede saber
   // donde esta el raton -el HUD solo recibe eventos cuando esta encima de el- y
   // preguntarlo todo el rato para las otras cuatro caritas seria pagar por nada.
+  // Con la onda escondida Rust contesta null y se pregunta mucho mas despacio.
   //
   // El valor se escribe directo en el DOM, como `--lvl`: pasarlo por el estado
   // de React repintaria la escena quince veces por segundo y se llevaria por
-  // delante las animaciones, que es el gotcha de siempre.
+  // delante las animaciones, que es el gotcha de siempre. Y se escribe solo
+  // cuando la pupila cambia de casilla, que es pocas veces.
+  //
+  // **Se marea solo si le das vueltas.** Antes bastaban tres saltos rapidos
+  // seguidos del cursor, y eso lo hace cualquiera que trabaje deprisa con un
+  // raton sensible o en una 4K: los ojos se ponian en aspa sin que nadie la
+  // hubiera tocado. Dar vueltas alrededor de la onda no depende de lo rapido
+  // que vaya el puntero y no pasa sin querer: ir y venir se anula solo, y un
+  // viaje de una ventana a otra no rodea nada.
   const [mareoCursor, setMareoCursor] = useState(false);
+  // "A la vista" de verdad: que la carita de reposo sorteada sea la de los ojos
+  // no basta. En clásico no se dibuja, y el escribano, el cancelado, el estreno
+  // y la vagoneta la tapan (todos pasan por stateFor → "reposo" y sortean una
+  // debajo). Mirando sólo `fresca.sigue`, cualquiera de ellos con los ojos
+  // sorteados preguntaba a Rust quince veces por segundo para nada.
+  const ojosAVista =
+    hudStyle === "tamagotchi" &&
+    !!fresca.sigue &&
+    !mareada &&
+    !encarrito &&
+    !cancelada &&
+    !corrigiendo &&
+    !estrenada;
   useEffect(() => {
-    if (!fresca.sigue) return;
+    if (!ojosAVista) return;
     const caja = tamaRef.current;
     let vivo = true;
     let t = 0;
-    let ult: [number, number] | null = null;
-    let seguidos = 0;
+    let tMareo = 0;
+    let escondida = false;
+    let pupila: [number, number] = [0, 0];
+    let anguloAnt: number | null = null;
+    let giros: { t: number; d: number }[] = [];
     const tick = () => {
       invoke<[number, number] | null>("hud_cursor")
         .then((r) => {
-          if (!vivo || !r) return;
-          caja?.style.setProperty("--mx", r[0].toFixed(2));
-          caja?.style.setProperty("--my", r[1].toFixed(2));
-          if (ult) {
-            // Tres saltos grandes seguidos y se marea. Uno solo no vale: al
-            // cambiar de ventana el cursor aparece lejos de golpe y eso no es
-            // que lo esten zarandeando.
-            const salto = Math.hypot(r[0] - ult[0], r[1] - ult[1]);
-            seguidos = salto > 0.3 ? seguidos + 1 : 0;
-            if (seguidos >= 3) {
-              seguidos = 0;
-              setMareoCursor(true);
-              window.setTimeout(() => vivo && setMareoCursor(false), 1500);
-            }
+          if (!vivo) return;
+          escondida = !r;
+          if (!r) {
+            anguloAnt = null;
+            giros = [];
+            return;
           }
-          ult = r;
+          const [x, y] = r;
+          const nueva: [number, number] = [
+            casillaPupila(x, pupila[0]),
+            casillaPupila(y, pupila[1]),
+          ];
+          if (nueva[0] !== pupila[0] || nueva[1] !== pupila[1]) {
+            pupila = nueva;
+            caja?.style.setProperty("--mx", String(nueva[0]));
+            caja?.style.setProperty("--my", String(nueva[1]));
+          }
+          // Las vueltas: cuanto ha girado el cursor alrededor del centro de la
+          // onda. Ni pegado al centro, donde el angulo baila con un pixel, ni en
+          // la otra punta del escritorio.
+          const ahora = performance.now();
+          const lejos = Math.hypot(x, y);
+          if (lejos > 0.12 && lejos < 3) {
+            const angulo = Math.atan2(y, x);
+            if (anguloAnt !== null) {
+              let d = angulo - anguloAnt;
+              if (d > Math.PI) d -= 2 * Math.PI;
+              else if (d < -Math.PI) d += 2 * Math.PI;
+              // Un salto de más de un cuarto de vuelta en 70 ms no es girar, es
+              // el cursor apareciendo en otro sitio. Sin este tope, saltos al
+              // azar sumaban vueltas por pura estadística: medido, 7 mareos por
+              // hora saltando cada 70 ms por una 4K; con él, cero. Dando vueltas
+              // de verdad —hasta tres por segundo— nunca se llega al tope.
+              if (Math.abs(d) < 1.6) giros.push({ t: ahora, d });
+            }
+            anguloAnt = angulo;
+          } else {
+            anguloAnt = null;
+          }
+          giros = giros.filter((g) => ahora - g.t < VENTANA_VUELTAS);
+          const girado = giros.reduce((a, g) => a + g.d, 0);
+          if (Math.abs(girado) >= VUELTAS_MAREO * 2 * Math.PI) {
+            giros = [];
+            setMareoCursor(true);
+            window.clearTimeout(tMareo);
+            tMareo = window.setTimeout(() => vivo && setMareoCursor(false), 1800);
+          }
         })
         .catch(() => {})
         .finally(() => {
-          if (vivo) t = window.setTimeout(tick, 70);
+          if (vivo) t = window.setTimeout(tick, escondida ? 600 : 70);
         });
     };
     t = window.setTimeout(tick, 70);
     return () => {
       vivo = false;
       window.clearTimeout(t);
+      // Si la carita se va a media borrachera —empiezas a dictar antes de que
+      // se le pase—, el vivo && de arriba ya no la desmarea nunca, y la próxima
+      // vez que salieran los ojos saldrían en aspa y así se quedaban. Se
+      // desmarea al irse.
+      window.clearTimeout(tMareo);
+      setMareoCursor(false);
       caja?.style.removeProperty("--mx");
       caja?.style.removeProperty("--my");
     };
-  }, [fresca]);
+  }, [fresca, ojosAVista]);
 
   const v =
     mareada ??
@@ -926,6 +1032,12 @@ export default function Hud() {
     corrigiendo ??
     estrenada ??
     (mareoCursor && fresca.sigue ? OJOS_MAREADOS : fresca);
+  // React 19 compara `dangerouslySetInnerHTML` por identidad del objeto, no por
+  // el texto: un `{ __html }` nuevo en cada render reescribe el <svg> entero y
+  // la carita vuelve a empezar. Pasar el ratón, pulsar o la cinta de capacidad
+  // repintan el HUD sin cambiar de carita; con el objeto memorizado, esos
+  // renders no tocan la escena.
+  const escenaHtml = useMemo(() => ({ __html: v.scene }), [v.scene]);
   const sad =
     (isError && !mareada && !cancelada && !corrigiendo && !estrenada) || v.sad;
   const porLimite = rec.state === "processing" && rec.motivo === "limite";
@@ -981,7 +1093,11 @@ export default function Hud() {
           invoke("hud_encima", { on: false }).catch(() => {});
         }}
       >
-        <style>{CLASSIC_CSS + DRAG_CSS}</style>
+        {/* FACE_CSS también aquí: la cinta de niveles (.niveles, .niv…) y las
+            capas del estreno (.u-barra, .u-blanco, .u-entra, .u-px) viven ahí
+            desde que la cinta entró en la cápsula, con sus reglas .clasico
+            incluidas. Sin él, el clásico las pinta como texto suelto. */}
+        <style>{FACE_CSS + CLASSIC_CSS + DRAG_CSS}</style>
         <div
           className={`relative ${rodando ? "suelta" : ""}`}
           style={{ transform: "scale(var(--k, 1))" }}
@@ -996,7 +1112,10 @@ export default function Hud() {
           >
             {/* El estreno, en el estilo clásico: las mismas dos capas, y al
                 final se revelan las cinco barritas en vez de la cara. Mismo
-                frente de onda —1,44 a 1,68 s— y mismo keyframe. */}
+                frente de onda que la cara —de 2,44 s en adelante, el 87 % del
+                reloj de 2,8 s— y mismo keyframe. Iban a 1,44 s, el 80 % del
+                reloj viejo de 1,8: desde que el estreno dura un segundo más,
+                salían a media carga y el destello se las comía. */}
             {estrenando && (
               <>
                 <CapasEstreno version={version} />
@@ -1011,7 +1130,7 @@ export default function Hud() {
                       style={{
                         height: BAR_MIN,
                         backgroundColor: dark ? "#38bdf8" : "#2563eb",
-                        animationDelay: `${(1.44 + i * 0.06).toFixed(2)}s`,
+                        animationDelay: `${(2.44 + i * 0.06).toFixed(2)}s`,
                       }}
                     />
                   ))}
@@ -1085,6 +1204,18 @@ export default function Hud() {
                 <p className="min-w-0 flex-1 truncate text-sm">
                   Cancelado, no escribí nada
                 </p>
+              </>
+            )}
+
+            {/* El escribano, ofreciéndose o corrigiendo. Sin esto el clásico
+                enseñaba una pastilla vacía: ni «Clic para corregir» ni nada
+                que dijera que un clic ahí corrige lo que acabas de copiar. */}
+            {leyendo && (
+              <>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
+                  ✎
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm">{status}</p>
               </>
             )}
 
@@ -1166,25 +1297,25 @@ export default function Hud() {
         )}
         <div
           ref={tamaRef}
-          className={`tama ${sad ? "sad" : ""} ${leyendo ? "leyendo" : ""} ${v.shake && !isError ? "shake" : ""} ${relevo ? "relevo" : ""} ${fundiendo ? "fundido" : ""}`}
+          className={`tama ${sad ? "sad" : ""} ${leyendo ? "leyendo" : ""} ${v.shake && !isError ? "shake" : ""} ${relevo ? "relevo" : ""} ${fundiendo ? "fundido" : ""} ${unaVez ? "una-vez" : ""}`}
         >
-          <div className="screen" style={{ color: sad ? pal.w : pal.face }}>
+          {/* El color va inline y gana a la regla de .leyendo, así que la tinta
+              tiene que ir aquí también: si no, el pergamino llevaría la carita
+              pintada con el color de siempre. */}
+          <div className="screen" style={{ color: sad ? pal.w : leyendo ? pal.tinta : pal.face }}>
             {estrenando && <CapasEstreno version={version} />}
             {/* Sin micrófono en modo lectura: no está escuchando nada, y
                 dejarlo puesto sería decir lo contrario de lo que pasa. */}
             {!leyendo && (
               <span
                 className={`mic-px ${estrenando ? "u-entra" : ""}`}
-                dangerouslySetInnerHTML={{ __html: MIC_SVG }}
+                dangerouslySetInnerHTML={MIC_HTML}
               />
             )}
             <span className="scene">
               {/* La franja visible arranca en y=2: así el píxel sale un 40 % más
                 grande sin tener que recolocar todos los sprites. */}
-              <svg
-                viewBox="0 2 48 16"
-                dangerouslySetInnerHTML={{ __html: v.scene }}
-              />
+              <svg viewBox="0 2 48 16" dangerouslySetInnerHTML={escenaHtml} />
             </span>
             <span
               className={`status ${rec.state === "done" || isError ? "texto" : ""} ${estrenando ? "u-entra" : ""}`}

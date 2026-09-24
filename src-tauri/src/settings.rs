@@ -95,16 +95,14 @@ pub struct AppSettings {
     /// se queda para abrir el menú Inicio. Por eso es configurable y no fija.
     /// `None` la desactiva.
     pub cancelar: Option<Key>,
-    /// Atajo para corregir el texto que tengas **seleccionado**, sin dictar.
-    /// Vacío = apagado. Por defecto `Win + Mayús + C`: Windows no se queda esa
-    /// combinación y casi ninguna app la usa, pero es configurable por lo de
-    /// siempre — cualquier atajo choca con algo en algún sitio.
-    /// El atajo de «corregir lo que ya escribiste». Vacío = función apagada.
+    /// El atajo del escribano: corrige lo que acabas de **copiar**, sin dictar.
+    /// Vacío = escribano apagado. Por defecto `Win + Mayús + C`: Windows no se
+    /// queda esa combinación y casi ninguna app la usa, pero es configurable por
+    /// lo de siempre — cualquier atajo choca con algo en algún sitio.
     ///
-    /// Encenderla **fuerza `hud_pin`**: el gesto es copiar y darle un clic a la
-    /// onda, y una onda que se esconde a los tres segundos no se puede pulsar.
-    /// Lo aplica `guardar_ajustes`, no la interfaz, para que valga también si
-    /// alguien edita el `settings.json` a mano.
+    /// Encenderlo **clava la onda** (`hud_pin`): el gesto es copiar y darle un
+    /// clic. Lo aplica `save_settings` al pasar de vacío a lleno, no en cada
+    /// guardado, para que desclavarla desde su menú no se deshaga sola.
     pub corregir_atajo: Vec<Key>,
     pub engine: EngineKind,
     pub polish: PolishKind,
@@ -225,15 +223,15 @@ fn settings_path(app: &AppHandle) -> PathBuf {
         .join("settings.json")
 }
 
-/// Lee los ajustes de una ruta concreta. Igual que `Store::abrir`, existe para
-/// poder correr antes de que Tauri construya la aplicación.
+/// Lee los ajustes de una ruta concreta. Igual que `Store::init_en`, existe
+/// para poder correr antes de que Tauri construya la aplicación.
 pub fn cargar_de(path: &std::path::Path) -> AppSettings {
     leer(path)
 }
 
 
 fn leer(path: &std::path::Path) -> AppSettings {
-    match fs::read_to_string(&path) {
+    match fs::read_to_string(path) {
         Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|e| {
             log::warn!("settings.json inválido ({e}), usando defaults");
             AppSettings::default()

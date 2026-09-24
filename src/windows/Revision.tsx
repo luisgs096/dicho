@@ -21,21 +21,27 @@ export default function Revision() {
   const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
-    const un = listen<{ original: string; corregido: string }>(
-      "revision",
-      (e) => {
-        setOriginal(e.payload.original);
-        setCorregido(e.payload.corregido);
-        setAviso(null);
-        setCopiado(false);
-      },
+    const poner = (p: { original: string; corregido: string }) => {
+      setOriginal(p.original);
+      setCorregido(p.corregido);
+      setAviso(null);
+      setCopiado(false);
+    };
+    // La ventana se crea al usarla: el primer texto llegó antes de que
+    // escuchara, así que lo pide ella. Los siguientes llegan por el evento.
+    invoke<{ original: string; corregido: string } | null>("revision_pendiente").then(
+      (p) => p && poner(p),
+    );
+    const un = listen<{ original: string; corregido: string }>("revision", (e) =>
+      poner(e.payload),
     );
     return () => {
       un.then((f) => f());
     };
   }, []);
 
-  const cerrar = () => getCurrentWebviewWindow().hide();
+  // Cerrar la destruye, y con ella su proceso de WebView2.
+  const cerrar = () => getCurrentWebviewWindow().close();
 
   const sustituir = () =>
     invoke("escribano_sustituir").catch((e) => setAviso(String(e)));

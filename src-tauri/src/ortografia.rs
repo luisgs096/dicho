@@ -172,6 +172,12 @@ pub fn corrige(palabra: &str) -> Option<String> {
 /// —«informaciones», «decisiones»— así que ponerla sería introducir una falta
 /// donde no había ninguna.
 fn por_terminacion(baja: &str) -> Option<String> {
+    // Con «ss» delante no hay palabra castellana posible: «session»,
+    // «mission», «permission» son inglés, y en spanglish se escriben a diario.
+    // Ponerles tilde es inventar una palabra que no existe en ningún idioma.
+    if baja.ends_with("ssion") {
+        return None;
+    }
     for (fin, bueno) in [("cion", "ción"), ("sion", "sión")] {
         if baja.len() > fin.len() + 2 && baja.ends_with(fin) {
             return Some(format!("{}{bueno}", &baja[..baja.len() - fin.len()]));
@@ -272,6 +278,17 @@ mod tests {
         ] {
             assert_eq!(corrige(p), None, "«{p}» no se debería tocar");
         }
+    }
+
+    /// Con «ss» no hay palabra castellana: son inglés, y en spanglish se
+    /// escriben a diario. La tilde las convertía en palabras de ningún idioma.
+    #[test]
+    fn las_inglesas_con_ss_no_se_tocan() {
+        for p in ["session", "mission", "passion", "permission", "discussion", "expression"] {
+            assert_eq!(corrige(p), None, "«{p}» no es castellano");
+        }
+        // Y la regla sigue en pie para las castellanas.
+        assert_eq!(corrige("version").as_deref(), Some("versión"));
     }
 
     #[test]

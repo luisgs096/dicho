@@ -68,7 +68,17 @@ const PAL: Record<string, string> = {
   o: "var(--lcd)",
 };
 
-/** Pinta un mapa de texto como rejilla de <rect> de 1×1. */
+/**
+ * Pinta un mapa de texto: un `<path>` por color, con los tramos horizontales ya
+ * juntados.
+ *
+ * Antes era un `<rect>` de 1×1 por píxel, y en el HUD, que está siempre vivo,
+ * eso se paga en nodos: una historia de reposo montaba 1.900-2.600 y el
+ * catálogo entero 7.500. Con un nodo por sprite y color son 250-460 y 1.400, y
+ * el dibujo es el mismo píxel a píxel: las coordenadas siguen siendo enteras y
+ * el SVG va con crispEdges. Comprobado con capturas de las 39 escenas en cinco
+ * instantes, a 100 %, 125 % y 200 %: ni un píxel distinto.
+ */
 export function spr(
   map: string[],
   ox = 0,
@@ -78,6 +88,25 @@ export function spr(
   estilo?: (x: number, y: number) => string,
 ): string {
   let out = "";
+  if (!estilo) {
+    const trazos: Record<string, string> = {};
+    map.forEach((row, y) => {
+      for (let x = 0; x < row.length; ) {
+        const c = row[x];
+        if (!PAL[c]) {
+          x++;
+          continue;
+        }
+        let n = 1;
+        while (row[x + n] === c) n++;
+        trazos[c] = (trazos[c] ?? "") + `M${x + ox} ${y + oy}h${n}v1h-${n}z`;
+        x += n;
+      }
+    });
+    for (const [c, d] of Object.entries(trazos)) out += `<path fill="${PAL[c]}" d="${d}"/>`;
+    return out;
+  }
+  // El revelado necesita un nodo por píxel: cada uno lleva su propio retraso.
   map.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
       const c = row[x];
@@ -163,7 +192,6 @@ const LENTES = [
 /** Banda diagonal del color del fondo: el destello que cruza los cristales. */
 const BRILLO = ["...oo", "..oo.", ".oo..", "oo..."];
 const PUNTO = ["XX", "XX"];
-const NOTA = ["..XX", "..XX", "..XX", "XXX.", "XXX."];
 const ZZZ = ["XXXX", "..X.", ".X..", "XXXX"];
 const ZZZ_MINI = ["XXX", ".X.", "XXX"];
 const GOTA = [".X.", "XXX", "XXX", ".X."];
@@ -317,7 +345,7 @@ let seqN = 0;
 
 /**
  * Un flipbook de duraciones libres. Devuelve el `<style>` con sus fotogramas y
- * el grupo con un `<g>` por paso.
+ * el grupo con un `<g>` por dibujo distinto (ver más abajo por qué no por paso).
  *
  * Igual que `flip()`, usa `steps(1, end)` y longhands, y la duracion viaja
  * **inline y literal**: en cuanto viva en una variable CSS, escribir cualquier
@@ -328,23 +356,42 @@ const secuencia = (pasos: Paso[]): string => {
   const total = pasos.reduce((a, x) => a + x.ms, 0);
   const id = `sq${seqN++}`;
   const seg = (total / 1000).toFixed(3);
-  let css = "";
+  // Un <g> por DIBUJO, no por paso. Una historia repite mucho los mismos
+  // cuadros —mascar es alternar dos— y cada paso copiaba el dibujo entero: el
+  // chicle eran 83 pasos para 32 dibujos distintos, ~5.000 nodos en el DOM y
+  // ~13 MB del renderer. Aquí cada dibujo sale una vez y su keyframe lleva
+  // todas las ventanas en que se ve. Se ve igual: los gestos anidados arrancan
+  // todos al montar, así que siguen en fase como antes.
+  const tramos = new Map<string, [number, number][]>();
   let t = 0;
-  const cuerpo = pasos
-    .map((paso, i) => {
-      const ini = ((t / total) * 100).toFixed(4);
-      t += paso.ms;
-      const fin = ((t / total) * 100).toFixed(4);
-      const entra = i === 0 ? "0%{opacity:1}" : `0%{opacity:0}${ini}%{opacity:1}`;
-      const sale = i === pasos.length - 1 ? "" : `${fin}%{opacity:0}100%{opacity:0}`;
-      css += `@keyframes ${id}_${i}{${entra}${sale}}`;
-      return (
-        `<g style="animation-name:${id}_${i};animation-duration:${seg}s;` +
-        `animation-timing-function:steps(1,end);animation-iteration-count:infinite">` +
-        `${paso.v}</g>`
-      );
-    })
-    .join("");
+  for (const paso of pasos) {
+    const ini = t;
+    t += paso.ms;
+    const l = tramos.get(paso.v) ?? [];
+    const ult = l[l.length - 1];
+    // Dos pasos iguales seguidos no deberían darse, pero si se dan son un tramo.
+    if (ult && ult[1] === ini) ult[1] = t;
+    else l.push([ini, t]);
+    tramos.set(paso.v, l);
+  }
+  const pct = (ms: number) => ((ms / total) * 100).toFixed(4);
+  let css = "";
+  let cuerpo = "";
+  let i = 0;
+  for (const [v, l] of tramos) {
+    let k = l[0][0] === 0 ? "" : "0%{opacity:0}";
+    for (const [a, z] of l) {
+      k += `${pct(a)}%{opacity:1}`;
+      if (z < total) k += `${pct(z)}%{opacity:0}`;
+    }
+    if (l[l.length - 1][1] < total) k += "100%{opacity:0}";
+    css += `@keyframes ${id}_${i}{${k}}`;
+    cuerpo +=
+      `<g style="animation-name:${id}_${i};animation-duration:${seg}s;` +
+      `animation-timing-function:steps(1,end);animation-iteration-count:infinite">` +
+      `${v}</g>`;
+    i++;
+  }
   return `<style>${css}</style><g class="seq">${cuerpo}</g>`;
 };
 
@@ -355,10 +402,16 @@ const entre = (a: number, b: number) => a + azar(b - a + 1);
 /** Uno de la lista, al azar. */
 const uno = <T,>(xs: T[]) => xs[azar(xs.length)];
 
-/** Parpadeo: abierto casi todo el ciclo, cerrado un instante. */
-const blink = (open: string, shut: string, dur = "3.2s") =>
-  `<g class="blink"><g style="animation-duration:${dur}">${open}</g>` +
-  `<g style="animation-duration:${dur}">${shut}</g></g>`;
+/** Parpadeo: abierto casi todo el ciclo, cerrado un instante (del 92 % al 97 %).
+ *
+ *  `retraso`, negativo, adelanta el primer parpadeo. Con un ciclo largo el
+ *  primero cae casi al final, y una carita que sale uno o dos segundos se iba
+ *  sin haber parpadeado: con los ojos quietos, que es justo lo que la regla
+ *  de la casa prohíbe. Literal e inline, como la duración (ver el gotcha de
+ *  las variables CSS). */
+const blink = (open: string, shut: string, dur = "3.2s", retraso = "0s") =>
+  `<g class="blink"><g style="animation-duration:${dur};animation-delay:${retraso}">${open}</g>` +
+  `<g style="animation-duration:${dur};animation-delay:${retraso}">${shut}</g></g>`;
 
 /** Guiño: como el parpadeo pero el ojo se queda cerrado un rato largo. */
 const wink = (open: string, shut: string, dur = "1.6s") =>
@@ -753,8 +806,21 @@ export const CHICLE_CORTO: Variant = {
  */
 const LABIOS = ["XXX", "XoX", "XXX"];
 
-/** Nota chica, para cuando hay tres a la vez y las grandes se amontonan. */
-const NOTA_CHICA = ["..X", "..X", "XX.", "XX."];
+/**
+ * Las notas, **de dos tipos**: la corchea suelta (♪) y dos corcheas unidas por
+ * su barra (♫).
+ *
+ * Antes eran la misma negra en dos tamaños, y a esta escala dos tamaños de lo
+ * mismo no son dos notas: son una nota que a veces sale más chica. Lo que las
+ * distingue es la **silueta** —una plica con banderín contra dos plicas con su
+ * barra—, que es lo único que se lee a 48×16.
+ *
+ * El banderín son dos píxeles en escalera, y aquí la escalera sí vale: no es un
+ * objeto recto dibujado en diagonal, es la curva del banderín. Las cabezas van a
+ * la izquierda de su plica, como en la partitura.
+ */
+const CORCHEA = ["..XX.", "..X.X", "..X..", "XXX..", "XXX.."];
+const CORCHEAS = [".XXXXX", ".X...X", ".X...X", "XX..XX", "XX..XX"];
 
 // La mano que chasqueaba se borro el 19/09/2026, y conviene que quede escrito
 // por que: a cinco pixeles, un puno con **un solo dedo levantado** no se lee
@@ -769,25 +835,57 @@ const NOTA_CHICA = ["..X", "..X", "XX.", "XX."];
 // El ritmo lo llevan ahora el **meneo de la cabeza** y la entrada de las notas.
 
 /**
- * Algo que sube y se va, con su propio ritmo.
+ * # Lo que sube flotando va por carriles
  *
- * La duracion y el retraso van **inline** para que cada nota vuele distinto: si
- * fueran una clase de CSS, todas subirian a la vez y en fila, que es justo lo
- * que hace que una melodia parezca una barra de carga.
+ * Las notas del silbido y los ZZZ del dormido. Antes cada uno subía a su ritmo
+ * desde casi la misma columna, y dos cosas que suben a ritmos distintos por el
+ * mismo sitio **se atraviesan**: la rápida alcanzaba a la lenta, se montaban, y
+ * dos notas encimadas son una mancha.
+ *
+ * Ahora cada una va por **su carril** —su columna, con un píxel de aire con la
+ * de al lado— y en un carril nunca hay dos a la vez: la nota sólo se ve durante
+ * el 60 % de su ciclo, que es su viaje entero, y el resto el carril está vacío.
+ * Así no se tocan nunca, y no por suerte sino por construcción.
+ *
+ * Lo que tenían de bueno —que no suban en fila, que es lo que convierte una
+ * melodía en una barra de carga— se conserva de otra forma: **cada carril lleva
+ * su propio ciclo**, así que las de un lado y las del otro se van cruzando sin
+ * un compás fijo.
+ *
+ * Y suben **a saltos de un píxel** (el keyframe asciende del CSS, con steps).
+ * El linear de antes las dejaba a medio píxel casi todo el viaje, justo lo que
+ * la regla de la casa prohíbe: el pixel-art deslizándose tiembla.
  */
-const flota = (html: string, dur: string, retraso: string) =>
-  `<g style="animation-name:vuela;animation-duration:${dur};animation-delay:${retraso};` +
-  `animation-timing-function:linear;animation-iteration-count:infinite">${html}</g>`;
+const CARRIL_A = 33;
+/** 33 + 6 de la nota más ancha + 1 del vaivén = 40 ocupado como mucho; el
+ *  segundo carril empieza en 41 y acaba en 47, el borde del lienzo. */
+const CARRIL_B = 41;
+
+/**
+ * Una cosa subiendo por su carril, en bucle.
+ *
+ * La fase de arranque va en negativo a propósito: con un retraso positivo la
+ * nota se quedaría quieta y a la vista en su casilla de salida hasta que le
+ * tocara, y así ya va por donde le toque desde el primer instante.
+ *
+ * @param y0 la fila de arriba del sprite al salir. Sube nueve filas (lo fija el
+ *   keyframe), así que acaba en `y0 - 9`: con 11 llega justo al borde de arriba.
+ * @param ciclo cada cuánto vuelve a salir, en ms. El viaje es el 60 %.
+ */
+const carril = (html: string, x: number, y0: number, ciclo: number) =>
+  `<g transform="translate(${x} ${y0})"><g style="animation-name:asciende;` +
+  `animation-duration:${ciclo}ms;animation-delay:-${azar(ciclo)}ms;` +
+  `animation-timing-function:steps(1,end);animation-iteration-count:infinite">` +
+  `${html}</g></g>`;
 
 const COLORES_NOTA = ["p", "m", "s", "w", "a"];
 
-/** Una nota suelta: color, tamano, columna y ritmo, todo al azar. */
-const nota = (i: number) =>
-  flota(
-    spr(tint(azar(2) ? NOTA : NOTA_CHICA, uno(COLORES_NOTA)), 32 + azar(4), 9),
-    `${(1.5 + i * 0.3).toFixed(2)}s`,
-    `${(i * 0.43).toFixed(2)}s`,
-  );
+/** Dos colores de nota distintos: si las dos salen iguales se leen como una. */
+const dosColores = (): [string, string] => {
+  const a = uno(COLORES_NOTA);
+  const b = uno(COLORES_NOTA.filter((c) => c !== a));
+  return [a, b];
+};
 
 /**
  * La cara de silbar: **ojos cerrados y la cabeza meneandose al ritmo**.
@@ -826,10 +924,18 @@ const meneo = (abre: boolean) =>
     "0.84s",
   );
 
-/** Una frase: entre dos y cuatro notas volando a ritmos distintos. */
+/**
+ * Una frase: las dos notas, **cada una por su carril** y cada carril a su
+ * ritmo. Qué nota va por qué lado y de qué color se sortea en cada frase.
+ */
 const frase = (): Paso => {
-  let notas = "";
-  for (let i = 0, n = entre(2, 4); i < n; i++) notas += nota(i);
+  const [a, b] = azar(2) ? [CORCHEA, CORCHEAS] : [CORCHEAS, CORCHEA];
+  const [ca, cb] = dosColores();
+  // Una de cada cuatro frases va con una sola nota: dos voces sin parar todo el
+  // minuto también acaban sonando a bucle.
+  const notas =
+    carril(spr(tint(a, ca)), CARRIL_A, 11, entre(1300, 1900)) +
+    (azar(4) ? carril(spr(tint(b, cb)), CARRIL_B, 11, entre(1300, 1900)) : "");
   return { ms: entre(2400, 4200), v: meneo(azar(3) === 0) + notas };
 };
 
@@ -855,20 +961,26 @@ const notaLarga = (): Paso[] => {
     { ms: 620, v: eyes(OJO_MEDIO, 7) + spr(BOCA_O, 20, 11) },
     {
       ms: 760,
+      // La nota larga no sube: **se sostiene**, vibrando un píxel. Subiendo por
+      // su carril, en un paso tan corto podía tocarle el tramo en que el carril
+      // está vacío, y la nota larga se quedaba sin nota.
       v:
         eyes(OJO_LINEA, 7) +
         spr(BOCA_O, 20, 11) +
-        flota(spr(tint(NOTA, "a"), 33, 9), "1.9s", "0s"),
+        flip([spr(tint(CORCHEA, "a"), CARRIL_A, 7), spr(tint(CORCHEA, "a"), CARRIL_A, 6)], ".38s"),
     },
   ];
   if (logra) {
+    const [ca, cb] = dosColores();
     pasos.push({
       ms: 980,
+      // Le salió: las dos notas a la vez y deprisa. El ciclo cabe en el paso,
+      // así que las dos llegan a verse pase lo que pase con la fase.
       v:
         eyes(OJO_ESTRELLA, 4) +
         spr(SONRISOTA, 19, 11) +
-        flota(spr(tint(NOTA, "p"), 32, 9), "1.3s", "0s") +
-        flota(spr(tint(NOTA_CHICA, "m"), 36, 9), "1.6s", ".2s"),
+        carril(spr(tint(CORCHEAS, ca)), CARRIL_A, 11, 900) +
+        carril(spr(tint(CORCHEA, cb)), CARRIL_B, 11, 960),
     });
     pasos.push({ ms: 640, v: eyes(OJO_ARCO, 6) + spr(SONRISA, 18, 12) });
   } else {
@@ -902,15 +1014,23 @@ export const SILBANDO: Variant = {
   fresco: construirSilbando,
 };
 
-/** Silbando, corta: cuatro tiempos con una nota que sube entera. */
+/**
+ * Silbando, corta: cuatro tiempos con las dos notas subiendo, cada una por su
+ * carril y con un tiempo de desfase —la segunda sale cuando la primera va por
+ * la mitad—.
+ */
 export const SILBANDO_CORTO: Variant = {
   status: "",
   scene: `${flip(
     [
-      caraSilba(-1, false),
-      caraSilba(0, false) + spr(tint(NOTA, "p"), 33, 11),
-      caraSilba(1, false) + spr(tint(NOTA, "p"), 34, 8),
-      caraSilba(0, true) + spr(tint(NOTA, "p"), 33, 5),
+      caraSilba(-1, false) + spr(tint(CORCHEAS, "m"), CARRIL_B, 5),
+      caraSilba(0, false) + spr(tint(CORCHEA, "p"), CARRIL_A, 11),
+      caraSilba(1, false) +
+        spr(tint(CORCHEA, "p"), CARRIL_A, 8) +
+        spr(tint(CORCHEAS, "m"), CARRIL_B, 11),
+      caraSilba(0, true) +
+        spr(tint(CORCHEA, "p"), CARRIL_A, 5) +
+        spr(tint(CORCHEAS, "m"), CARRIL_B, 8),
     ],
     "1.6s",
   )}`,
@@ -952,12 +1072,17 @@ const durmiendo = () =>
     "3.2s",
   );
 
-/** Un ZZZ que se va flotando, cada uno a su aire. */
+/**
+ * Un ZZZ que se va flotando, cada uno por su carril y a su aire —lento, que
+ * está dormido—. Mismo motor que las notas del silbido, y por lo mismo: dos ZZZ
+ * subiendo a ritmos distintos por la misma columna se atravesaban.
+ */
 const ronquido = (i: number) =>
-  flota(
-    spr(tint(i % 2 ? ZZZ_MINI : ZZZ, "s"), 33 + azar(3), 8),
-    `${(2.4 + i * 0.5).toFixed(1)}s`,
-    `${(i * 0.9).toFixed(1)}s`,
+  carril(
+    spr(tint(i % 2 ? ZZZ_MINI : ZZZ, "s")),
+    i % 2 ? CARRIL_B : CARRIL_A,
+    11,
+    entre(2200, 3000),
   );
 
 /** Un rato durmiendo, con los ZZZ que le toquen. */
@@ -1000,7 +1125,7 @@ const ronquidoGordo = (): Paso[] => [
     v:
       eyes(OJO_ARCO, 6) +
       spr(BOSTEZO, 19, 10) +
-      flota(spr(tint(ZZZ_GRANDE, "s"), 33, 7), "1.4s", "0s"),
+      carril(spr(tint(ZZZ_GRANDE, "s")), CARRIL_A, 11, 800),
   },
   { ms: 300, v: eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11) },
   { ms: 840, v: eyes(OJO_ANCHO, 5) + spr(BOCA_CHICA, 21, 12) },
@@ -1105,13 +1230,28 @@ const CUENCA_GRANDE = [
 export const OJOS_SIGUEN: Variant = {
   status: "",
   sigue: true,
-  scene: `${spr(CUENCA_GRANDE, 13, 3)}${spr(CUENCA_GRANDE, 25, 3)}
-    <g class="a-pupila">${spr(PUPILA, 15, 5)}${spr(PUPILA, 27, 5)}</g>
+  // Y parpadea. Con el ratón quieto la pupila no se mueve, y en el catálogo y
+  // la vista previa —donde nadie le manda --mx/--my— no se mueve nunca: era la
+  // única carita con los ojos quietos. Cerrado, una raya por la mitad de la
+  // cuenca. El primer parpadeo, adelantado a 1,1 s.
+  scene: `${blink(
+    `${spr(CUENCA_GRANDE, 13, 3)}${spr(CUENCA_GRANDE, 25, 3)}
+    <g class="a-pupila">${spr(PUPILA, 15, 5)}${spr(PUPILA, 27, 5)}</g>`,
+    `${spr(["XXXXXXX"], 13, 6)}${spr(["XXXXXXX"], 25, 6)}`,
+    "3.6s",
+    "-2.2s",
+  )}
     ${spr(SONRISA, 18, 12)}`,
 };
 
 /**
- * Y si mueves el raton como un loco, se marea.
+ * Y si **le das vueltas** con el raton, se marea: dos vueltas enteras alrededor
+ * de la onda en tres segundos (ver VUELTAS_MAREO en Hud.tsx).
+ *
+ * Antes bastaba con mover el raton deprisa, y eso no era un gesto sino
+ * trabajar: con un raton sensible o en una 4K los ojos se ponian en aspa sin
+ * que nadie hubiera querido marearla. Dar vueltas no depende de la velocidad
+ * del puntero y no se hace sin querer.
  *
  * Aspas en vez de pupilas y la cabeza dando tumbos. No lleva espiral **a
  * proposito**: el espiral ya ha fallado tres veces -a 3 px es una mancha, a 5 px
@@ -1129,20 +1269,54 @@ export const OJOS_MAREADOS: Variant = {
   )}`,
 };
 
+/**
+ * El confeti de la carita de corazones, a saltos de píxel.
+ *
+ * Antes cada pieza salía del entrecejo en línea recta con una animación
+ * lineal: medio píxel por fotograma (contra la regla de steps), cuatro de las
+ * seis cruzaban el borde de arriba a plena opacidad y las otras atravesaban
+ * los ojos de corazón. Ahora nacen a los lados de la cara, sin tocar ojos ni
+ * boca, y cada pieza lleva sus cinco paradas enteras en su propio keyframe:
+ * el truco de secuencia(), porque el CSS fijo no sabe de posiciones por
+ * pieza. Las de la derecha son el espejo de las de la izquierda (x' = 43 - x,
+ * por ser de 2 de ancho).
+ */
+const CONFETI = (() => {
+  const izq: [string, [number, number][]][] = [
+    ["p", [[11, 6], [9, 4], [7, 3], [5, 3], [3, 4]]],
+    ["m", [[11, 9], [9, 10], [7, 12], [5, 13], [3, 14]]],
+    ["a", [[12, 12], [11, 14], [9, 15], [8, 16], [7, 16]]],
+  ];
+  const piezas = [
+    ...izq,
+    ...izq.map(
+      ([c, ps]) => [c, ps.map(([x, y]) => [43 - x, y])] as [string, [number, number][]],
+    ),
+  ];
+  let css = "";
+  const rects = piezas.map(([c, ps], i) => {
+    const [x0, y0] = ps[0];
+    const en = (k: number) => `transform:translate(${ps[k][0] - x0}px,${ps[k][1] - y0}px)`;
+    css +=
+      `@keyframes cf${i}{0%{${en(0)};opacity:0}10%{${en(0)};opacity:1}28%{${en(1)}}` +
+      `46%{${en(2)}}64%{${en(3)}}82%{${en(4)};opacity:1}92%,100%{${en(4)};opacity:0}}`;
+    return (
+      `<rect x="${x0}" y="${y0}" width="2" height="2" fill="${PAL[c]}" style="animation-name:cf${i};` +
+      `animation-duration:1.4s;animation-timing-function:steps(1,end);animation-iteration-count:infinite;` +
+      `animation-fill-mode:backwards;animation-delay:${((i % 3) * 0.06).toFixed(2)}s"/>`
+    );
+  });
+  return `<style>${css}</style><g>${rects.join("")}</g>`;
+})();
+
 // ─── 26 caritas: 5 por estado + el eructo, que sólo sale tras la comilona ───
 // Regla nueva (28/08): **ninguna carita tiene los ojos quietos**, y el gesto de
 // los ojos no se repite entre caritas. Es lo que las separa unas de otras
 // cuando el accesorio se parece.
 export const V: Record<FaceState, Variant[]> = {
-  // Las cuatro de reposo son las **versiones cortas** de las caritas de
-  // stand-by. Cortas y no de ocho tiempos porque aquí la onda sale unos
-  // segundos: una historia de 4,8 s se vería siempre cortada por la mitad, que
-  // es peor que no contarla. Las largas salen con la onda clavada, mirándola.
-  //
-  // La quinta sigue siendo la vieja —los ojos paseando dentro de la cuenca— a
-  // propósito: es el hueco de **los ojos que te siguen el cursor**, que necesita
-  // que Rust le mande dónde está el ratón y todavía no existe. Se queda la de
-  // antes en vez de dejar cuatro, que cambiaría el reparto de los cinco estados.
+  // Las de reposo son las **historias largas** de stand-by —chicle, silbido y
+  // dormido, de un minuto cada una—, la de siempre (respira y parpadea) en el
+  // hueco que dejó el dibujante, y los ojos que te siguen el cursor.
   reposo: [
     // La larga, no la corta: en reposo es donde vive el stand-by. Durante un
     // dictado sale unos segundos y sólo se ve el principio -mascando-, que es
@@ -1172,7 +1346,7 @@ export const V: Record<FaceState, Variant[]> = {
           eyes(OJO_MEDIO, 7),
           eyes(OJO_BRILLO, 5),
         ],
-        "1.6s",
+        "1.2s",
       )}${spr(BOCA_CHICA, 21, 12)}${spr(AUDIFONOS, 11, 2)}</g>${VU}`,
     },
     {
@@ -1191,7 +1365,7 @@ export const V: Record<FaceState, Variant[]> = {
       status: "Anotando…",
       scene: `${flip([eyes(OJO, 5), eyes(OJO, 6)], ".6s")}${spr(RAYA, 20, 13)}
         <g class="a-lapiz">${spr(tint(LAPIZ, "a"), 39, 8)}</g>
-        <g class="a-renglon"><rect x="34" y="13" width="11" height="1" fill="var(--a)"/></g>`,
+        <g class="a-renglon"><rect x="34" y="13" width="12" height="1" fill="var(--a)"/></g>`,
     },
     {
       // Comilona: la onda de tu voz entra por la derecha y el Pac-Man se la va
@@ -1209,7 +1383,7 @@ export const V: Record<FaceState, Variant[]> = {
             (h, i) =>
               `<g style="animation-delay:${(i * 0.2).toFixed(1)}s"><rect x="44" y="${
                 12.5 - h / 2
-              }" width="2" height="${h}"/></g>`,
+              }" width="2" height="${h}" style="--h:${h}"/></g>`,
           )
           .join("")}</g>`,
     },
@@ -1262,7 +1436,7 @@ export const V: Record<FaceState, Variant[]> = {
   listo: [
     {
       status: "¡Listo!",
-      scene: `${wink(eyes(OJO, 5), spr(OJO, LX, 5) + spr(OJO_LINEA, RX, 7))}
+      scene: `${wink(eyes(OJO, 5), spr(OJO, LX, 5) + spr(OJO_LINEA, RX, 7), "1.4s")}
         ${spr(SONRISA, 18, 12)}
         <g class="a-pulgar">${spr(tint(PULGAR, "a"), 39, 7)}</g>`,
     },
@@ -1292,21 +1466,7 @@ export const V: Record<FaceState, Variant[]> = {
       // Ojos de corazón entre el confeti: te quiere.
       status: "Got it!",
       scene: `${flip([eyes(OJO_ARCO, 6), eyes(OJO_CORAZON, 4)], "1.4s")}${spr(SONRISOTA, 19, 11)}
-        <g class="a-confeti">${(
-          [
-            ["p", -10, -6],
-            ["m", 10, -7],
-            ["a", -13, 3],
-            ["p", 12, 4],
-            ["m", -5, -10],
-            ["a", 6, -10],
-          ] as [string, number, number][]
-        )
-          .map(
-            ([c, x, y], i) =>
-              `<rect x="21" y="4" width="2" height="2" fill="${PAL[c]}" style="--cx:${x}px; --cy:${y}px; animation-delay:${i * 0.06}s"/>`,
-          )
-          .join("")}</g>`,
+        ${CONFETI}`,
     },
     {
       // El postre de la comilona: se comió tu voz y ahora la devuelve. Sólo
@@ -1329,7 +1489,10 @@ export const V: Record<FaceState, Variant[]> = {
             spr(BOCA_CHICA, 21, 12),
             spr(BOCA_CHICA, 21, 12),
             spr(BOCA_CHICA, 21, 12),
-            spr(BOSTEZO, 19, 7),
+            // En y=10, donde van las bocas de V. En y=7 —la altura de las
+            // escenas del carrito, que tienen la cara más arriba— abría la
+            // boca entre los dos ojos y se leía como una nariz.
+            spr(BOSTEZO, 19, 10),
           ],
           "1.2s",
         )}
@@ -1352,10 +1515,12 @@ export const V: Record<FaceState, Variant[]> = {
       sad: true,
       // Ladear la cabeza sin rotar: un ojo sube, el otro baja y la boca se
       // tuerce. El parpadeo respeta esa asimetría, cada ojo a su altura.
+      // Cada 1,3 s y no cada 2,6: esta carita se ve 2,6 s (StopResult::Empty) y
+      // con el ciclo largo su único parpadeo caía a los 2,39, ya de salida.
       scene: `${blink(
         spr(OJO, LX, 6) + spr(OJO, RX, 4),
         spr(OJO_LINEA, LX, 8) + spr(OJO_LINEA, RX, 6),
-        "2.6s",
+        "1.3s",
       )}${spr(LADEADA, 18, 12)}
         <g class="a-interr">${spr(tint(INTERR, "w"), 39, 3)}</g>`,
     },
@@ -1490,11 +1655,11 @@ const RENGLON = ["XXXXXXXXXXX"];
  */
 export const LEYENDO: Variant = {
   status: "Corrigiendo…",
-  // Los ojos van a media asta y parpadean: leyendo, no escuchando. Ninguna
-  // carita de la casa tiene los ojos quietos, y ésta tampoco.
   // El ojo va entero y parpadea —ninguna carita de la casa los tiene quietos— y
-  // los lentes le cruzan por la mitad: media luna, como se leen de cerca.
-  scene: `${blink(eyes(OJO, 5), eyes(OJO_LINEA, 7), "4s")}${spr(LENTES_LECTURA, 13, 6)}${spr(RAYA, 20, 13)}
+  // los lentes le cruzan por la mitad: media luna, como se leen de cerca. El
+  // parpadeo es el lento de leer (4 s), pero adelantado: sin retraso, el
+  // primero caía a los 3,68 s y una corrección dura uno o dos.
+  scene: `${blink(eyes(OJO, 5), eyes(OJO_LINEA, 7), "4s", "-2.9s")}${spr(LENTES_LECTURA, 13, 6)}${spr(RAYA, 20, 13)}
     ${flip(
       [
         spr(PLUMA, 30, 2) + spr(["XXX"], 31, 15),
@@ -1507,8 +1672,8 @@ export const LEYENDO: Variant = {
 
 // ─── el estreno de versión ──────────────────────────────────────────────────
 //
-// Guion de Luis, en cinco tiempos y 1,8 s, todo DENTRO de la cápsula de
-// siempre. Antes era una película de 6 s en una ventana cuadrada de 260x260, y
+// Guion de Luis, en cinco tiempos y 2,8 s —eran 1,8 y pidió un segundo más
+// para la carga—, todo DENTRO de la cápsula de siempre. Antes era una película de 6 s en una ventana cuadrada de 260x260, y
 // se caía por su propio peso: al volverse cuadrada disparaba un resize, el
 // resize reescribía la variable CSS --k, y escribir una custom property en un
 // ancestro **recrea la animación desde cero** (el gotcha de CLAUDE.md). El
@@ -1517,7 +1682,7 @@ export const LEYENDO: Variant = {
 //   1 · Reposo. La cápsula como siempre, para que lo de después se lea como
 //       una interrupción y no como el estado normal.
 //   2 · La cápsula se llena de izquierda a derecha, verde menta, a tirones.
-//       Mientras: los ojos giran y la boca pasa por tres gestos.
+//       Mientras: los ojos giran y la lengua da vueltas en la boca abierta.
 //   3 · Al 100 % la barra se vuelve blanca de golpe y sale la versión en grande.
 //   4 · El blanco se funde con el fondo.
 //   5 · Vuelve el reposo: la cara se revela píxel a píxel.
@@ -1778,39 +1943,47 @@ const ONDA = [
 ];
 
 /**
- * La servilleta, ahora **en la mano** y del tamaño que cabe.
+ * La servilleta, **en la mano** y del tamaño que cabe: cinco de ancho, con la
+ * banda hueca que la identifica como tela.
  *
- * La de 9×9 que volaba sola no sirve aquí: con un brazo debajo, un trapo de ese
- * tamaño le tapa media cara. Cinco de ancho es lo que queda libre, y la banda
- * hueca que la identificaba como tela sigue cabiendo en una fila.
+ * Va **en celeste** y no en tinta. En tinta, servilleta, mano y antebrazo eran
+ * una sola mancha negra con un bloque al final, y en el banco se leía como una
+ * pistola apoyada en una mesa. Con color propio la servilleta es un objeto que
+ * la mano sostiene, igual que el vómito es menta y la lengua rosa.
  */
-const SERVILLETA_MANO = [
-  ".XXX.",
-  "XXXXX",
-  "XoooX",
-  "XXXXX",
-  "XXXXX",
-  ".XXX.",
-];
+const SERVILLETA_MANO = ["XXXXX", "XoooX", "XXXXX", "XXXXX"];
 
 /**
- * El brazo que cruza la boca con la servilleta.
+ * El brazo que barre la boca con la servilleta.
  *
  * Horizontal y no en diagonal, por la regla de siempre: a esta escala una
  * diagonal es una escalera. Y resulta que además es lo correcto — pasarse el
  * antebrazo por la boca **es** un gesto horizontal.
  *
+ * Sale **por la derecha**: el hombro sube de la vagoneta y el codo dobla hacia
+ * la cara. Antes salía por la izquierda con la mano ya pasada de la boca, así
+ * que el antebrazo la tapaba desde el primer cuadro y **nunca se veía qué
+ * estaba limpiando**. Entrando por el otro lado, al empezar la boca sucia está
+ * a la vista y el antebrazo sólo la cruza mientras limpia.
+ *
  * El hombro se queda pegado a la vagoneta y lo que viaja es la mano, igual que
  * en el saludo y en el abanico.
  *
- * @param mano dónde queda la servilleta; el antebrazo rellena hasta el hombro.
+ * @param mano la columna izquierda de la servilleta; la mano va pegada a su
+ *   derecha y el antebrazo rellena hasta el hombro.
  */
 const brazoConServilleta = (mano: number) =>
-  // El hombro, bajando a la vagoneta.
-  spr(["XX", "XX", "XX"], 12, 9) +
-  // El antebrazo, del hombro a la mano.
-  spr(Array(2).fill("X".repeat(Math.max(1, mano - 12))), 12, 8) +
-  spr(SERVILLETA_MANO, mano, 6);
+  // El hombro, subiendo de la vagoneta justo donde nace el brazo derecho de
+  // par(): así el vómito, la limpiada y su último cuadro —que ya lleva los dos
+  // brazos de par()— tienen el hombro en la misma columna y no salta.
+  spr(Array(5).fill("XX"), 33, 9) +
+  // El antebrazo, de la mano al hombro.
+  spr(Array(2).fill("X".repeat(Math.max(1, 35 - (mano + 5)))), mano + 5, 8) +
+  // La mano, maciza —aquí una mano sólo puede ser un bloque—, agarrando la
+  // servilleta por su lado.
+  spr(["XX", "XX", "XX"], mano + 4, 7) +
+  // Y la servilleta delante de todo.
+  spr(tint(SERVILLETA_MANO, "s"), mano, 7);
 
 /**
  * El brazo doblado hacia abajo: agarrado a la barandilla.
@@ -1868,14 +2041,19 @@ const VAGONETA = [
 /**
  * Un par de brazos, ya colocados y con el derecho espejado.
  *
- * El izquierdo en x=8 y el derecho en x=31 **no es a ojo**: la cara se centra en
+ * El izquierdo en x=7 y el derecho en x=32 **no es a ojo**: la cara se centra en
  * x=22, el espejo de una columna `p` es `44-p`, y un sprite de 6 de ancho que
- * ocupa 8-13 tiene su espejo ocupando 31-36. Espejar el origen en vez del tramo
+ * ocupa 7-12 tiene su espejo ocupando 32-37. Espejar el origen en vez del tramo
  * —el error fácil— deja un brazo tres píxeles más fuera que el otro, y a este
  * tamaño eso se ve.
+ *
+ * Iban en 8 y 31, y desde que la cara del carrito subió a y=2 la mano en alto
+ * quedaba pegada al ojo ancho (x=14-18 y 26-30): medido, se tocaban el 60 % del
+ * tiempo en la montaña rusa y mano y ojo se leían como un solo bloque. Una
+ * columna más fuera deja el píxel de aire.
  */
 const par = (izq: string[], der: string[]) =>
-  spr(izq, 8, 3) + spr(espejo(der), 31, 3);
+  spr(izq, 7, 3) + spr(espejo(der), 32, 3);
 
 /**
  * La barandilla de seguridad del carrito.
@@ -1935,17 +2113,11 @@ const escenario = (brazos: string) =>
  */
 export const RODANDO: Variant = {
   status: "¡Yujuuu!",
-  // Los brazos: el izquierdo en x=8 y el derecho en x=31. **No es a ojo**: la
-  // cara se centra en x=22, así que el espejo de una columna p es 44-p, y un
-  // sprite de 6 de ancho que ocupa 8-13 tiene su espejo ocupando 31-36. Espejar
-  // el origen en vez del tramo —el error fácil— deja un brazo más fuera que el
-  // otro, y a este tamaño tres píxeles se ven.
+  // Los brazos van donde los pone par(), que explica sus columnas.
   //
   // El saludo va **en contrafase**: cuando uno abre, el otro cierra. Los dos a
   // la vez se leen como un dibujo que se estira; alternados se leen como dos
   // manos agitándose, que es lo que hace alguien en una montaña rusa.
-  // Saludo **en contrafase**: cuando uno abre, el otro cierra. Los dos a la vez
-  // se leen como un dibujo que se estira; alternados, como dos manos agitándose.
   scene: `${escenario(
     flip(
       [par(BRAZO_ABIERTO, BRAZO_RECTO), par(BRAZO_RECTO, BRAZO_ABIERTO)],
@@ -1956,6 +2128,11 @@ export const RODANDO: Variant = {
     ${spr(BOCAZA_DIENTES, 17, 7)}</g>`,
 };
 
+/** Lo que quedó del vómito, verde, en la comisura. Lo usan las dos limpiadas,
+ *  y va aquí arriba porque `const` no se iza: definido más abajo, el módulo
+ *  reventaría al cargar. */
+const RESTO = ["XX"];
+
 /**
  * Se limpia y se le pasa: **dos versiones, y sólo se queda una**.
  *
@@ -1965,28 +2142,55 @@ export const RODANDO: Variant = {
  * hay que reconocer pero sí seguir). Son dos apuestas distintas y la única
  * forma de decidir es verlas.
  */
+/** Lo que dura cada limpiada. Una sola fuente para el flip y para el HUD, que
+ *  la enseña **una vez entera** y se queda en su último cuadro: si los dos
+ *  números se separan, o el HUD la corta antes del final o se queda mirando un
+ *  cuadro repetido. */
+const LIMPIA_SERVILLETA_MS = 1800;
+const LIMPIA_LENGUA_MS = 1200;
+
 const LIMPIADA_SERVILLETA: Variant = {
   status: "Ya, ya…",
   // El brazo libre va **apoyado**, no en alto. Con la mano arriba mientras la
   // otra te limpia la boca no se entiende qué está haciendo: parece que saluda
   // y se limpia a la vez, que son dos cosas y ninguna se lee.
+  //
+  // Seis tiempos y no tres: llega sucia, **dos pasadas** —ida y vuelta—, la
+  // boca limpia a la vista y la sonrisa del final con su destello, el mismo
+  // remate que la de la lengua. Con una sola pasada en 0,9 s no daba tiempo a
+  // entender qué había pasado. Los ojos se cierran mientras se limpia: es el
+  // alivio, y además deja claro que la cara sigue ahí detrás del brazo.
   scene: `<g class="a-vagon">${spr(VAGONETA, 9, 14)}${flip(
     [
-      // Llega con la boca aún sucia.
-      brazoConServilleta(26) +
-        spr(espejo(BRAZO_ABAJO), 31, 3) +
-        eyes(OJO_LINEA, 4) +
+      // Llega con la boca aún sucia, un resto a cada lado.
+      spr(BRAZO_ABAJO, 7, 3) +
+        brazoConServilleta(27) +
+        eyes(OJO, 2) +
         spr(BOCA_CHICA, 21, 9) +
-        spr(tint(["XXX"], "m"), 25, 11),
-      // Cruza y tapa. La mancha ya no está: se la llevó.
-      brazoConServilleta(20) + spr(espejo(BRAZO_ABAJO), 31, 3) + eyes(OJO_LINEA, 4),
-      // Vuelve, y la cara está limpia.
-      brazoConServilleta(26) +
-        spr(espejo(BRAZO_ABAJO), 31, 3) +
+        spr(tint(RESTO, "m"), 18, 10) +
+        spr(tint(RESTO, "m"), 24, 10),
+      // Primera pasada: tapa la boca y se lleva el resto de la derecha.
+      spr(BRAZO_ABAJO, 7, 3) +
+        brazoConServilleta(20) +
         eyes(OJO_ARCO, 3) +
-        spr(RAYA, 20, 9),
+        spr(tint(RESTO, "m"), 18, 10),
+      // Llega al otro lado y se lleva el de la izquierda. La boca va debajo
+      // del antebrazo, que es justo lo que está limpiando.
+      spr(BRAZO_ABAJO, 7, 3) + brazoConServilleta(15) + eyes(OJO_ARCO, 3),
+      // Vuelta.
+      spr(BRAZO_ABAJO, 7, 3) + brazoConServilleta(20) + eyes(OJO_ARCO, 3),
+      // Aparta la mano: la boca, limpia.
+      spr(BRAZO_ABAJO, 7, 3) +
+        brazoConServilleta(27) +
+        eyes(OJO_ARCO, 3) +
+        spr(BOCA_CHICA, 21, 9),
+      // Y se le pasó.
+      par(BRAZO_ABAJO, BRAZO_ABAJO) +
+        eyes(OJO_ARCO, 3) +
+        spr(SONRISA, 18, 9) +
+        spr(tint(CHISPITA, "w"), 33, 2),
     ],
-    ".9s",
+    `${LIMPIA_SERVILLETA_MS / 1000}s`,
   )}</g>`,
 };
 
@@ -2014,8 +2218,6 @@ const BOCA_REDONDA = [
 
 /** La lengua, rosa, por dentro del aro. */
 const LENGUA = ["XXX", "XXX"];
-/** Lo que quedó del vómito, verde, encima del borde. */
-const RESTO = ["XX"];
 
 /**
  * La vuelta de la lengua: seis paradas, cada una con **el resto que le toca
@@ -2056,12 +2258,14 @@ const LIMPIADA_LENGUA: Variant = {
       ),
       // Se lo traga.
       eyes(OJO_ANCHO, 2) + spr(BOCA_CHICA, 21, 8),
-      // Y se le pasó: sonríe y suelta el destello de «quedó limpio».
+      // Y se le pasó: sonríe y suelta el destello de «quedó limpio». Dos
+      // columnas más allá del ojo: en (31, 3) se tocaban y se leían como una
+      // sola mancha, un ojo con un pegote naranja.
       eyes(OJO_ARCO, 2) +
         spr(SONRISA, 18, 8) +
-        spr(tint(CHISPITA, "w"), 31, 3),
+        spr(tint(CHISPITA, "w"), 33, 2),
     ],
-    "1.2s",
+    `${LIMPIA_LENGUA_MS / 1000}s`,
   )}</g>`,
 };
 
@@ -2125,10 +2329,14 @@ export const BAJANDO: Variant = {
  * alrededor en vez de quedarse quieto: acaba de llegar. La pupila se desplaza
  * dentro del ojo en lugar de moverse el ojo entero — mover el ojo completo se
  * lee como que tiembla la cara, mover lo de dentro se lee como que mira.
+ *
+ * Lleva la vagoneta debajo, igual que el último cuadro de `BAJANDO`: el HUD
+ * pasa de una a otra sin fundido, y sin ella el carrito desaparecería de un
+ * fotograma al siguiente. Se va con la cara, en el fundido hacia el reposo.
  */
 export const CURIOSEANDO: Variant = {
   status: "",
-  scene: `${flip(
+  scene: `${spr(VAGONETA, 9, 14)}${flip(
     [
       spr(["XXX", "X..", "X..", "XXX"], LX, 2) + spr(["XXX", "X..", "X..", "XXX"], RX, 2),
       spr(OJO, LX, 2) + spr(OJO, RX, 2),
@@ -2150,10 +2358,17 @@ export const CURIOSEANDO: Variant = {
  *
  * Siempre **después del vómito**, nunca sueltas: son el final de esa historia y
  * fuera de ella no significan nada.
+ *
+ * La de la servilleta **no salía nunca**, aunque el sorteo era limpio. El HUD
+ * dejaba la limpiada 0,9 s a la vista, y si seguías zarandeando el siguiente
+ * meneo la devolvía al vómito a los 0,6: a la de la lengua le daba tiempo de
+ * enseñar su vuelta, a la de la servilleta no le daba ni para una pasada. Ahora
+ * el HUD la enseña **entera, una sola vez** (`ms`), se queda en su último
+ * cuadro y no hay meneo que la interrumpa: es el final de la historia.
  */
-export const LIMPIADAS: { nombre: string; v: Variant }[] = [
-  { nombre: "Con servilleta en la mano", v: LIMPIADA_SERVILLETA },
-  { nombre: "Con la lengua", v: LIMPIADA_LENGUA },
+export const LIMPIADAS: { nombre: string; v: Variant; ms: number }[] = [
+  { nombre: "Con servilleta en la mano", v: LIMPIADA_SERVILLETA, ms: LIMPIA_SERVILLETA_MS },
+  { nombre: "Con la lengua", v: LIMPIADA_LENGUA, ms: LIMPIA_LENGUA_MS },
 ];
 
 export const MAREO: Variant[] = [
@@ -2185,15 +2400,17 @@ export const MAREO: Variant[] = [
       ],
       "1.28s",
     )}${spr(ZIGZAG, 18, 9)}</g>
-      <g class="a-orb1">${spr(tint(CHISPITA, "w"), 37, 3)}</g>
-      <g class="a-orb2">${spr(tint(CHISPITA, "w"), 37, 3)}</g>`,
+      <g class="a-orb1">${spr(tint(CHISPITA, "w"), 42, 3)}</g>
+      <g class="a-orb2">${spr(tint(CHISPITA, "w"), 42, 3)}</g>`,
   },
   {
     // 2 · Aguantándose. Cuatro tiempos que cuentan la historia entera: boca
     // sellada, se llena, se llena del todo, y el trago —los carrillos
     // desaparecen de golpe, la boca se hace chiquita y la cara baja un píxel—.
     // Los ojos pulsan de 3 a 5 px de ancho al doble de ritmo: es el esfuerzo
-    // de no soltarlo. La gota de sudor, en la sien, remata la idea.
+    // de no soltarlo. La gota de sudor remata la idea: salta de la sien por
+    // fuera del brazo, porque entre el ojo y la mano no queda sitio para ella
+    // y encima de la mano se leía como parte de la mano.
     status: "¡Aguanta!",
     // La onda de medusa: la pose recorre los dos brazos con un cuadro de desfase,
     // así que lo que se ve no es un sube-y-baja sino algo que **viaja** de un
@@ -2217,7 +2434,7 @@ export const MAREO: Variant[] = [
       ],
       "1.28s",
     )}</g>
-      <g class="a-sudor">${spr(tint(GOTA, "s"), 33, 4)}</g>`,
+      <g class="a-sudor">${spr(tint(GOTA, "s"), 40, 4)}</g>`,
   },
   {
     // 3 · Ya no aguantó, y no una vez: **tres**, cada una peor que la anterior.
@@ -2232,8 +2449,10 @@ export const MAREO: Variant[] = [
     // cuenta cuánto ha vomitado es el charco del suelo, no su expresión.
     status: "¡Blegh!",
     // Aquí los brazos **no se mueven**: te agarras. Un saludo mientras vomitas
-    // contaría dos cosas a la vez y no se leería ninguna.
-    scene: `${escenario(par(BRAZO_RECTO, BRAZO_RECTO))}
+    // contaría dos cosas a la vez y no se leería ninguna. Y agarrarse es
+    // BRAZO_ABAJO, no el brazo en alto: con la mano arriba queda a la altura
+    // de los ojos de par en par y se funde con ellos (ver BRAZO_ABAJO).
+    scene: `${escenario(par(BRAZO_ABAJO, BRAZO_ABAJO))}
       <g class="a-arcada">${flip(
       [
         eyes(OJO_ANCHO, 2),
@@ -2446,6 +2665,18 @@ export const FACE_CSS = `
      instante que va entre que se pinta el SVG y arranca la animacion. */
   .seq > g { opacity: 0; }
 ${FLIP_CSS}
+  /* Una sola vuelta: las escenas que cuentan un final -vomitar, limpiarse,
+     bajarse del carrito- se ensenan una vez y se quedan en su ultimo cuadro.
+     En bucle, lo que venia detras pillaba otra vez el principio: la barandilla
+     volvia a bajar o la boca volvia a estar sucia justo al irse, y el charco
+     del vomito, que no se va, desaparecia 200 ms antes de la limpiada con la
+     primera arcada otra vez en pantalla. Mas especifico que las reglas del
+     flipbook y que las de cada animacion a proposito, para ganarles sin
+     !important. */
+  .tama.una-vez .flip > g,
+  .tama.una-vez .a-arcada, .tama.una-vez .v-uno, .tama.una-vez .v-dos, .tama.una-vez .v-tres,
+  .tama.una-vez .a-charco1, .tama.una-vez .a-charco2, .tama.una-vez .a-charco3 {
+    animation-iteration-count: 1; animation-fill-mode: forwards; }
   .blink > g { animation-duration: 3.2s; animation-timing-function: steps(1, end); animation-iteration-count: infinite; }
   .blink > g:nth-child(1) { animation-name: blinkA; }
   .blink > g:nth-child(2) { animation-name: blinkB; }
@@ -2457,21 +2688,24 @@ ${FLIP_CSS}
   @keyframes winkA { 0% { opacity: 1; } 35% { opacity: 0; } 72% { opacity: 1; } }
   @keyframes winkB { 0% { opacity: 0; } 35% { opacity: 1; } 72% { opacity: 0; } }
 
-  /* Barras y boca movidas por el volumen real de tu voz (--lvl: 0…1). */
-  .vu rect { fill: var(--a); transform-box: fill-box; transform-origin: center bottom;
-             transition: transform .07s linear; }
-  .vu .v1 { transform: scaleY(calc(.16 + var(--lvl, .1) * .55)); }
-  .vu .v2 { transform: scaleY(calc(.2 + var(--lvl, .1) * .8)); }
-  .vu .v3 { transform: scaleY(calc(.16 + var(--lvl, .1) * .42)); }
-  /* La onda que se come el Pac-Man también respira con tu voz: la barra viaja
-     en el <g> y el nivel escala el <rect>, así los dos transforms conviven. */
+  /* Barras y boca movidas por el volumen real de tu voz (--lvl: 0…1). La
+     escala se redondea a doceavos, que es lo que miden las barras: alturas de
+     pixel entero. Sin transicion, que volveria a pasar por medio pixel; el
+     suavizado ya lo hace el HUD sobre --lvl. */
+  .vu rect { fill: var(--a); transform-box: fill-box; transform-origin: center bottom; }
+  .vu .v1 { transform: scaleY(calc(round(nearest, (.16 + var(--lvl, .1) * .55) * 12, 1) / 12)); }
+  .vu .v2 { transform: scaleY(calc(round(nearest, (.2 + var(--lvl, .1) * .8) * 12, 1) / 12)); }
+  .vu .v3 { transform: scaleY(calc(round(nearest, (.16 + var(--lvl, .1) * .42) * 12, 1) / 12)); }
+  /* La onda que se come el Pac-Man tambien respira con tu voz: la barra viaja
+     en el <g> y el nivel escala el <rect>, asi los dos transforms conviven.
+     Crece de dos en dos (1, 3, 5, 7 px) alrededor de su centro, que cae en
+     medio pixel: con altura impar los dos bordes quedan en fila entera. --h
+     es la altura dibujada de cada barra; no es una duracion, asi que el
+     gotcha de las variables no la toca. */
   .a-onda rect { fill: var(--a); transform-box: fill-box; transform-origin: center center;
-                 transform: scaleY(calc(.4 + var(--lvl, .1) * .85));
-                 transition: transform .07s linear; }
+                 transform: scaleY(calc((2 * round(nearest, (var(--h) * (.4 + var(--lvl, .1) * .85) - 1) / 2, 1) + 1) / var(--h))); }
 
   @keyframes resp { 0% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
-  @keyframes mira { 0% { transform: translateX(0); } 30% { transform: translateX(-1px); }
-                    60% { transform: translateX(1px); } 90% { transform: translateX(0); } }
   @keyframes asiente { 0% { transform: translateY(0); } 50% { transform: translateY(2px); } }
   @keyframes atento { 0% { transform: translate(0, 0); } 25% { transform: translate(1px, 0); }
                       50% { transform: translate(0, 1px); } 75% { transform: translate(-1px, 0); } }
@@ -2484,28 +2718,36 @@ ${FLIP_CSS}
                     50% { transform: translateX(1px); } 75% { transform: translateX(0); } }
   @keyframes busca { 0% { transform: translate(0, 0); } 25% { transform: translate(-1px, 1px); }
                      50% { transform: translate(1px, 0); } 75% { transform: translate(1px, 1px); } }
-  @keyframes sube { 0% { transform: translate(0, 3px); opacity: 0; }
-                    20%, 80% { opacity: 1; }
-                    100% { transform: translate(2px, -6px); opacity: 0; } }
-  /* Como el de arriba pero con mas recorrido: sale de la boca y se va por
-     encima del lienzo. El otro se queda en nueve pixeles, que para un ZZZ
-     pegado a la cara valia, pero una nota tiene que irse de verdad. La
-     duracion y el retraso NO van aqui: viajan inline en cada nota, que es lo
-     que permite que tres notas suban a ritmos distintos sin tres clases.
-     (Y ni un acento grave en estos comentarios: FACE_CSS es un template
-     literal de JavaScript y un acento grave lo cierra ahi mismo. Van cinco.) */
-  @keyframes vuela { 0% { transform: translate(0, 4px); opacity: 0; }
-                     15%, 75% { opacity: 1; }
-                     100% { transform: translate(4px, -12px); opacity: 0; } }
+  /* Lo que sube por su carril (notas, ZZZ): diez casillas en el 60 % del
+     ciclo, a saltos de un pixel, con un vaiven de un pixel a media subida, y
+     el 40 % restante el carril vacio. Que el carril se vacie antes de volver a
+     salir es lo que garantiza que dos notas no se monten nunca. La duracion NO
+     va aqui: viaja inline y literal en cada carril, como en todas las caritas.
+     (Ni un acento grave en estos comentarios: FACE_CSS es un template literal.) */
+  @keyframes asciende {
+    0% { transform: translate(0, 0); opacity: 1; }
+    6% { transform: translate(0, -1px); }
+    12% { transform: translate(0, -2px); }
+    18% { transform: translate(1px, -3px); }
+    24% { transform: translate(1px, -4px); }
+    30% { transform: translate(1px, -5px); }
+    36% { transform: translate(0, -6px); }
+    42% { transform: translate(0, -7px); }
+    48% { transform: translate(0, -8px); }
+    54% { transform: translate(0, -9px); opacity: 1; }
+    60%, 100% { transform: translate(0, -9px); opacity: 0; }
+  }
   @keyframes lapiz { 0% { transform: translate(0, 0); } 50% { transform: translate(-1px, 1px); } }
   @keyframes renglon { 0% { transform: scaleX(0); } 20% { transform: scaleX(.25); }
                        40% { transform: scaleX(.5); } 60% { transform: scaleX(.75); }
                        80% { transform: scaleX(1); } 90% { transform: scaleX(0); } }
-  @keyframes barra { 0% { transform: scaleX(.1); } 25% { transform: scaleX(.35); }
-                     50% { transform: scaleX(.6); } 75% { transform: scaleX(.85); }
+  /* Escalas que dan pixeles enteros: la barra mide 10, y con .35 y .85 medía
+     3,5 y 8,5 px, medio pixel suelto. El renglon del lapiz mide 12 por lo
+     mismo: sus cuartos son 3, 6 y 9. */
+  @keyframes barra { 0% { transform: scaleX(.1); } 25% { transform: scaleX(.3); }
+                     50% { transform: scaleX(.6); } 75% { transform: scaleX(.8); }
                      95% { transform: scaleX(1); } }
   @keyframes punto { 0% { opacity: .18; } 25% { opacity: 1; } 60% { opacity: .18; } }
-  @keyframes foco { 0% { opacity: .18; } 45% { opacity: 1; } }
   @keyframes chispa { 0% { opacity: 0; } 30% { opacity: 1; } 70% { opacity: 0; } }
   @keyframes lentes { 0% { transform: translateY(-12px); }
                       9% { transform: translateY(-4px); }
@@ -2529,18 +2771,26 @@ ${FLIP_CSS}
                       45%, 100% { transform: translateY(0); opacity: 1; } }
   @keyframes baila { 0% { transform: translateX(-1px); } 50% { transform: translateX(1px); } }
   @keyframes maraca { 0% { transform: translate(0, 0); } 50% { transform: translate(1px, -1px); } }
-  @keyframes confeti { 0% { transform: translate(0, 0); opacity: 0; }
-                       12%, 70% { opacity: 1; }
-                       100% { transform: translate(var(--cx), var(--cy)); opacity: 0; } }
+  /* La lagrima baja a saltos de pixel entero. Con steps(1, end) y el
+     transform escrito solo en 0 % y 100 %, el salto caia justo al final del
+     ciclo: no bajaba nunca, aparecia y se quedaba quieta. Cada parada tiene
+     que ser un fotograma propio. */
   @keyframes gota { 0% { transform: translateY(0); opacity: 0; }
-                    20%, 85% { opacity: 1; }
-                    100% { transform: translateY(9px); opacity: 0; } }
+                    15% { transform: translateY(0); opacity: 1; }
+                    30% { transform: translateY(1px); }
+                    45% { transform: translateY(3px); }
+                    60% { transform: translateY(5px); }
+                    75% { transform: translateY(7px); opacity: 1; }
+                    90%, 100% { transform: translateY(9px); opacity: 0; } }
   @keyframes interr { 0% { transform: translateY(3px); opacity: 0; }
                       25% { transform: translateY(0); opacity: 1; }
                       85% { opacity: 1; } 100% { opacity: 0; } }
   @keyframes rubor { 0% { opacity: .45; } 50% { opacity: 1; } }
+  /* Hasta -7 y no -8: a -8 el aro de la lupa (x=32) quedaba pegado a la cuenca
+     derecha (x=31) un cuarto del ciclo, y las dos se leian como una sola
+     mancha. */
   @keyframes lupa { 0% { transform: translate(0, 0); } 25% { transform: translate(-4px, 2px); }
-                    50% { transform: translate(-8px, 0); } 75% { transform: translate(-3px, 2px); } }
+                    50% { transform: translate(-7px, 0); } 75% { transform: translate(-3px, 2px); } }
 
   /* Cabeceo del DJ: sólo baja y va hacia la izquierda. Si se moviera a la
      derecha, el auricular (x=33) chocaría con la primera barra (x=34). */
@@ -2556,7 +2806,6 @@ ${FLIP_CSS}
                     71.4% { transform: translateX(-15px); opacity: 1; }
                     85.7% { transform: translateX(-18px); opacity: 1; }
                     100% { transform: translateX(-18px); opacity: 0; } }
-  /* El eructo aparece al 75 % del bucle, que es cuando la boca se abre. */
   /* El "no" de toda la vida: la cabeza barre de un lado a otro. Tres píxeles
      de recorrido, que con uno parecía un temblor y no una negación. */
   @keyframes niega { 0% { transform: translateX(-3px); } 50% { transform: translateX(3px); } }
@@ -2565,16 +2814,17 @@ ${FLIP_CSS}
                     36%, 100% { opacity: 1; } }
 
   /* ── el estreno de versión ────────────────────────────────────────────────
-     Un solo reloj de 1,8 s y cada capa entra y sale por porcentajes de ese
+     Un solo reloj de 2,8 s y cada capa entra y sale por porcentajes de ese
      mismo reloj. Las duraciones van literales y con longhands, nunca con el
      atajo animation: el atajo reinicia animation-duration a 0s, y una duración
      en var() se recrearía entera cada vez que algo escriba otra variable CSS.
 
-       0-10 %   reposo, para que lo siguiente se lea como interrupción
-       10-50 %  la barra cruza a tirones; ojos girando y tres bocas
-       50-64 %  destello blanco con la versión en grande
-       64-80 %  el blanco se funde con el fondo
-       80-100 % la cara se revela píxel a píxel                              */
+       0-6 %    reposo, para que lo siguiente se lea como interrupción
+       6-67 %   la barra cruza a tirones; ojos girando y la lengua
+       68-77 %  destello blanco con la versión en grande
+       77-87 %  el blanco se funde con el fondo (el micro y el texto entran
+                fundiéndose desde el 80 %)
+       87-100 % la cara se revela píxel a píxel                              */
   .u-ini, .u-carga, .u-fin, .u-barra, .u-blanco, .u-entra {
     animation-duration: 2.8s;
     animation-iteration-count: 1;
@@ -2586,9 +2836,9 @@ ${FLIP_CSS}
 
   .u-carga { opacity: 0; animation-name: u-carga; animation-timing-function: steps(1, end); }
   @keyframes u-carga { 0%, 5% { opacity: 0; } 6%, 67% { opacity: 1; } 68%, 100% { opacity: 0; } }
-  /* Los dos flipbooks arrancan cuando arranca su tiempo, no cuando se monta la
-     escena: si no entran a media vuelta y la tercera boca se queda fuera. Un
-     ciclo de bocas y dos de ojos caben justos en los 720 ms. */
+  /* Los dos flipbooks arrancan cuando arranca su tiempo (el 6 %, a los .17 s),
+     no cuando se monta la escena: si no, los ojos y la lengua entrarian a
+     media vuelta. */
   .u-carga .flip > g { animation-delay: .17s; }
 
   /* La barra. Molde de .cinta —scaleX con el origen a la izquierda— pero la
@@ -2634,17 +2884,21 @@ ${FLIP_CSS}
   @keyframes u-entra { 0%, 80% { opacity: 0; } 100% { opacity: 1; } }
 
   /* ── el mareo, sólo al zarandear la onda mientras la colocas ───────────── */
-  /* Bamboleo: un píxel a cada lado. Con dos ya no parecía mareo sino temblor. */
+  /* Bamboleo: un píxel a cada lado. Con dos ya no parecía mareo sino temblor.
+     Los dos botes van hacia ABAJO: la cara del carrito vive en y=2, y el bote
+     hacia arriba sacaba los ojos del lienzo por la fila de arriba. */
   @keyframes vagoneta { 0% { transform: translateY(0); }
-                        25% { transform: translate(1px, -1px); }
+                        25% { transform: translate(1px, 1px); }
                         50% { transform: translateY(0); }
                         75% { transform: translate(-1px, 1px); } }
   @keyframes mareo { 0% { transform: translateX(-1px); } 25% { transform: translateX(0); }
                      50% { transform: translateX(1px); } 75% { transform: translateX(0); } }
-  /* Las chispas dan la vuelta por las cuatro esquinas de un cuadrado de 4 px:
-     en pixel-art un círculo de verdad se sale de la rejilla entera. */
-  @keyframes orbita { 0% { transform: translate(0, 0); } 25% { transform: translate(4px, 2px); }
-                      50% { transform: translate(0, 4px); } 75% { transform: translate(-4px, 2px); } }
+  /* Las chispas dan la vuelta por las cuatro esquinas de un rombo de 4 px de
+     lado: en pixel-art un círculo de verdad se sale de la rejilla entera. Iban
+     por uno de 8 de ancho y desde que hay brazos no cabe: a la izquierda
+     pisaba la mano abierta. */
+  @keyframes orbita { 0% { transform: translate(0, 0); } 25% { transform: translate(2px, 2px); }
+                      50% { transform: translate(0, 4px); } 75% { transform: translate(-2px, 2px); } }
   /* El trago: la cara aguanta arriba y en el último cuarto baja de golpe. */
   @keyframes glup { 0%, 74% { transform: translateY(0); }
                     75%, 88% { transform: translateY(1px); }
@@ -2658,10 +2912,6 @@ ${FLIP_CSS}
   @keyframes arcada { 0%, 20% { transform: translate(0, 0); }
                       25% { transform: translate(0, -1px); }
                       30%, 100% { transform: translate(0, 1px); } }
-  /* El chorro sale en el mismo cuadro en que la boca se abre (20 %) y describe
-     un arco hacia la derecha y abajo. En arco y no en caída recta porque la
-     pantalla sólo tiene 16 px de alto (y=2 a 17) y la boca ya acaba en y=14:
-     cayendo a plomo se salía del lienzo antes de leerse. */
   /* Un solo recorrido para las tres sueltas: sale de la boca, describe el arco
      hacia la derecha y se apaga al llegar al suelo. En arco y no a plomo porque
      cayendo recto se sale del lienzo — la boca ya acaba en y=14 de 17. */
@@ -2672,25 +2922,13 @@ ${FLIP_CSS}
                       20% { transform: translate(6px, 3px); }
                       24% { transform: translate(8px, 4px); opacity: 1; }
                       26%, 100% { opacity: 0; } }
-  @keyframes vomito { 0%, 18% { transform: translate(0, 0); opacity: 0; }
-                      20% { transform: translate(0, 0); opacity: 1; }
-                      32% { transform: translate(2px, 1px); }
-                      44% { transform: translate(4px, 2px); }
-                      56% { transform: translate(6px, 3px); }
-                      68% { transform: translate(8px, 4px); opacity: 1; }
-                      76%, 100% { transform: translate(9px, 5px); opacity: 0; } }
-  /* El hilo que queda colgando de la comisura, y que se corta al limpiarse. */
-  @keyframes escurre { 0%, 24% { transform: scaleY(0); opacity: 0; }
-                       28% { transform: scaleY(.34); opacity: 1; }
-                       44% { transform: scaleY(.67); }
-                       60%, 74% { transform: scaleY(1); opacity: 1; }
-                       78%, 100% { transform: scaleY(1); opacity: 0; } }
   /* El charco no se va: aparece cuando aterriza el primer chorro, crece con el
      segundo y se queda hasta el final del ciclo. */
   @keyframes charco { 0%, 22% { opacity: 0; } 26%, 100% { opacity: 1; } }
   @keyframes charco2 { 0%, 55% { opacity: 0; } 59%, 100% { opacity: 1; } }
   @keyframes charco3 { 0%, 88% { opacity: 0; } 92%, 100% { opacity: 1; } }
 
+  /* El eructo aparece al 75 % del bucle, que es cuando la boca se abre. */
   @keyframes eructo { 0% { transform: translate(0, 0); opacity: 0; }
                       75% { transform: translate(0, 0); opacity: 1; }
                       81% { transform: translate(2px, -1px); opacity: 1; }
@@ -2699,21 +2937,19 @@ ${FLIP_CSS}
                       100% { transform: translate(8px, -4px); opacity: 0; } }
 
   .a-resp { animation: resp 2s steps(1, end) infinite; }
-  .a-mira { animation: mira 2.4s steps(1, end) infinite; }
   /* La pupila que sigue al cursor. Va con TRANSICION y no con animacion porque
      lo que manda es una posicion, no un ciclo. Y la transicion corta no es
      decoracion: hace que el ojo llegue con un pelin de retraso, que es lo que lo
      hace parecer vivo en vez de pegado al raton. */
-  .a-pupila { transform: translate(calc(var(--mx, 0) * 1px), calc(var(--my, 0) * 1px));
-              transition: transform .12s linear; }
+  /* La pupila salta de casilla en casilla (-1, 0, 1): el HUD sólo escribe
+     enteros. Sin transición a propósito, que deslizándose pasaría por medio
+     píxel igual que cualquier otro sprite. */
+  .a-pupila { transform: translate(calc(var(--mx, 0) * 1px), calc(var(--my, 0) * 1px)); }
   .a-asiente { animation: asiente .8s steps(1, end) infinite; }
   .a-atento { animation: atento .9s steps(1, end) infinite; }
   .a-busca { animation: busca 1.2s steps(1, end) infinite; }
-  .a-piensa { animation: piensa 1.6s steps(1, end) infinite; }
+  .a-piensa { animation: piensa 1.2s steps(1, end) infinite; }
   .a-leer { animation: leer .52s steps(1, end) infinite; }
-  .a-zzz { animation: sube 1.8s linear infinite; }
-  .a-zzz2 { animation: sube 1.8s linear .9s infinite; }
-  .a-nota { animation: sube 1.6s linear infinite; }
   .a-lapiz { animation: lapiz .3s steps(1, end) infinite; }
   .a-renglon { animation: renglon 1.4s steps(1, end) infinite;
                transform-box: fill-box; transform-origin: left center; }
@@ -2722,23 +2958,24 @@ ${FLIP_CSS}
   .a-pt1 { animation: punto .9s steps(1, end) infinite; }
   .a-pt2 { animation: punto .9s steps(1, end) .15s infinite; }
   .a-pt3 { animation: punto .9s steps(1, end) .3s infinite; }
-  .a-foco { animation: foco 1.2s steps(1, end) infinite; }
   .a-chispa1 { animation: chispa 1s steps(1, end) infinite; }
   .a-chispa2 { animation: chispa 1s steps(1, end) .35s infinite; }
-  .a-lentes { animation: lentes 1.8s steps(1, end) infinite; }
-  .a-brillo { animation: brillo 1.8s steps(1, end) infinite; }
+  .a-lentes { animation: lentes 1.4s steps(1, end) infinite; }
+  .a-brillo { animation: brillo 1.4s steps(1, end) infinite; }
   .a-pulgar { animation: pulgar 1.4s steps(1, end) infinite; }
   .a-baila { animation: baila .4s steps(1, end) infinite; }
   .a-mar1 { animation: maraca .4s steps(1, end) infinite; }
   .a-mar2 { animation: maraca .4s steps(1, end) .2s infinite; }
-  .a-confeti rect { animation: confeti 1.4s linear infinite; }
   .a-gota { animation: gota 1.3s steps(1, end) infinite; }
-  .a-interr { animation: interr 1.6s steps(1, end) infinite; }
+  .a-interr { animation: interr 1.2s steps(1, end) infinite; }
   .a-rubor { animation: rubor 1.2s steps(1, end) infinite; }
-  .a-lupa { animation: lupa 1.6s steps(1, end) infinite; }
+  .a-lupa { animation: lupa 1.2s steps(1, end) infinite; }
   .a-dj { animation: dj .8s steps(1, end) infinite; }
   .a-niega { animation: niega .36s steps(1, end) infinite; }
-  .a-aspa { opacity: 0; animation: aspa 1.44s steps(1, end) infinite; }
+  /* El aspa se estampa una vez y se queda (forwards). En bucle se apagaba y
+     volvia a estamparse a los 1,44 s, dentro de los 2,2 s que se ve el
+     cancelado: dos tachones para un solo no. */
+  .a-aspa { opacity: 0; animation: aspa 1.44s steps(1, end) forwards; }
   /* El carrito sobre el riel: sube y baja un píxel en diagonal, que es lo que
      lee como "va rodando" sin mover la cara de sitio. */
   .a-vagon { animation: vagoneta .48s steps(1, end) infinite; }
@@ -2787,5 +3024,5 @@ export const ESTADOS: { key: FaceState; titulo: string; cuando: string }[] = [
   { key: "pensando", titulo: "Escribiendo", cuando: "Transcribiendo y puliendo lo que dijiste (1-3 s)." },
   { key: "listo", titulo: "Listo", cuando: "Con el texto ya pegado. La de los lentes sale cuando el dictado va en español, y el eructo sólo si antes te salió la carita comilona." },
   { key: "no-entendi", titulo: "No entendí", cuando: "El audio venía mudo o no se entendió nada." },
-  { key: "reposo", titulo: "En reposo", cuando: "El instante antes de empezar a grabar." },
+  { key: "reposo", titulo: "En reposo", cuando: "Con la onda clavada y sin dictar. Masca chicle, silba o duerme en historias de un minuto que nunca se repiten, respira, o te sigue con la mirada." },
 ];
