@@ -841,12 +841,25 @@ fn transcribir_completo(
     opts: &SttOpts,
     parakeet: &mut Option<ParakeetStt>,
     groq: &mut GroqStt,
+    modelo_local: Option<&std::path::Path>,
 ) -> anyhow::Result<(String, &'static str)> {
     match engine {
         EngineKind::Groq => match groq.transcribe(pcm, opts) {
             Ok(t) => Ok((t, "groq")),
             Err(e) => {
-                // Fallback transparente al motor local.
+                // Respaldo en el motor local. Con Groq puesto el modelo no está
+                // en memoria —sólo se carga al dictar con Parakeet—, así que sin
+                // esto el respaldo no saltaba nunca: se carga aquí si está
+                // descargado. Sin red, esperar la carga es mejor que perder el
+                // dictado; el reposo lo vuelve a soltar a los 10 s.
+                if parakeet.is_none() {
+                    if let Some(dir) = modelo_local {
+                        match ParakeetStt::load(dir) {
+                            Ok(m) => *parakeet = Some(m),
+                            Err(e2) => log::warn!("Respaldo local: no cargó ({e2:#})"),
+                        }
+                    }
+                }
                 if let Some(p) = parakeet.as_mut() {
                     log::warn!("Groq falló ({e}), usando Parakeet local");
                     Ok((parakeet_por_trozos(p, pcm, opts)?, "parakeet"))
@@ -932,6 +945,11 @@ fn procesar(
         if engine == EngineKind::Parakeet && parakeet.is_none() {
             absorb_load(parakeet, parakeet_loading, true)?;
         }
+        // Para el respaldo de Groq, si el modelo local está en disco.
+        let modelo_local = (engine == EngineKind::Groq
+            && matches!(models::status(app), ModelStatus::Ready))
+        .then(|| models::model_dir(app));
+        let modelo_local = modelo_local.as_deref();
         let (raw, engine_name) = if vivo.hay_trozos() {
             // Casi todo llegó transcrito mientras hablabas; aquí sólo se espera
             // al último trozo.
@@ -939,11 +957,11 @@ fn procesar(
                 Some(texto) => (texto, "groq"),
                 None => {
                     log::warn!("Troceo incompleto: se reintenta el audio entero");
-                    transcribir_completo(pcm, engine, &vivo.opts, parakeet, groq)?
+                    transcribir_completo(pcm, engine, &vivo.opts, parakeet, groq, modelo_local)?
                 }
             }
         } else {
-            transcribir_completo(pcm, engine, &vivo.opts, parakeet, groq)?
+            transcribir_completo(pcm, engine, &vivo.opts, parakeet, groq, modelo_local)?
         };
         let stt_ms = t0.elapsed().as_millis() as i64;
         log::info!("STT [{engine_name}] {stt_ms} ms: {raw}");
