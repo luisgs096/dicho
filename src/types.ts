@@ -127,8 +127,10 @@ export const KEY_LABELS: Record<string, string> = {
   MetaRight: "Win Der",
   Alt: "Alt",
   AltGr: "AltGr",
-  ShiftLeft: "Shift",
-  ShiftRight: "Shift Der",
+  // Mayús y no Shift: es lo que lleva impreso el teclado en español, lo que
+  // pinta el teclado gráfico de Inicio y lo que dicen todos los textos.
+  ShiftLeft: "Mayús",
+  ShiftRight: "Mayús Der",
   Space: "Espacio",
   Escape: "Esc",
   Tab: "Tab",

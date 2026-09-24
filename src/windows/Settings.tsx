@@ -143,6 +143,7 @@ export function Section(props: {
   const labs = props.tono === "labs";
   return (
     <section
+      id={`seccion-${props.id}`}
       className={`rounded-2xl border p-5 shadow-sm ${
         labs
           ? "border-emerald-300 bg-emerald-50/70 dark:border-emerald-800/60 dark:bg-emerald-950/30"
@@ -431,6 +432,85 @@ const MODIFIERS = new Set([
   "ShiftRight",
 ]);
 
+/** El atajo del escribano de fábrica: Windows no se queda esta combinación y
+ *  casi ninguna app la usa. Es el mismo que pone la casilla de LABS. */
+const ESCRIBANO_DE_FABRICA = ["MetaLeft", "ShiftLeft", "KeyC"];
+
+/** ¿Uno de los dos atajos está entero dentro del otro? Entonces chocan: al
+ *  apretar el grande, el chico se completa por el camino y salta primero. */
+const seSolapan = (a: string[], b: string[]) =>
+  a.length > 0 &&
+  b.length > 0 &&
+  (a.every((k) => b.includes(k)) || b.every((k) => a.includes(k)));
+
+/** Lo que impide guardar un atajo del escribano, o null si vale.
+ *
+ *  Es un disparo, no un mantener pulsado como el de dictar, y de ahí sale la
+ *  regla que el de dictar no tiene: **necesita una tecla normal**. Sólo con
+ *  modificadores saltaría de camino a cualquier otro atajo que empiece igual
+ *  —con Win + Mayús, cada captura de pantalla con Win + Mayús + S—. */
+function problemaAtajoEscribano(
+  combo: string[],
+  dictar: string[],
+  cancelar: string | null,
+): string | null {
+  if (combo.length === 0) return null;
+  if (!combo.some((k) => MODIFIERS.has(k)))
+    return "Incluye al menos un modificador (Ctrl, Win, Alt o Mayús): sin él saltaría cada vez que escribes esa tecla.";
+  if (combo.every((k) => MODIFIERS.has(k)))
+    return "Añade una tecla normal, una letra por ejemplo: sólo con modificadores saltaría de camino a cualquier otro atajo que los use.";
+  if (cancelar && combo.includes(cancelar))
+    return "Tu tecla de cancelar no puede ir aquí: fuera de un dictado es la que despide al escribano.";
+  if (seSolapan(combo, dictar))
+    return combo.every((k) => dictar.includes(k))
+      ? "Cabe dentro de tu atajo de dictar: cada vez que dictaras saltaría también el escribano."
+      : "Lleva dentro tu atajo de dictar entero: al apretarlo empezaría a grabar antes de llegar a la última tecla.";
+  return null;
+}
+
+/** Combinaciones que Windows o casi todas las apps ya usan. No impiden guardar
+ *  —Dicho escucha sin quitarle la tecla a nadie, así que pasarían las dos cosas
+ *  a la vez—, pero hay que decirlo antes y no después. */
+const CHOQUES_ESCRIBANO: [string[], string][] = [
+  [["Win", "Mayús", "KeyS"], "Win + Mayús + S hace una captura de pantalla"],
+  [["Win", "KeyL"], "Win + L bloquea la sesión"],
+  [["Win", "KeyD"], "Win + D minimiza todo"],
+  [["Win", "KeyE"], "Win + E abre el explorador"],
+  [["Win", "KeyR"], "Win + R abre Ejecutar"],
+  [["Win", "KeyV"], "Win + V abre el historial del portapapeles"],
+  [["Win", "Dot"], "Win + . abre los emojis"],
+  [["Ctrl", "KeyC"], "Ctrl + C copia, y en una terminal interrumpe lo que corre"],
+  [["Ctrl", "KeyV"], "Ctrl + V pega en todas partes"],
+  [["Ctrl", "KeyX"], "Ctrl + X corta en todas partes"],
+  [["Ctrl", "KeyZ"], "Ctrl + Z deshace en todas partes"],
+  [["Ctrl", "KeyA"], "Ctrl + A selecciona todo"],
+  [["Ctrl", "KeyS"], "Ctrl + S guarda en casi todas las apps"],
+];
+
+/** Izquierda o derecha da igual para saber con qué choca: Windows no distingue
+ *  el Win de un lado del otro. */
+const teclaSinLado = (k: string) =>
+  k.startsWith("Meta")
+    ? "Win"
+    : k.startsWith("Control")
+      ? "Ctrl"
+      : k.startsWith("Shift")
+        ? "Mayús"
+        : k;
+
+function choqueDelEscribano(combo: string[]): string | null {
+  const suyo = new Set(combo.map(teclaSinLado));
+  const hit = CHOQUES_ESCRIBANO.find(
+    ([teclas]) =>
+      teclas.length === suyo.size && teclas.every((t) => suyo.has(t)),
+  );
+  return hit ? hit[1] : null;
+}
+
+/** Qué atajo se está editando en el teclado: el de dictar, la tecla para
+ *  cancelar o el del escribano. */
+type Destino = "atajo" | "cancelar" | "corregir";
+
 /** Para qué está elegida una tecla. Las tres se pintan **a la vez** y cada una
  *  con su color, así que de un vistazo ves cómo tienes configurado todo sin
  *  tener que cambiar de pestaña: azul dicta, naranja cancela, verde corrige.
@@ -438,12 +518,9 @@ const MODIFIERS = new Set([
  *  El verde no es un color cualquiera: es el de LABS, y el escribano vive ahí.
  *  Que la tecla lleve el color de su sección dice, sin una línea de texto, que
  *  esa función es de las que todavía se están cociendo. */
-type Papel = "atajo" | "cancelar" | "corregir" | null;
+type Papel = Destino | null;
 
-const PAPELES: Record<
-  "atajo" | "cancelar" | "corregir",
-  { clase: string; titulo: string }
-> =
+const PAPELES: Record<Destino, { clase: string; titulo: string }> =
   {
     atajo: {
       clase:
@@ -501,35 +578,44 @@ function Cap(props: {
 
 /** El teclado gráfico.
  *
- *  Sirve para dos cosas a la vez: elegir el atajo de dictado y elegir la tecla
- *  para cancelar. Las dos se ven **siempre**, cada una con su color —azul dicta,
- *  naranja cancela—, así que de un vistazo sabes cómo tienes configurado todo.
- *  `destino` sólo decide a cuál de las dos va lo que pulses.
+ *  Sirve para los tres atajos a la vez: el de dictar, la tecla para cancelar y
+ *  el del escribano. Los tres se ven **siempre**, cada uno con su color —azul
+ *  dicta, naranja cancela, verde corrige—, así que de un vistazo sabes cómo
+ *  tienes configurado todo. `destino` decide a cuál va lo que pulses.
  *
  *  Un único esqueleto, el de portátil, y dos idiomas. El selector de idioma no
  *  cambia nada por dentro: mueve lo que dice cada tecla para que la encuentres
- *  mirando tu teclado de verdad. */
+ *  mirando tu teclado de verdad. Por eso va **debajo** del teclado y en
+ *  pequeño: es una ayuda para leerlo, no una decisión, y arriba estorbaba. */
 export function KeyboardPicker(props: {
   selected: string[];
   cancelar: string | null;
   corregir: string[];
-  destino: "atajo" | "cancelar";
+  destino: Destino;
   onToggle: (code: string) => void;
 }) {
   const [idioma, setIdioma] = useState<Idioma>("es");
-  // El orden importa: una tecla que esté en dos sitios se pinta con el primero
-  // que la reclame. Dictar manda sobre cancelar y cancelar sobre corregir,
-  // porque es el orden en el que molesta equivocarse.
-  const papelDe = (code: string | null): Papel =>
-    code === null
-      ? null
-      : props.selected.includes(code)
-        ? "atajo"
-        : props.cancelar === code
-          ? "cancelar"
-          : props.corregir.includes(code)
-            ? "corregir"
-            : null;
+  // Una tecla puede estar en dos atajos a la vez —el Win del de dictar y el del
+  // escribano, con los de fábrica— y sólo se puede pintar de un color. Gana el
+  // atajo que estás editando: si no, al armar el del escribano no verías en
+  // verde sus propias teclas. Del resto, dictar manda sobre cancelar y cancelar
+  // sobre corregir, que es el orden en el que molesta equivocarse.
+  const papelDe = (code: string | null): Papel => {
+    if (code === null) return null;
+    const tiene: Record<Destino, boolean> = {
+      atajo: props.selected.includes(code),
+      cancelar: props.cancelar === code,
+      corregir: props.corregir.includes(code),
+    };
+    if (tiene[props.destino]) return props.destino;
+    return tiene.atajo
+      ? "atajo"
+      : tiene.cancelar
+        ? "cancelar"
+        : tiene.corregir
+          ? "corregir"
+          : null;
+  };
   const cap = (k: KbKey, i: number, extra?: string) => (
     <Cap
       key={i}
@@ -575,24 +661,8 @@ export function KeyboardPicker(props: {
 
   return (
     <div>
+      {/* La leyenda: sin ella, tres colores en un teclado son tres colores. */}
       <div className="mb-2 flex flex-wrap items-center gap-3">
-        <div className="inline-flex rounded-lg border border-slate-200 p-0.5 dark:border-slate-700">
-          {IDIOMAS.map((i) => (
-            <button
-              key={i.id}
-              onClick={() => setIdioma(i.id)}
-              title={i.nombre}
-              className={`rounded-md px-3 py-1 font-mono text-xs font-bold tracking-wider transition-colors ${
-                idioma === i.id
-                  ? "bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900"
-                  : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              }`}
-            >
-              {i.corto}
-            </button>
-          ))}
-        </div>
-        {/* La leyenda: sin ella, dos colores en un teclado son dos colores. */}
         <span className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
           <span className="h-2.5 w-2.5 rounded-sm bg-blue-600" />
           dicta
@@ -601,18 +671,40 @@ export function KeyboardPicker(props: {
           <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" />
           cancela
         </span>
-        {props.corregir.length > 0 && (
-          <span className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-            <span className="h-2.5 w-2.5 rounded-sm bg-emerald-600" />
-            corrige
-          </span>
-        )}
+        <span className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+          <span className="h-2.5 w-2.5 rounded-sm bg-emerald-600" />
+          escribano
+        </span>
       </div>
 
       <div className="flex gap-2 rounded-xl bg-slate-100 p-2 dark:bg-slate-950/60">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           {MAIN_ROWS(idioma).map(fila)}
           {fila(BOTTOM_ROW_LAPTOP, 99)}
+        </div>
+      </div>
+
+      <div className="mt-1.5 flex items-center justify-end gap-2">
+        <span className="text-[10px] text-slate-400 dark:text-slate-500">
+          Rótulos de las teclas
+        </span>
+        <div className="inline-flex rounded-md border border-slate-200 p-0.5 dark:border-slate-700">
+          {IDIOMAS.map((i) => (
+            <button
+              key={i.id}
+              type="button"
+              onClick={() => setIdioma(i.id)}
+              title={i.nombre}
+              aria-pressed={idioma === i.id}
+              className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider transition-colors ${
+                idioma === i.id
+                  ? "bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900"
+                  : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              }`}
+            >
+              {i.corto}
+            </button>
+          ))}
         </div>
       </div>
     </div>
@@ -650,6 +742,11 @@ export default function Settings() {
   const [googleError, setGoogleError] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
   const [hotkeyDraft, setHotkeyDraft] = useState<string[] | null>(null);
+  // Qué atajo se edita en el teclado, y el borrador del escribano. Van aquí
+  // arriba y no junto a su uso porque el borrador se lee al pintar: declarado
+  // más abajo, el render reventaría antes de llegar a él.
+  const [destinoTecla, setDestinoTecla] = useState<Destino>("atajo");
+  const [escribanoDraft, setEscribanoDraft] = useState<string[] | null>(null);
   // `update` ya es el actualizador de ajustes de esta pantalla: el de versiones
   // va con nombre propio para no pisarlo.
   const {
@@ -758,7 +855,34 @@ export default function Settings() {
     hotkeyDraft !== null &&
     (draft.length !== currentHotkey.length ||
       draft.some((k) => !currentHotkey.includes(k)));
+  // El del escribano: igual que el de dictar, un borrador hasta que se guarda.
+  const currentEscribano = settings?.corregir_atajo ?? [];
+  const escribano = escribanoDraft ?? currentEscribano;
+  const escribanoChanged =
+    escribanoDraft !== null &&
+    (escribano.length !== currentEscribano.length ||
+      escribano.some((k) => !currentEscribano.includes(k)));
+  const problemaEscribano = problemaAtajoEscribano(
+    escribano,
+    currentHotkey,
+    settings?.cancelar ?? null,
+  );
+  // Y al revés: un atajo de dictar nuevo tampoco puede pisar al del escribano.
+  const dictarChocaEscribano =
+    draftChanged && seSolapan(draft, currentEscribano);
+
   const toggleKey = (code: string) => {
+    if (destinoTecla === "corregir") {
+      const base = escribanoDraft ?? currentEscribano;
+      setEscribanoDraft(
+        base.includes(code)
+          ? base.filter((k) => k !== code)
+          : base.length >= 4
+            ? base
+            : [...base, code],
+      );
+      return;
+    }
     if (destinoTecla === "cancelar") {
       // Una tecla del propio atajo no vale: la de cancelar se pulsa CON el
       // atajo apretado, así que elegir una de sus teclas haría que cada dictado
@@ -819,9 +943,6 @@ export default function Settings() {
     },
   };
 
-  const [destinoTecla, setDestinoTecla] = useState<"atajo" | "cancelar">(
-    "atajo",
-  );
   const [avisoTecla, setAvisoTecla] = useState<string | null>(null);
 
   const googleLogin = () => {
@@ -910,43 +1031,32 @@ export default function Settings() {
               <>
                 <Section
                   id="atajo"
-                  title="Atajo para dictar"
-                  hint="Mantén estas teclas y habla; suéltalas y el texto aparece donde estés escribiendo. Haz clic en el teclado para armar tu combinación (máximo 4 teclas, al menos un modificador como Ctrl, Win, Alt o Mayús)."
+                  title="Atajos de teclado"
+                  hint="Los tres viven en el mismo teclado, cada uno con su color: el de dictar (mantenlo apretado y habla), la tecla para cancelar a media grabación y el del escribano. Elige cuál quieres cambiar y haz clic en las teclas."
                 >
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <span className={labelCls}>Combinación:</span>
-                    {draft.length === 0 ? (
-                      <span className="text-xs text-amber-600 dark:text-amber-400">
-                        elige al menos una tecla
-                      </span>
-                    ) : (
-                      draft.map((k) => (
-                        <kbd
-                          key={k}
-                          className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300"
-                        >
-                          {keyLabel(k)}
-                        </kbd>
-                      ))
-                    )}
-                  </div>
-
-                  {/* Un solo teclado para las dos teclas: el atajo y la de
-                      cancelar. Dos teclados en pantalla serían el doble de
-                      sitio para lo mismo. */}
-                  <div className="mb-2 inline-flex rounded-lg border border-slate-200 p-0.5 dark:border-slate-700">
+                  {/* Un solo teclado para los tres: tres teclados en pantalla
+                      serían el triple de sitio para lo mismo. El botón activo
+                      lleva el color de su atajo, el mismo que pinta sus
+                      teclas. */}
+                  <div className="mb-3 inline-flex flex-wrap rounded-lg border border-slate-200 p-0.5 dark:border-slate-700">
                     {(
                       [
-                        ["atajo", "Atajo para dictar"],
-                        ["cancelar", "Tecla para cancelar"],
+                        ["atajo", "Atajo para dictar", "bg-blue-600"],
+                        ["cancelar", "Tecla para cancelar", "bg-amber-500"],
+                        ["corregir", "Atajo del escribano", "bg-emerald-600"],
                       ] as const
-                    ).map(([id, txt]) => (
+                    ).map(([id, txt, color]) => (
                       <button
                         key={id}
-                        onClick={() => setDestinoTecla(id)}
+                        type="button"
+                        aria-pressed={destinoTecla === id}
+                        onClick={() => {
+                          setDestinoTecla(id);
+                          setAvisoTecla(null);
+                        }}
                         className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                           destinoTecla === id
-                            ? "bg-blue-600 text-white"
+                            ? `${color} text-white`
                             : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                         }`}
                       >
@@ -954,15 +1064,80 @@ export default function Settings() {
                       </button>
                     ))}
                   </div>
+
+                  <div className="mb-2 flex min-h-[28px] flex-wrap items-center gap-2">
+                    <span className={labelCls}>
+                      {destinoTecla === "cancelar" ? "Tecla:" : "Combinación:"}
+                    </span>
+                    {destinoTecla === "atajo" &&
+                      (draft.length === 0 ? (
+                        <span className="text-xs text-amber-600 dark:text-amber-400">
+                          elige al menos una tecla
+                        </span>
+                      ) : (
+                        draft.map((k) => (
+                          <kbd
+                            key={k}
+                            className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300"
+                          >
+                            {keyLabel(k)}
+                          </kbd>
+                        ))
+                      ))}
+                    {destinoTecla === "cancelar" &&
+                      (settings?.cancelar ? (
+                        <kbd className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+                          {keyLabel(settings.cancelar)}
+                        </kbd>
+                      ) : (
+                        <span className="text-xs text-slate-400">
+                          ninguna: los dictados no se pueden cancelar
+                        </span>
+                      ))}
+                    {destinoTecla === "corregir" &&
+                      (escribano.length === 0 ? (
+                        <span className="text-xs text-slate-400">
+                          {escribanoChanged
+                            ? "elige al menos una tecla"
+                            : "sin atajo: el escribano está apagado"}
+                        </span>
+                      ) : (
+                        escribano.map((k) => (
+                          <kbd
+                            key={k}
+                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                          >
+                            {keyLabel(k)}
+                          </kbd>
+                        ))
+                      ))}
+                  </div>
                   <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
                     {destinoTecla === "atajo"
-                      ? "Haz clic en las teclas que quieres mantener apretadas para dictar."
-                      : "Esta tecla tira el dictado a medias, mientras tienes el atajo apretado. Haz clic en la misma otra vez para quedarte sin ninguna."}
+                      ? "Haz clic en las teclas que quieres mantener apretadas para dictar (máximo 4, con al menos un modificador: Ctrl, Win, Alt o Mayús)."
+                      : destinoTecla === "cancelar"
+                        ? "Esta tecla tira el dictado a medias, mientras tienes el atajo apretado. Haz clic en la misma otra vez para quedarte sin ninguna."
+                        : "Con este atajo la onda corrige lo que tengas copiado sin que le hagas clic: es la otra forma de llamar al escribano. Máximo 4 teclas, con un modificador y una tecla normal."}
                   </p>
+                  {destinoTecla === "corregir" && !hasKey && (
+                    <p className="mb-2 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                      El escribano corrige con el mismo motor que el modo Editor,
+                      así que necesita la key de Groq (en Ajustes).
+                    </p>
+                  )}
+                  {destinoTecla === "corregir" &&
+                    hasKey &&
+                    currentEscribano.length === 0 && (
+                      <p className="mb-2 rounded-lg bg-emerald-50 px-2.5 py-2 text-xs text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
+                        El escribano está apagado. Guardar un atajo aquí lo
+                        enciende —es lo mismo que la casilla de LABS— y deja la
+                        onda clavada, porque se usa dándole un clic.
+                      </p>
+                    )}
                   <KeyboardPicker
                     selected={draft}
                     cancelar={settings?.cancelar ?? null}
-                    corregir={settings?.corregir_atajo ?? []}
+                    corregir={escribano}
                     destino={destinoTecla}
                     onToggle={toggleKey}
                   />
@@ -971,7 +1146,7 @@ export default function Settings() {
                       {avisoTecla}
                     </p>
                   )}
-                  {choqueConWindows && (
+                  {destinoTecla !== "corregir" && choqueConWindows && (
                     <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
                       <span className="font-semibold">Ojo:</span>
                       <span>
@@ -983,41 +1158,112 @@ export default function Settings() {
                     </p>
                   )}
 
-                  <div className="mt-3 flex items-center gap-2">
-                    <button
-                      className={btnCls}
-                      disabled={
-                        !draftChanged || draft.length === 0 || !draftHasModifier
-                      }
-                      onClick={() => {
-                        update({ hotkey: draft });
-                        setHotkeyDraft(null);
-                      }}
-                    >
-                      Guardar atajo
-                    </button>
-                    <button
-                      className={btnGhostCls}
-                      onClick={() =>
-                        setHotkeyDraft(["ControlLeft", "MetaLeft"])
-                      }
-                    >
-                      Restaurar Ctrl + Win
-                    </button>
-                    {draftChanged && (
-                      <button
-                        className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                        onClick={() => setHotkeyDraft(null)}
-                      >
-                        Descartar cambios
-                      </button>
-                    )}
-                  </div>
-                  {!draftHasModifier && draft.length > 0 && (
-                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                      Incluye al menos un modificador (Ctrl, Win, Alt o Mayús);
-                      si no, el dictado se activaría al escribir normal.
-                    </p>
+                  {destinoTecla === "atajo" && (
+                    <>
+                      {dictarChocaEscribano && (
+                        <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                          Choca con el atajo del escribano (
+                          {hotkeyLabel(currentEscribano)}): uno cabe dentro del
+                          otro, así que al apretar el grande saltaría también el
+                          chico. Cambia uno de los dos.
+                        </p>
+                      )}
+                      <div className="mt-3 flex items-center gap-2">
+                        <button
+                          className={btnCls}
+                          disabled={
+                            !draftChanged ||
+                            draft.length === 0 ||
+                            !draftHasModifier ||
+                            dictarChocaEscribano
+                          }
+                          onClick={() => {
+                            update({ hotkey: draft });
+                            setHotkeyDraft(null);
+                          }}
+                        >
+                          Guardar atajo
+                        </button>
+                        <button
+                          className={btnGhostCls}
+                          onClick={() =>
+                            setHotkeyDraft(["ControlLeft", "MetaLeft"])
+                          }
+                        >
+                          Restaurar Ctrl + Win
+                        </button>
+                        {draftChanged && (
+                          <button
+                            className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                            onClick={() => setHotkeyDraft(null)}
+                          >
+                            Descartar cambios
+                          </button>
+                        )}
+                      </div>
+                      {!draftHasModifier && draft.length > 0 && (
+                        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                          Incluye al menos un modificador (Ctrl, Win, Alt o
+                          Mayús); si no, el dictado se activaría al escribir
+                          normal.
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  {destinoTecla === "corregir" && (
+                    <>
+                      {problemaEscribano && (
+                        <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                          {problemaEscribano}
+                        </p>
+                      )}
+                      {!problemaEscribano && choqueDelEscribano(escribano) && (
+                        <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                          <span className="font-semibold">Ojo:</span>
+                          <span>
+                            {choqueDelEscribano(escribano)}. Dicho no le quita
+                            la tecla a nadie, así que harían las dos cosas a la
+                            vez.
+                          </span>
+                        </p>
+                      )}
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <button
+                          className={btnCls}
+                          disabled={
+                            !hasKey ||
+                            !escribanoChanged ||
+                            escribano.length === 0 ||
+                            problemaEscribano !== null
+                          }
+                          onClick={() => {
+                            update({ corregir_atajo: escribano });
+                            setEscribanoDraft(null);
+                          }}
+                        >
+                          {currentEscribano.length === 0
+                            ? "Guardar y encender"
+                            : "Guardar atajo"}
+                        </button>
+                        <button
+                          className={btnGhostCls}
+                          onClick={() =>
+                            setEscribanoDraft(ESCRIBANO_DE_FABRICA)
+                          }
+                        >
+                          Restaurar Win + Mayús + C
+                        </button>
+                        {escribanoChanged && (
+                          <button
+                            className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                            onClick={() => setEscribanoDraft(null)}
+                          >
+                            Descartar cambios
+                          </button>
+                        )}
+                      </div>
+                    </>
                   )}
                 </Section>
 
@@ -1233,7 +1479,7 @@ export default function Settings() {
                           onChange={(e) =>
                             update({
                               corregir_atajo: e.target.checked
-                                ? ["MetaLeft", "ShiftLeft", "KeyC"]
+                                ? ESCRIBANO_DE_FABRICA
                                 : [],
                             })
                           }
@@ -1249,6 +1495,28 @@ export default function Settings() {
                                 {hotkeyLabel(settings.corregir_atajo)}
                               </span>
                             )}
+                            {/* El atajo se cambia en el teclado de arriba, con
+                                los otros dos: aquí sólo se enciende. Esto lleva
+                                allí con el escribano ya elegido. */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setDestinoTecla("corregir");
+                                if (
+                                  settings.secciones_plegadas.includes("atajo")
+                                )
+                                  plegado.alternar("atajo");
+                                document
+                                  .getElementById("seccion-atajo")
+                                  ?.scrollIntoView({ behavior: "smooth" });
+                              }}
+                              className="text-[10px] font-medium text-emerald-700 underline decoration-dotted underline-offset-2 hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-200"
+                            >
+                              {settings.corregir_atajo.length > 0
+                                ? "cambiar atajo"
+                                : "elegir atajo"}
+                            </button>
                           </span>
                           <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
                             Copia un texto en cualquier programa y la onda se
