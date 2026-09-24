@@ -2688,9 +2688,17 @@ ${FLIP_CSS}
   @keyframes confeti { 0% { transform: translate(0, 0); opacity: 0; }
                        12%, 70% { opacity: 1; }
                        100% { transform: translate(var(--cx), var(--cy)); opacity: 0; } }
+  /* La lagrima baja a saltos de pixel entero. Con steps(1, end) y el
+     transform escrito solo en 0 % y 100 %, el salto caia justo al final del
+     ciclo: no bajaba nunca, aparecia y se quedaba quieta. Cada parada tiene
+     que ser un fotograma propio. */
   @keyframes gota { 0% { transform: translateY(0); opacity: 0; }
-                    20%, 85% { opacity: 1; }
-                    100% { transform: translateY(9px); opacity: 0; } }
+                    15% { transform: translateY(0); opacity: 1; }
+                    30% { transform: translateY(1px); }
+                    45% { transform: translateY(3px); }
+                    60% { transform: translateY(5px); }
+                    75% { transform: translateY(7px); opacity: 1; }
+                    90%, 100% { transform: translateY(9px); opacity: 0; } }
   @keyframes interr { 0% { transform: translateY(3px); opacity: 0; }
                       25% { transform: translateY(0); opacity: 1; }
                       85% { opacity: 1; } 100% { opacity: 0; } }
