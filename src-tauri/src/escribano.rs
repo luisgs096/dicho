@@ -81,6 +81,19 @@ pub fn desarmar() {
     ARMADO.store(false, Ordering::SeqCst);
 }
 
+/// El contador de cambios del portapapeles que lleva Windows. Leerlo no abre
+/// el portapapeles ni copia nada: si no cambió, no hay nada que mirar. 0 = no
+/// se sabe (o no es Windows) y se lee como siempre.
+#[cfg(windows)]
+fn version_portapapeles() -> u32 {
+    unsafe { windows_sys::Win32::System::DataExchange::GetClipboardSequenceNumber() }
+}
+
+#[cfg(not(windows))]
+fn version_portapapeles() -> u32 {
+    0
+}
+
 /// Arranca el vigilante. Una sola vez, al inicio de la app.
 pub fn vigilar(app: AppHandle, settings: SettingsState) {
     std::thread::spawn(move || {
@@ -91,6 +104,7 @@ pub fn vigilar(app: AppHandle, settings: SettingsState) {
                 ya_visto(&t);
             }
         }
+        let mut ultima = version_portapapeles();
         loop {
             std::thread::sleep(SONDEO);
             let activo = settings
@@ -100,10 +114,21 @@ pub fn vigilar(app: AppHandle, settings: SettingsState) {
             if !activo || crate::pipeline::grabando() {
                 continue;
             }
+            // Abrir el portapapeles y copiar su texto entero cada 400 ms, sin
+            // que haya cambiado nada, bloquea a las demás apps mientras dura.
+            let version = version_portapapeles();
+            if version != 0 && version == ultima {
+                continue;
+            }
             let Ok(mut c) = arboard::Clipboard::new() else {
                 continue;
             };
-            let Ok(texto) = c.get_text() else { continue };
+            let leido = c.get_text();
+            // Si otra app lo tenía abierto, se reintenta en la vuelta siguiente.
+            if !matches!(leido, Err(arboard::Error::ClipboardOccupied)) {
+                ultima = version;
+            }
+            let Ok(texto) = leido else { continue };
             if texto.trim().is_empty() {
                 continue;
             }
