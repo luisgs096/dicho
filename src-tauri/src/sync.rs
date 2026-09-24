@@ -16,7 +16,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::settings::SettingsState;
-use crate::store::Store;
+use crate::store::{Borrado, Store, TerminoRemoto};
 use crate::stt::groq::KEYRING_SERVICE;
 
 const KEYRING_GOOGLE: &str = "google_refresh_token";
@@ -42,15 +42,13 @@ pub struct GoogleStatus {
 #[derive(Serialize, Deserialize, Default)]
 struct SyncData {
     #[serde(default)]
-    dictionary: Vec<SyncDict>,
+    dictionary: Vec<TerminoRemoto>,
     #[serde(default)]
     history: Vec<SyncHist>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct SyncDict {
-    term: String,
-    replacement: Option<String>,
+    /// Lo borrado en cualquier equipo. Un respaldo viejo no lo trae y entra
+    /// vacío: no borra nada, que es lo que hacía antes.
+    #[serde(default)]
+    borrados: Vec<Borrado>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -322,14 +320,7 @@ async fn access_token(client: &reqwest::Client, app: &AppHandle) -> anyhow::Resu
 }
 
 fn export_local(store: &Store) -> anyhow::Result<SyncData> {
-    let dictionary = store
-        .dict_list()?
-        .into_iter()
-        .map(|d| SyncDict {
-            term: d.term,
-            replacement: d.replacement,
-        })
-        .collect();
+    let dictionary = store.dict_export()?;
     let history = store
         .list_history(None, SYNC_HISTORY_LIMIT)?
         .into_iter()
@@ -348,6 +339,7 @@ fn export_local(store: &Store) -> anyhow::Result<SyncData> {
     Ok(SyncData {
         dictionary,
         history,
+        borrados: store.borrados()?,
     })
 }
 
@@ -397,13 +389,13 @@ pub async fn sync_now(app: AppHandle) -> anyhow::Result<GoogleStatus> {
             .context("No se pudo descargar el archivo de sincronización")?
             .json()
             .await
-            .unwrap_or_default();
-        let dict_pairs: Vec<_> = remote
-            .dictionary
-            .iter()
-            .map(|d| (d.term.clone(), d.replacement.clone()))
-            .collect();
-        let added_dict = store.merge_dict(&dict_pairs)?;
+            // Ilegible no es vacío: tomarlo por vacío hacía que la subida de
+            // abajo pisara el archivo remoto con sólo lo de este equipo.
+            .context("El archivo de sincronización llegó ilegible; no se sube nada")?;
+        // Primero lo borrado, luego lo nuevo: así un término borrado allí y
+        // editado aquí después se queda, y uno borrado allí y sin tocar aquí se va.
+        let quitados = store.aplicar_borrados(&remote.borrados)?;
+        let added_dict = store.merge_dict(&remote.dictionary)?;
         let hist_rows: Vec<_> = remote
             .history
             .iter()
@@ -420,10 +412,10 @@ pub async fn sync_now(app: AppHandle) -> anyhow::Result<GoogleStatus> {
             })
             .collect();
         let added_hist = store.merge_history(&hist_rows)?;
-        if added_dict > 0 {
+        if added_dict > 0 || quitados > 0 {
             let _ = app.emit("dict-changed", ());
         }
-        if added_hist > 0 {
+        if added_hist > 0 || quitados > 0 {
             let _ = app.emit("history-changed", ());
         }
         log::info!("Sync: +{added_dict} términos y +{added_hist} dictados desde remoto");
