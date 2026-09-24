@@ -1323,7 +1323,7 @@ export const V: Record<FaceState, Variant[]> = {
           eyes(OJO_MEDIO, 7),
           eyes(OJO_BRILLO, 5),
         ],
-        "1.6s",
+        "1.2s",
       )}${spr(BOCA_CHICA, 21, 12)}${spr(AUDIFONOS, 11, 2)}</g>${VU}`,
     },
     {
@@ -1413,7 +1413,7 @@ export const V: Record<FaceState, Variant[]> = {
   listo: [
     {
       status: "¡Listo!",
-      scene: `${wink(eyes(OJO, 5), spr(OJO, LX, 5) + spr(OJO_LINEA, RX, 7))}
+      scene: `${wink(eyes(OJO, 5), spr(OJO, LX, 5) + spr(OJO_LINEA, RX, 7), "1.4s")}
         ${spr(SONRISA, 18, 12)}
         <g class="a-pulgar">${spr(tint(PULGAR, "a"), 39, 7)}</g>`,
     },
@@ -2946,7 +2946,7 @@ ${FLIP_CSS}
   .a-asiente { animation: asiente .8s steps(1, end) infinite; }
   .a-atento { animation: atento .9s steps(1, end) infinite; }
   .a-busca { animation: busca 1.2s steps(1, end) infinite; }
-  .a-piensa { animation: piensa 1.6s steps(1, end) infinite; }
+  .a-piensa { animation: piensa 1.2s steps(1, end) infinite; }
   .a-leer { animation: leer .52s steps(1, end) infinite; }
   .a-lapiz { animation: lapiz .3s steps(1, end) infinite; }
   .a-renglon { animation: renglon 1.4s steps(1, end) infinite;
@@ -2959,16 +2959,16 @@ ${FLIP_CSS}
   .a-foco { animation: foco 1.2s steps(1, end) infinite; }
   .a-chispa1 { animation: chispa 1s steps(1, end) infinite; }
   .a-chispa2 { animation: chispa 1s steps(1, end) .35s infinite; }
-  .a-lentes { animation: lentes 1.8s steps(1, end) infinite; }
-  .a-brillo { animation: brillo 1.8s steps(1, end) infinite; }
+  .a-lentes { animation: lentes 1.4s steps(1, end) infinite; }
+  .a-brillo { animation: brillo 1.4s steps(1, end) infinite; }
   .a-pulgar { animation: pulgar 1.4s steps(1, end) infinite; }
   .a-baila { animation: baila .4s steps(1, end) infinite; }
   .a-mar1 { animation: maraca .4s steps(1, end) infinite; }
   .a-mar2 { animation: maraca .4s steps(1, end) .2s infinite; }
   .a-gota { animation: gota 1.3s steps(1, end) infinite; }
-  .a-interr { animation: interr 1.6s steps(1, end) infinite; }
+  .a-interr { animation: interr 1.2s steps(1, end) infinite; }
   .a-rubor { animation: rubor 1.2s steps(1, end) infinite; }
-  .a-lupa { animation: lupa 1.6s steps(1, end) infinite; }
+  .a-lupa { animation: lupa 1.2s steps(1, end) infinite; }
   .a-dj { animation: dj .8s steps(1, end) infinite; }
   .a-niega { animation: niega .36s steps(1, end) infinite; }
   /* El aspa se estampa una vez y se queda (forwards). En bucle se apagaba y
