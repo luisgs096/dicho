@@ -245,8 +245,13 @@ fn show_hud(app: &AppHandle, gen: &Arc<AtomicU64>) {
         // eso llega *después* de moverla: por cada cambio hay que recolocar dos
         // veces (ahora, con el tamaño viejo, y al tick siguiente, con el nuevo).
         let mut recolocar = 2;
-        for i in 0..80 {
-            std::thread::sleep(Duration::from_millis(if i == 0 { 70 } else { 250 }));
+        // Mientras dure el dictado —hasta 10 min— y 20 s más. Con el tope fijo
+        // de 80 vueltas (70 ms + 79 × 250 ms = 19,8 s) dejaba de reafirmar el
+        // topmost y de seguirte de pantalla a mitad de un dictado largo.
+        let mut vuelta = 0u32;
+        while vuelta < 80 || GRABANDO.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(if vuelta == 0 { 70 } else { 250 }));
+            vuelta += 1;
             if gen.load(Ordering::SeqCst) != expected {
                 return;
             }
