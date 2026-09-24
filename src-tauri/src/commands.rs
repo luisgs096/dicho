@@ -25,6 +25,14 @@ pub fn save_settings(
         .read()
         .map(|s| s.hud_posiciones.clone())
         .unwrap_or_default();
+    // Tampoco la versión vista: la apunta el arranque, y Ajustes puede haber
+    // leído los ajustes antes (su ventana nace visible y le gana la carrera al
+    // setup, que además no avisa con settings-changed). Guardar su copia vieja
+    // haría celebrar otra vez la misma actualización en el siguiente arranque.
+    new_settings.ultima_version_vista = state
+        .read()
+        .map(|s| s.ultima_version_vista.clone())
+        .unwrap_or_default();
     // Con el escribano encendido la onda **tiene que estar clavada**: el gesto
     // es copiar y darle un clic, y una onda que se esconde a los tres segundos
     // no se puede pulsar. Se fuerza aquí y no en la interfaz para que valga
