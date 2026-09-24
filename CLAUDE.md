@@ -97,6 +97,14 @@ conocimiento. Y se commitea con el resto.
   al cancelar el atajo *sigue apretado*, así que hay una bandera
   `esperando_soltar`; sin ella `all_down` seguiría siendo cierto y arrancaría un
   dictado nuevo en el acto.
+  **Los tres atajos no pueden contenerse entre sí.** El del escribano se mira
+  *antes* que el de dictar y salta en cuanto se completa, así que si uno cabe
+  entero dentro del otro, pulsar el grande dispara también el pequeño. Y la tecla
+  de cancelar dentro de cualquiera de los otros dos los rompe por el autorrepetir
+  del teclado: mantenerla la manda en bucle y a la segunda ya cancela. Compartir
+  una tecla sin contenerse sí vale — los de fábrica comparten el Win. Lo vigila
+  el editor de Inicio (`choqueEntreAtajos`), no este hook: un `settings.json`
+  editado a mano se lo salta, y entonces Inicio lo avisa nada más abrir.
 - **La ventana del HUD mide 104 de alto** (96 → 112 → 104). Arriba asoma el botón
   del menú, que al pasarle el ratón crece y saca halo; el aire **no se reparte a
   medias**: la cápsula va pegada abajo (`items-end` + `pb-2`), así que quedan 22 px
@@ -138,7 +146,10 @@ conocimiento. Y se commitea con el resto.
   falta. Ojo con el borde de palabra: el de JavaScript sólo cuenta ASCII, así que
   hay un `conBordes()` propio o "más bien" y "¿sabes?" no se cuentan jamás.
 - `src/windows/Settings.tsx` — ventana principal con sidebar de tres: **Inicio**
-  (editor visual del atajo con teclado laptop/extendido + la onda flotante entera:
+  (los tres atajos —dictar, cancelar y escribano— sobre un solo teclado gráfico,
+  cada uno con su color y el idioma de las teclas al pie; los borradores de dictar
+  y del escribano se guardan **juntos**, para que nunca quede guardada una mezcla
+  que nadie validó; + la onda flotante entera:
   vista previa, "Ver las 26 caritas", "Mover la onda flotante", "Devolverla a su
   sitio" e interruptor de arrastrable), Diccionario, Historial (chips de correcciones
   + filtro), y **Ajustes** anclado abajo con lo de debajo del capó (motores, "no

@@ -143,7 +143,8 @@ export function Section(props: {
   const labs = props.tono === "labs";
   return (
     <section
-      className={`rounded-2xl border p-5 shadow-sm ${
+      id={`seccion-${props.id}`}
+      className={`scroll-mt-6 rounded-2xl border p-5 shadow-sm ${
         labs
           ? "border-emerald-300 bg-emerald-50/70 dark:border-emerald-800/60 dark:bg-emerald-950/30"
           : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
@@ -271,7 +272,7 @@ const LABS_CSS = `
 const TAB_META: Record<Tab, { title: string; desc: string }> = {
   inicio: {
     title: "Inicio",
-    desc: "Tu atajo para dictar y cómo se ve la onda flotante mientras hablas.",
+    desc: "Tus atajos y cómo se ve la onda flotante mientras hablas.",
   },
   diccionario: {
     title: "Diccionario",
@@ -431,54 +432,142 @@ const MODIFIERS = new Set([
   "ShiftRight",
 ]);
 
-/** Para qué está elegida una tecla. Las tres se pintan **a la vez** y cada una
- *  con su color, así que de un vistazo ves cómo tienes configurado todo sin
+/** Los de fábrica: los mismos que pone `AppSettings::default()` en Rust. */
+const ATAJO_DE_FABRICA = ["ControlLeft", "MetaLeft"];
+const ESCRIBANO_DE_FABRICA = ["MetaLeft", "ShiftLeft", "KeyC"];
+
+/** Los tres atajos que se eligen en el teclado. Se pintan **a la vez** y cada
+ *  uno con su color, así que de un vistazo ves cómo tienes configurado todo sin
  *  tener que cambiar de pestaña: azul dicta, naranja cancela, verde corrige.
  *
  *  El verde no es un color cualquiera: es el de LABS, y el escribano vive ahí.
  *  Que la tecla lleve el color de su sección dice, sin una línea de texto, que
  *  esa función es de las que todavía se están cociendo. */
-type Papel = "atajo" | "cancelar" | "corregir" | null;
+type Destino = "atajo" | "cancelar" | "corregir";
+
+const DESTINOS: Destino[] = ["atajo", "cancelar", "corregir"];
 
 const PAPELES: Record<
-  "atajo" | "cancelar" | "corregir",
-  { clase: string; titulo: string }
-> =
+  Destino,
   {
-    atajo: {
-      clase:
-        "border-blue-700 bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/40",
-      titulo: "Parte de tu atajo para dictar",
-    },
-    cancelar: {
-      clase:
-        "border-amber-600 bg-amber-500 text-white shadow-sm ring-2 ring-amber-400/50",
-      titulo: "Tu tecla para cancelar a media grabación",
-    },
-    corregir: {
-      clase:
-        "border-emerald-700 bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/40",
-      titulo: "Parte del atajo del escribano: corrige lo que ya escribiste",
-    },
-  };
+    /** Su botón en el selector de encima del teclado. */
+    nombre: string;
+    /** La tecla que es parte de este atajo. */
+    clase: string;
+    /** Para el tooltip de esa tecla. */
+    titulo: string;
+    /** El color a secas: el cuadrito del selector y las teclas compartidas. */
+    color: string;
+    /** Su botón del selector cuando es el que está puesto. */
+    activo: string;
+    /** Cada tecla que ya tiene, en la línea de encima del teclado. */
+    chip: string;
+    /** Una tecla libre al pasarle el ratón: avisa del color que tomaría. */
+    hover: string;
+  }
+> = {
+  atajo: {
+    nombre: "Atajo para dictar",
+    clase:
+      "border-blue-700 bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/40",
+    titulo: "parte de tu atajo para dictar",
+    color: "var(--color-blue-600)",
+    activo: "bg-blue-600 text-white",
+    chip: "border-blue-200 bg-blue-50 text-blue-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300",
+    hover:
+      "hover:border-blue-400 hover:text-blue-600 dark:hover:border-sky-400 dark:hover:text-sky-300",
+  },
+  cancelar: {
+    nombre: "Tecla para cancelar",
+    clase:
+      "border-amber-600 bg-amber-500 text-white shadow-sm ring-2 ring-amber-400/50",
+    titulo: "tu tecla para cancelar a media grabación",
+    color: "var(--color-amber-500)",
+    // Letra oscura y no blanca: en blanco sobre ámbar el contraste se queda en
+    // 2:1, y lo mínimo para leer texto de este tamaño es 4,5.
+    activo: "bg-amber-500 text-amber-950",
+    chip: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
+    hover:
+      "hover:border-amber-400 hover:text-amber-600 dark:hover:border-amber-400 dark:hover:text-amber-300",
+  },
+  corregir: {
+    nombre: "Atajo del escribano",
+    clase:
+      "border-emerald-700 bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/40",
+    titulo: "parte del atajo del escribano, que corrige lo que copias",
+    color: "var(--color-emerald-600)",
+    // Un tono más oscuro que la tecla: con el 600, la letra blanca de un botón
+    // no llega al contraste mínimo.
+    activo: "bg-emerald-700 text-white",
+    chip: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
+    hover:
+      "hover:border-emerald-400 hover:text-emerald-600 dark:hover:border-emerald-400 dark:hover:text-emerald-300",
+  },
+};
+
+/** Si dos de los tres atajos se pisan, por qué; `null` si conviven.
+ *
+ *  No son manías: sale de cómo los lee `hotkey.rs`. El del escribano se mira
+ *  **antes** que el de dictar y salta en cuanto se completa, así que si uno cabe
+ *  entero dentro del otro, pulsar el grande dispara también el pequeño. Y la
+ *  tecla de cancelar dentro de otro atajo lo rompe por el autorrepetir del
+ *  teclado: mantenerla apretada la manda una y otra vez, y a la segunda ya
+ *  cancela. Compartir una tecla sin contenerse sí vale — los de fábrica
+ *  comparten el Win. */
+function choqueEntreAtajos(
+  dictar: string[],
+  cancelar: string | null,
+  escribano: string[],
+): string | null {
+  if (cancelar && dictar.includes(cancelar))
+    return "Tu tecla para cancelar también está en el atajo para dictar: cada dictado se cancelaría solo nada más empezar.";
+  if (cancelar && escribano.includes(cancelar))
+    return "Tu tecla para cancelar también está en el atajo del escribano: con la onda ofreciéndose, pulsarlo la quitaría de en medio en vez de corregir.";
+  if (dictar.length === 0 || escribano.length === 0) return null;
+  if (escribano.every((k) => dictar.includes(k)))
+    return "El atajo del escribano cabe entero dentro del de dictar: cada vez que dictaras, saltaría también el escribano.";
+  if (dictar.every((k) => escribano.includes(k)))
+    return "El atajo del escribano lleva dentro el de dictar entero: al pulsarlo empezarías a dictar en vez de corregir.";
+  return null;
+}
+
+/** Franjas en diagonal, una por atajo, para una tecla que está en varios. */
+const diagonal = (papeles: Destino[]) =>
+  `linear-gradient(135deg, ${papeles
+    .map((p, i) => {
+      const desde = (i * 100) / papeles.length;
+      const hasta = ((i + 1) * 100) / papeles.length;
+      return `${PAPELES[p].color} ${desde}% ${hasta}%`;
+    })
+    .join(", ")})`;
 
 function Cap(props: {
   k: KbKey;
-  papel: Papel;
+  /** Todos los atajos de los que es parte esta tecla, no sólo uno. */
+  papeles: Destino[];
+  /** A cuál va lo que se pulse ahora. */
+  destino: Destino;
   onToggle: (code: string) => void;
   className?: string;
 }) {
-  const { k, papel } = props;
+  const { k, papeles } = props;
   if (k.hueco) {
     return <span style={{ flex: `${k.w ?? 1} ${k.w ?? 1} 0%` }} />;
   }
+  // Una tecla que está en dos atajos —el Win, en los de fábrica, es del de
+  // dictar y del escribano— se parte en diagonal con los dos colores. Pintada
+  // con uno solo, al editar el otro pulsarla no cambiaba nada en pantalla: se
+  // quitaba del atajo y seguía viéndose igual.
+  const compartida = papeles.length > 1;
   const base =
     "flex items-center justify-center overflow-hidden rounded-md border text-[9px] font-medium leading-none transition-colors";
   const style = !k.code
     ? "border-slate-200 bg-slate-100 text-slate-300 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-600"
-    : papel
-      ? `cursor-pointer ${PAPELES[papel].clase}`
-      : "cursor-pointer border-slate-300 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-sky-400 dark:hover:text-sky-300";
+    : compartida
+      ? "cursor-pointer border-slate-700 text-white shadow-sm ring-2 ring-slate-400/40"
+      : papeles.length === 1
+        ? `cursor-pointer ${PAPELES[papeles[0]].clase}`
+        : `cursor-pointer border-slate-300 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 ${PAPELES[props.destino].hover}`;
   return (
     <button
       type="button"
@@ -486,12 +575,16 @@ function Cap(props: {
       title={
         !k.code
           ? "No capturable"
-          : papel
-            ? `${keyLabel(k.code)} — ${PAPELES[papel].titulo}`
+          : papeles.length
+            ? `${keyLabel(k.code)} — ${papeles.map((p) => PAPELES[p].titulo).join(" y ")}`
             : keyLabel(k.code)
       }
       onClick={() => k.code && props.onToggle(k.code)}
-      style={{ width: "100%", height: "100%" }}
+      style={{
+        width: "100%",
+        height: "100%",
+        ...(compartida ? { background: diagonal(papeles) } : {}),
+      }}
       className={`${base} ${style} ${props.className ?? ""}`}
     >
       <span className="truncate px-0.5">{k.label}</span>
@@ -501,40 +594,29 @@ function Cap(props: {
 
 /** El teclado gráfico.
  *
- *  Sirve para dos cosas a la vez: elegir el atajo de dictado y elegir la tecla
- *  para cancelar. Las dos se ven **siempre**, cada una con su color —azul dicta,
- *  naranja cancela—, así que de un vistazo sabes cómo tienes configurado todo.
- *  `destino` sólo decide a cuál de las dos va lo que pulses.
+ *  Sirve para los tres atajos a la vez: dictar, cancelar y el escribano. Los
+ *  tres se ven **siempre**, cada uno con su color, así que de un vistazo sabes
+ *  cómo tienes configurado todo. `destino` sólo decide a cuál va lo que pulses
+ *  —y con eso, de qué color se tiñe una tecla libre al pasarle el ratón—.
  *
  *  Un único esqueleto, el de portátil, y dos idiomas. El selector de idioma no
  *  cambia nada por dentro: mueve lo que dice cada tecla para que la encuentres
  *  mirando tu teclado de verdad. */
 export function KeyboardPicker(props: {
-  selected: string[];
-  cancelar: string | null;
-  corregir: string[];
-  destino: "atajo" | "cancelar";
+  /** Las teclas de cada atajo tal como se ven, borradores sin guardar incluidos. */
+  teclas: Record<Destino, string[]>;
+  destino: Destino;
   onToggle: (code: string) => void;
 }) {
   const [idioma, setIdioma] = useState<Idioma>("es");
-  // El orden importa: una tecla que esté en dos sitios se pinta con el primero
-  // que la reclame. Dictar manda sobre cancelar y cancelar sobre corregir,
-  // porque es el orden en el que molesta equivocarse.
-  const papelDe = (code: string | null): Papel =>
-    code === null
-      ? null
-      : props.selected.includes(code)
-        ? "atajo"
-        : props.cancelar === code
-          ? "cancelar"
-          : props.corregir.includes(code)
-            ? "corregir"
-            : null;
+  const papelesDe = (code: string | null): Destino[] =>
+    code === null ? [] : DESTINOS.filter((d) => props.teclas[d].includes(code));
   const cap = (k: KbKey, i: number, extra?: string) => (
     <Cap
       key={i}
       k={k}
-      papel={papelDe(k.code)}
+      papeles={papelesDe(k.code)}
+      destino={props.destino}
       onToggle={props.onToggle}
       className={extra}
     />
@@ -575,14 +657,29 @@ export function KeyboardPicker(props: {
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-center gap-3">
-        <div className="inline-flex rounded-lg border border-slate-200 p-0.5 dark:border-slate-700">
+      <div className="flex gap-2 rounded-xl bg-slate-100 p-2 dark:bg-slate-950/60">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          {MAIN_ROWS(idioma).map(fila)}
+          {fila(BOTTOM_ROW_LAPTOP, 99)}
+        </div>
+      </div>
+
+      {/* El idioma va al pie y en pequeño: es lo secundario —sólo cambia lo que
+          dice cada tecla— y arriba estorbaba, porque era otro interruptor de
+          pastilla justo al lado del que elige qué atajo estás cambiando. */}
+      <div className="mt-1.5 flex items-center justify-end gap-2">
+        <span className="text-[11px] text-slate-400 dark:text-slate-500">
+          Idioma del teclado
+        </span>
+        <div className="inline-flex rounded-md border border-slate-200 p-0.5 dark:border-slate-700">
           {IDIOMAS.map((i) => (
             <button
               key={i.id}
+              type="button"
+              aria-pressed={idioma === i.id}
               onClick={() => setIdioma(i.id)}
               title={i.nombre}
-              className={`rounded-md px-3 py-1 font-mono text-xs font-bold tracking-wider transition-colors ${
+              className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider transition-colors ${
                 idioma === i.id
                   ? "bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900"
                   : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
@@ -591,28 +688,6 @@ export function KeyboardPicker(props: {
               {i.corto}
             </button>
           ))}
-        </div>
-        {/* La leyenda: sin ella, dos colores en un teclado son dos colores. */}
-        <span className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-          <span className="h-2.5 w-2.5 rounded-sm bg-blue-600" />
-          dicta
-        </span>
-        <span className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-          <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" />
-          cancela
-        </span>
-        {props.corregir.length > 0 && (
-          <span className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-            <span className="h-2.5 w-2.5 rounded-sm bg-emerald-600" />
-            corrige
-          </span>
-        )}
-      </div>
-
-      <div className="flex gap-2 rounded-xl bg-slate-100 p-2 dark:bg-slate-950/60">
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          {MAIN_ROWS(idioma).map(fila)}
-          {fila(BOTTOM_ROW_LAPTOP, 99)}
         </div>
       </div>
     </div>
@@ -650,6 +725,9 @@ export default function Settings() {
   const [googleError, setGoogleError] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
   const [hotkeyDraft, setHotkeyDraft] = useState<string[] | null>(null);
+  const [escribanoDraft, setEscribanoDraft] = useState<string[] | null>(null);
+  const [destinoTecla, setDestinoTecla] = useState<Destino>("atajo");
+  const [avisoTecla, setAvisoTecla] = useState<string | null>(null);
   // `update` ya es el actualizador de ajustes de esta pantalla: el de versiones
   // va con nombre propio para no pisarlo.
   const {
@@ -750,39 +828,116 @@ export default function Settings() {
     ? history.filter((h) => h.corrections.length > 0)
     : history;
 
-  // Atajo: borrador local hasta que el usuario guarde.
+  // Los atajos de dictar y del escribano: borrador local hasta que el usuario
+  // guarde. El de cancelar no tiene: es una sola tecla y se guarda al pulsarla.
   const currentHotkey = settings?.hotkey ?? [];
   const draft = hotkeyDraft ?? currentHotkey;
-  const draftHasModifier = draft.some((k) => MODIFIERS.has(k));
-  const draftChanged =
-    hotkeyDraft !== null &&
-    (draft.length !== currentHotkey.length ||
-      draft.some((k) => !currentHotkey.includes(k)));
+  const currentEscribano = settings?.corregir_atajo ?? [];
+  const draftEscribano = escribanoDraft ?? currentEscribano;
+  const cancelarActual = settings?.cancelar ?? null;
+  const cambiado = (borrador: string[] | null, actual: string[]) =>
+    borrador !== null &&
+    (borrador.length !== actual.length ||
+      borrador.some((k) => !actual.includes(k)));
+  const draftChanged = cambiado(hotkeyDraft, currentHotkey);
+  const escribanoChanged = cambiado(escribanoDraft, currentEscribano);
+  const hayCambios = draftChanged || escribanoChanged;
+  const escribanoEncendido = currentEscribano.length > 0;
+  const conModificador = (keys: string[]) => keys.some((k) => MODIFIERS.has(k));
+  /** Lo que enseña el teclado ahora mismo, sin guardar incluido. */
+  const teclas: Record<Destino, string[]> = {
+    atajo: draft,
+    cancelar: cancelarActual ? [cancelarActual] : [],
+    corregir: draftEscribano,
+  };
+
+  /** Por qué no se puede guardar lo que hay en el teclado, si hay algo. Se mira
+   *  lo que se ve —borradores incluidos— porque se guardan juntos: así lo que
+   *  queda guardado es siempre lo que se validó, sin estados a medias. */
+  const bloqueo = !settings
+    ? null
+    : draft.length === 0
+      ? "Tu atajo para dictar necesita al menos una tecla."
+      : !conModificador(draft)
+        ? "Incluye al menos un modificador (Ctrl, Win, Alt o Mayús) en el atajo para dictar; si no, el dictado se activaría al escribir normal."
+        : draftEscribano.length > 0 && !conModificador(draftEscribano)
+          ? "Incluye al menos un modificador (Ctrl, Win, Alt o Mayús) en el atajo del escribano; si no, saltaría al escribir normal."
+          : choqueEntreAtajos(draft, cancelarActual, draftEscribano);
+
   const toggleKey = (code: string) => {
     if (destinoTecla === "cancelar") {
       // Una tecla del propio atajo no vale: la de cancelar se pulsa CON el
       // atajo apretado, así que elegir una de sus teclas haría que cada dictado
-      // se cancelara solo nada más arrancar.
-      if (currentHotkey.includes(code)) {
+      // se cancelara solo nada más arrancar. Se mira lo guardado y el borrador:
+      // esto se guarda al instante, y el borrador podría guardarse después.
+      if (currentHotkey.includes(code) || draft.includes(code)) {
         setAvisoTecla(
-          "Esa tecla ya es parte del atajo: cada dictado se cancelaría solo.",
+          "Esa tecla ya es parte del atajo para dictar: cada dictado se cancelaría solo.",
+        );
+        return;
+      }
+      // Con el escribano es al revés: pulsar su atajo con la onda ofreciéndose
+      // la quitaría de en medio, que es lo que hace esta tecla fuera de un
+      // dictado.
+      if (currentEscribano.includes(code) || draftEscribano.includes(code)) {
+        setAvisoTecla(
+          "Esa tecla ya es parte del atajo del escribano: al pulsarlo con la onda ofreciéndose, la quitarías de en medio en vez de corregir.",
         );
         return;
       }
       setAvisoTecla(null);
       // Volver a pulsar la misma la quita: así se puede dejar sin tecla de
       // cancelar, que es una opción legítima.
-      update({ cancelar: settings?.cancelar === code ? null : code });
+      update({ cancelar: cancelarActual === code ? null : code });
       return;
     }
-    const base = hotkeyDraft ?? currentHotkey;
-    setHotkeyDraft(
-      base.includes(code)
-        ? base.filter((k) => k !== code)
-        : base.length >= 4
-          ? base
-          : [...base, code],
-    );
+    // Y a la inversa: la tecla de cancelar no entra en los otros dos.
+    if (code === cancelarActual) {
+      setAvisoTecla(
+        destinoTecla === "atajo"
+          ? "Esa es tu tecla para cancelar: dentro del atajo, cada dictado se cancelaría solo."
+          : "Esa es tu tecla para cancelar: dentro del atajo del escribano, lo quitaría de en medio en vez de corregir.",
+      );
+      return;
+    }
+    // Sin key no hay IA, y sin IA el escribano no tiene con qué corregir: se
+    // ofrecería a cada cosa que copiaras para luego no poder hacer nada.
+    if (destinoTecla === "corregir" && !escribanoEncendido && !hasKey) {
+      setAvisoTecla(
+        "El escribano corrige con la IA: primero pon tu key de Groq en Ajustes.",
+      );
+      return;
+    }
+    const base = destinoTecla === "atajo" ? draft : draftEscribano;
+    if (!base.includes(code) && base.length >= 4) {
+      setAvisoTecla("Cuatro teclas como mucho: quita una antes de poner otra.");
+      return;
+    }
+    setAvisoTecla(null);
+    const siguiente = base.includes(code)
+      ? base.filter((k) => k !== code)
+      : [...base, code];
+    if (destinoTecla === "atajo") setHotkeyDraft(siguiente);
+    else setEscribanoDraft(siguiente);
+  };
+
+  /** Guarda los dos borradores a la vez. Si fueran por separado, guardar uno
+   *  dejaría en los ajustes una mezcla que nadie validó: el nuevo de dictar con
+   *  el escribano viejo, que a lo mejor lo contiene. */
+  const guardarAtajos = () => {
+    const patch: Partial<AppSettings> = {};
+    if (draftChanged) patch.hotkey = draft;
+    if (escribanoChanged) patch.corregir_atajo = draftEscribano;
+    update(patch);
+    setHotkeyDraft(null);
+    setEscribanoDraft(null);
+    setAvisoTecla(null);
+  };
+
+  const descartarAtajos = () => {
+    setHotkeyDraft(null);
+    setEscribanoDraft(null);
+    setAvisoTecla(null);
   };
 
   /** Combinaciones que Windows se queda para él: por mucho que Dicho las
@@ -819,10 +974,15 @@ export default function Settings() {
     },
   };
 
-  const [destinoTecla, setDestinoTecla] = useState<"atajo" | "cancelar">(
-    "atajo",
-  );
-  const [avisoTecla, setAvisoTecla] = useState<string | null>(null);
+  /** Desde LABS, al teclado de arriba y con el escribano ya puesto. */
+  const irAlEscribano = () => {
+    setDestinoTecla("corregir");
+    setAvisoTecla(null);
+    if (plegado.cerradas.includes("atajo")) plegado.alternar("atajo");
+    document
+      .getElementById("seccion-atajo")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const googleLogin = () => {
     setGoogleBusy("login");
@@ -910,20 +1070,85 @@ export default function Settings() {
               <>
                 <Section
                   id="atajo"
-                  title="Atajo para dictar"
-                  hint="Mantén estas teclas y habla; suéltalas y el texto aparece donde estés escribiendo. Haz clic en el teclado para armar tu combinación (máximo 4 teclas, al menos un modificador como Ctrl, Win, Alt o Mayús)."
+                  title="Tus atajos"
+                  hint="Un solo teclado para los tres: elige cuál quieres cambiar y haz clic en sus teclas. Cada uno se pinta de su color, así ves de un vistazo cómo lo tienes todo."
                 >
+                  {/* Qué atajo estás cambiando. Hace también de leyenda: cada
+                      botón lleva el color con el que se pintan sus teclas, así
+                      que no hace falta otra fila que explique los colores. El
+                      punto marca lo que está sin guardar, que en el teclado se
+                      ve igual que lo guardado. */}
+                  <div className="mb-2 inline-flex flex-wrap rounded-lg border border-slate-200 p-0.5 dark:border-slate-700">
+                    {DESTINOS.map((id) => {
+                      const activo = destinoTecla === id;
+                      const pendiente =
+                        (id === "atajo" && draftChanged) ||
+                        (id === "corregir" && escribanoChanged);
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          aria-pressed={activo}
+                          onClick={() => {
+                            setDestinoTecla(id);
+                            setAvisoTecla(null);
+                          }}
+                          className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                            activo
+                              ? PAPELES[id].activo
+                              : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                          }`}
+                        >
+                          <span
+                            className={`h-2.5 w-2.5 shrink-0 rounded-sm ${activo ? "opacity-70" : ""}`}
+                            style={{
+                              background: activo
+                                ? "currentColor"
+                                : PAPELES[id].color,
+                            }}
+                          />
+                          {PAPELES[id].nombre}
+                          {pendiente && (
+                            <span
+                              title="Sin guardar"
+                              aria-label="sin guardar"
+                              className="text-[9px] leading-none"
+                            >
+                              ●
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                    {destinoTecla === "atajo"
+                      ? "Mantén estas teclas y habla; suéltalas y el texto aparece donde estés escribiendo. Hasta 4 teclas, con al menos un modificador (Ctrl, Win, Alt o Mayús)."
+                      : destinoTecla === "cancelar"
+                        ? "Esta tecla tira el dictado a medias, mientras tienes el atajo apretado. Haz clic en la misma otra vez para quedarte sin ninguna."
+                        : escribanoEncendido
+                          ? "Copia un texto y pulsa esta combinación: lo corrige igual que si le dieras un clic a la onda cuando se ofrece. Hasta 4 teclas, con al menos un modificador."
+                          : hasKey
+                            ? "El escribano corrige lo que copias, y ahora está apagado. Arma aquí su combinación: al guardarla, se enciende."
+                            : "El escribano corrige lo que copias con la IA, así que para encenderlo necesitas tu key de Groq (en Ajustes)."}
+                  </p>
                   <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <span className={labelCls}>Combinación:</span>
-                    {draft.length === 0 ? (
-                      <span className="text-xs text-amber-600 dark:text-amber-400">
-                        elige al menos una tecla
+                    <span className={labelCls}>
+                      {destinoTecla === "cancelar" ? "Tecla:" : "Combinación:"}
+                    </span>
+                    {teclas[destinoTecla].length === 0 ? (
+                      <span className="text-xs text-slate-400 dark:text-slate-500">
+                        {destinoTecla !== "corregir"
+                          ? "ninguna"
+                          : escribanoChanged
+                            ? "ninguna: al guardar, el escribano se apaga"
+                            : "ninguna: el escribano está apagado"}
                       </span>
                     ) : (
-                      draft.map((k) => (
+                      teclas[destinoTecla].map((k) => (
                         <kbd
                           key={k}
-                          className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300"
+                          className={`rounded-lg border px-2 py-1 text-xs font-semibold ${PAPELES[destinoTecla].chip}`}
                         >
                           {keyLabel(k)}
                         </kbd>
@@ -931,44 +1156,19 @@ export default function Settings() {
                     )}
                   </div>
 
-                  {/* Un solo teclado para las dos teclas: el atajo y la de
-                      cancelar. Dos teclados en pantalla serían el doble de
-                      sitio para lo mismo. */}
-                  <div className="mb-2 inline-flex rounded-lg border border-slate-200 p-0.5 dark:border-slate-700">
-                    {(
-                      [
-                        ["atajo", "Atajo para dictar"],
-                        ["cancelar", "Tecla para cancelar"],
-                      ] as const
-                    ).map(([id, txt]) => (
-                      <button
-                        key={id}
-                        onClick={() => setDestinoTecla(id)}
-                        className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                          destinoTecla === id
-                            ? "bg-blue-600 text-white"
-                            : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                        }`}
-                      >
-                        {txt}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-                    {destinoTecla === "atajo"
-                      ? "Haz clic en las teclas que quieres mantener apretadas para dictar."
-                      : "Esta tecla tira el dictado a medias, mientras tienes el atajo apretado. Haz clic en la misma otra vez para quedarte sin ninguna."}
-                  </p>
                   <KeyboardPicker
-                    selected={draft}
-                    cancelar={settings?.cancelar ?? null}
-                    corregir={settings?.corregir_atajo ?? []}
+                    teclas={teclas}
                     destino={destinoTecla}
                     onToggle={toggleKey}
                   />
                   {avisoTecla && (
                     <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
                       {avisoTecla}
+                    </p>
+                  )}
+                  {bloqueo && (
+                    <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                      {bloqueo}
                     </p>
                   )}
                   {choqueConWindows && (
@@ -983,41 +1183,53 @@ export default function Settings() {
                     </p>
                   )}
 
-                  <div className="mt-3 flex items-center gap-2">
-                    <button
-                      className={btnCls}
-                      disabled={
-                        !draftChanged || draft.length === 0 || !draftHasModifier
-                      }
-                      onClick={() => {
-                        update({ hotkey: draft });
-                        setHotkeyDraft(null);
-                      }}
-                    >
-                      Guardar atajo
-                    </button>
-                    <button
-                      className={btnGhostCls}
-                      onClick={() =>
-                        setHotkeyDraft(["ControlLeft", "MetaLeft"])
-                      }
-                    >
-                      Restaurar Ctrl + Win
-                    </button>
-                    {draftChanged && (
+                  {/* La tecla de cancelar no tiene nada que guardar —va al
+                      pulsarla—, así que ahí la fila sólo sale si quedó algo a
+                      medias en los otros dos. */}
+                  {(hayCambios ||
+                    destinoTecla === "atajo" ||
+                    (destinoTecla === "corregir" &&
+                      (escribanoEncendido || hasKey))) && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                       <button
-                        className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                        onClick={() => setHotkeyDraft(null)}
+                        className={btnCls}
+                        disabled={!hayCambios || bloqueo !== null}
+                        onClick={guardarAtajos}
                       >
-                        Descartar cambios
+                        Guardar cambios
                       </button>
-                    )}
-                  </div>
-                  {!draftHasModifier && draft.length > 0 && (
-                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                      Incluye al menos un modificador (Ctrl, Win, Alt o Mayús);
-                      si no, el dictado se activaría al escribir normal.
-                    </p>
+                      {destinoTecla === "atajo" && (
+                        <button
+                          className={btnGhostCls}
+                          onClick={() => {
+                            setHotkeyDraft([...ATAJO_DE_FABRICA]);
+                            setAvisoTecla(null);
+                          }}
+                        >
+                          Restaurar {hotkeyLabel(ATAJO_DE_FABRICA)}
+                        </button>
+                      )}
+                      {destinoTecla === "corregir" &&
+                        (escribanoEncendido || hasKey) && (
+                          <button
+                            className={btnGhostCls}
+                            onClick={() => {
+                              setEscribanoDraft([...ESCRIBANO_DE_FABRICA]);
+                              setAvisoTecla(null);
+                            }}
+                          >
+                            Restaurar {hotkeyLabel(ESCRIBANO_DE_FABRICA)}
+                          </button>
+                        )}
+                      {hayCambios && (
+                        <button
+                          className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                          onClick={descartarAtajos}
+                        >
+                          Descartar cambios
+                        </button>
+                      )}
+                    </div>
                   )}
                 </Section>
 
@@ -1230,13 +1442,16 @@ export default function Settings() {
                           type="checkbox"
                           disabled={!hasKey}
                           checked={settings.corregir_atajo.length > 0}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            // Encender o apagar aquí manda sobre lo que hubiera
+                            // a medio armar en el teclado de arriba.
+                            setEscribanoDraft(null);
                             update({
                               corregir_atajo: e.target.checked
-                                ? ["MetaLeft", "ShiftLeft", "KeyC"]
+                                ? [...ESCRIBANO_DE_FABRICA]
                                 : [],
-                            })
-                          }
+                            });
+                          }}
                           className="mt-0.5 h-4 w-4 accent-emerald-600"
                         />
                         <span className="min-w-0 flex-1">
@@ -1245,9 +1460,20 @@ export default function Settings() {
                               Corregir lo que ya escribiste
                             </span>
                             {settings.corregir_atajo.length > 0 && (
-                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                                {hotkeyLabel(settings.corregir_atajo)}
-                              </span>
+                              <>
+                                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                  {hotkeyLabel(settings.corregir_atajo)}
+                                </span>
+                                {/* Un botón dentro de la etiqueta no marca la
+                                    casilla: el clic se queda en él. */}
+                                <button
+                                  type="button"
+                                  onClick={irAlEscribano}
+                                  className="text-[11px] font-medium text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400"
+                                >
+                                  Cambiarlo
+                                </button>
+                              </>
                             )}
                           </span>
                           <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
