@@ -1182,7 +1182,13 @@ export const OJOS_SIGUEN: Variant = {
 };
 
 /**
- * Y si mueves el raton como un loco, se marea.
+ * Y si **le das vueltas** con el raton, se marea: dos vueltas enteras alrededor
+ * de la onda en tres segundos (ver VUELTAS_MAREO en Hud.tsx).
+ *
+ * Antes bastaba con mover el raton deprisa, y eso no era un gesto sino
+ * trabajar: con un raton sensible o en una 4K los ojos se ponian en aspa sin
+ * que nadie hubiera querido marearla. Dar vueltas no depende de la velocidad
+ * del puntero y no se hace sin querer.
  *
  * Aspas en vez de pupilas y la cabeza dando tumbos. No lleva espiral **a
  * proposito**: el espiral ya ha fallado tres veces -a 3 px es una mancha, a 5 px
@@ -1849,39 +1855,45 @@ const ONDA = [
 ];
 
 /**
- * La servilleta, ahora **en la mano** y del tamaño que cabe.
+ * La servilleta, **en la mano** y del tamaño que cabe: cinco de ancho, con la
+ * banda hueca que la identifica como tela.
  *
- * La de 9×9 que volaba sola no sirve aquí: con un brazo debajo, un trapo de ese
- * tamaño le tapa media cara. Cinco de ancho es lo que queda libre, y la banda
- * hueca que la identificaba como tela sigue cabiendo en una fila.
+ * Va **en celeste** y no en tinta. En tinta, servilleta, mano y antebrazo eran
+ * una sola mancha negra con un bloque al final, y en el banco se leía como una
+ * pistola apoyada en una mesa. Con color propio la servilleta es un objeto que
+ * la mano sostiene, igual que el vómito es menta y la lengua rosa.
  */
-const SERVILLETA_MANO = [
-  ".XXX.",
-  "XXXXX",
-  "XoooX",
-  "XXXXX",
-  "XXXXX",
-  ".XXX.",
-];
+const SERVILLETA_MANO = ["XXXXX", "XoooX", "XXXXX", "XXXXX"];
 
 /**
- * El brazo que cruza la boca con la servilleta.
+ * El brazo que barre la boca con la servilleta.
  *
  * Horizontal y no en diagonal, por la regla de siempre: a esta escala una
  * diagonal es una escalera. Y resulta que además es lo correcto — pasarse el
  * antebrazo por la boca **es** un gesto horizontal.
  *
+ * Sale **por la derecha**: el hombro sube de la vagoneta y el codo dobla hacia
+ * la cara. Antes salía por la izquierda con la mano ya pasada de la boca, así
+ * que el antebrazo la tapaba desde el primer cuadro y **nunca se veía qué
+ * estaba limpiando**. Entrando por el otro lado, al empezar la boca sucia está
+ * a la vista y el antebrazo sólo la cruza mientras limpia.
+ *
  * El hombro se queda pegado a la vagoneta y lo que viaja es la mano, igual que
  * en el saludo y en el abanico.
  *
- * @param mano dónde queda la servilleta; el antebrazo rellena hasta el hombro.
+ * @param mano la columna izquierda de la servilleta; la mano va pegada a su
+ *   derecha y el antebrazo rellena hasta el hombro.
  */
 const brazoConServilleta = (mano: number) =>
-  // El hombro, bajando a la vagoneta.
-  spr(["XX", "XX", "XX"], 12, 9) +
-  // El antebrazo, del hombro a la mano.
-  spr(Array(2).fill("X".repeat(Math.max(1, mano - 12))), 12, 8) +
-  spr(SERVILLETA_MANO, mano, 6);
+  // El hombro, subiendo de la vagoneta.
+  spr(Array(5).fill("XX"), 32, 9) +
+  // El antebrazo, de la mano al hombro.
+  spr(Array(2).fill("X".repeat(Math.max(1, 34 - (mano + 5)))), mano + 5, 8) +
+  // La mano, maciza —aquí una mano sólo puede ser un bloque—, agarrando la
+  // servilleta por su lado.
+  spr(["XX", "XX", "XX"], mano + 4, 7) +
+  // Y la servilleta delante de todo.
+  spr(tint(SERVILLETA_MANO, "s"), mano, 7);
 
 /**
  * El brazo doblado hacia abajo: agarrado a la barandilla.
@@ -2027,6 +2039,11 @@ export const RODANDO: Variant = {
     ${spr(BOCAZA_DIENTES, 17, 7)}</g>`,
 };
 
+/** Lo que quedó del vómito, verde, en la comisura. Lo usan las dos limpiadas,
+ *  y va aquí arriba porque `const` no se iza: definido más abajo, el módulo
+ *  reventaría al cargar. */
+const RESTO = ["XX"];
+
 /**
  * Se limpia y se le pasa: **dos versiones, y sólo se queda una**.
  *
@@ -2036,28 +2053,55 @@ export const RODANDO: Variant = {
  * hay que reconocer pero sí seguir). Son dos apuestas distintas y la única
  * forma de decidir es verlas.
  */
+/** Lo que dura cada limpiada. Una sola fuente para el flip y para el HUD, que
+ *  la enseña **una vez entera** y se queda en su último cuadro: si los dos
+ *  números se separan, o el HUD la corta antes del final o se queda mirando un
+ *  cuadro repetido. */
+const LIMPIA_SERVILLETA_MS = 1800;
+const LIMPIA_LENGUA_MS = 1200;
+
 const LIMPIADA_SERVILLETA: Variant = {
   status: "Ya, ya…",
   // El brazo libre va **apoyado**, no en alto. Con la mano arriba mientras la
   // otra te limpia la boca no se entiende qué está haciendo: parece que saluda
   // y se limpia a la vez, que son dos cosas y ninguna se lee.
+  //
+  // Seis tiempos y no tres: llega sucia, **dos pasadas** —ida y vuelta—, la
+  // boca limpia a la vista y la sonrisa del final con su destello, el mismo
+  // remate que la de la lengua. Con una sola pasada en 0,9 s no daba tiempo a
+  // entender qué había pasado. Los ojos se cierran mientras se limpia: es el
+  // alivio, y además deja claro que la cara sigue ahí detrás del brazo.
   scene: `<g class="a-vagon">${spr(VAGONETA, 9, 14)}${flip(
     [
-      // Llega con la boca aún sucia.
-      brazoConServilleta(26) +
-        spr(espejo(BRAZO_ABAJO), 31, 3) +
-        eyes(OJO_LINEA, 4) +
+      // Llega con la boca aún sucia, un resto a cada lado.
+      spr(BRAZO_ABAJO, 8, 3) +
+        brazoConServilleta(27) +
+        eyes(OJO, 2) +
         spr(BOCA_CHICA, 21, 9) +
-        spr(tint(["XXX"], "m"), 25, 11),
-      // Cruza y tapa. La mancha ya no está: se la llevó.
-      brazoConServilleta(20) + spr(espejo(BRAZO_ABAJO), 31, 3) + eyes(OJO_LINEA, 4),
-      // Vuelve, y la cara está limpia.
-      brazoConServilleta(26) +
-        spr(espejo(BRAZO_ABAJO), 31, 3) +
+        spr(tint(RESTO, "m"), 18, 10) +
+        spr(tint(RESTO, "m"), 24, 10),
+      // Primera pasada: tapa la boca y se lleva el resto de la derecha.
+      spr(BRAZO_ABAJO, 8, 3) +
+        brazoConServilleta(20) +
         eyes(OJO_ARCO, 3) +
-        spr(RAYA, 20, 9),
+        spr(tint(RESTO, "m"), 18, 10),
+      // Llega al otro lado y se lleva el de la izquierda. La boca va debajo
+      // del antebrazo, que es justo lo que está limpiando.
+      spr(BRAZO_ABAJO, 8, 3) + brazoConServilleta(15) + eyes(OJO_ARCO, 3),
+      // Vuelta.
+      spr(BRAZO_ABAJO, 8, 3) + brazoConServilleta(20) + eyes(OJO_ARCO, 3),
+      // Aparta la mano: la boca, limpia.
+      spr(BRAZO_ABAJO, 8, 3) +
+        brazoConServilleta(27) +
+        eyes(OJO_ARCO, 3) +
+        spr(BOCA_CHICA, 21, 9),
+      // Y se le pasó.
+      par(BRAZO_ABAJO, BRAZO_ABAJO) +
+        eyes(OJO_ARCO, 3) +
+        spr(SONRISA, 18, 9) +
+        spr(tint(CHISPITA, "w"), 33, 2),
     ],
-    ".9s",
+    `${LIMPIA_SERVILLETA_MS / 1000}s`,
   )}</g>`,
 };
 
@@ -2085,8 +2129,6 @@ const BOCA_REDONDA = [
 
 /** La lengua, rosa, por dentro del aro. */
 const LENGUA = ["XXX", "XXX"];
-/** Lo que quedó del vómito, verde, encima del borde. */
-const RESTO = ["XX"];
 
 /**
  * La vuelta de la lengua: seis paradas, cada una con **el resto que le toca
@@ -2127,12 +2169,14 @@ const LIMPIADA_LENGUA: Variant = {
       ),
       // Se lo traga.
       eyes(OJO_ANCHO, 2) + spr(BOCA_CHICA, 21, 8),
-      // Y se le pasó: sonríe y suelta el destello de «quedó limpio».
+      // Y se le pasó: sonríe y suelta el destello de «quedó limpio». Dos
+      // columnas más allá del ojo: en (31, 3) se tocaban y se leían como una
+      // sola mancha, un ojo con un pegote naranja.
       eyes(OJO_ARCO, 2) +
         spr(SONRISA, 18, 8) +
-        spr(tint(CHISPITA, "w"), 31, 3),
+        spr(tint(CHISPITA, "w"), 33, 2),
     ],
-    "1.2s",
+    `${LIMPIA_LENGUA_MS / 1000}s`,
   )}</g>`,
 };
 
@@ -2221,10 +2265,17 @@ export const CURIOSEANDO: Variant = {
  *
  * Siempre **después del vómito**, nunca sueltas: son el final de esa historia y
  * fuera de ella no significan nada.
+ *
+ * La de la servilleta **no salía nunca**, aunque el sorteo era limpio. El HUD
+ * dejaba la limpiada 0,9 s a la vista, y si seguías zarandeando el siguiente
+ * meneo la devolvía al vómito a los 0,6: a la de la lengua le daba tiempo de
+ * enseñar su vuelta, a la de la servilleta no le daba ni para una pasada. Ahora
+ * el HUD la enseña **entera, una sola vez** (`ms`), se queda en su último
+ * cuadro y no hay meneo que la interrumpa: es el final de la historia.
  */
-export const LIMPIADAS: { nombre: string; v: Variant }[] = [
-  { nombre: "Con servilleta en la mano", v: LIMPIADA_SERVILLETA },
-  { nombre: "Con la lengua", v: LIMPIADA_LENGUA },
+export const LIMPIADAS: { nombre: string; v: Variant; ms: number }[] = [
+  { nombre: "Con servilleta en la mano", v: LIMPIADA_SERVILLETA, ms: LIMPIA_SERVILLETA_MS },
+  { nombre: "Con la lengua", v: LIMPIADA_LENGUA, ms: LIMPIA_LENGUA_MS },
 ];
 
 export const MAREO: Variant[] = [
@@ -2517,6 +2568,12 @@ export const FACE_CSS = `
      instante que va entre que se pinta el SVG y arranca la animacion. */
   .seq > g { opacity: 0; }
 ${FLIP_CSS}
+  /* Una sola vuelta: las transiciones -bajarse del carrito, limpiarse- se
+     ensenan una vez y se quedan en su ultimo cuadro. En bucle, el fundido de
+     salida pillaba otra vez el primero: la barandilla volvia a bajar, o la boca
+     volvia a estar sucia, justo al irse. Mas especifico que las reglas del
+     flipbook de arriba a proposito, para ganarles sin importante. */
+  .tama.una-vez .flip > g { animation-iteration-count: 1; animation-fill-mode: forwards; }
   .blink > g { animation-duration: 3.2s; animation-timing-function: steps(1, end); animation-iteration-count: infinite; }
   .blink > g:nth-child(1) { animation-name: blinkA; }
   .blink > g:nth-child(2) { animation-name: blinkB; }
@@ -2781,16 +2838,15 @@ ${FLIP_CSS}
      lo que manda es una posicion, no un ciclo. Y la transicion corta no es
      decoracion: hace que el ojo llegue con un pelin de retraso, que es lo que lo
      hace parecer vivo en vez de pegado al raton. */
-  .a-pupila { transform: translate(calc(var(--mx, 0) * 1px), calc(var(--my, 0) * 1px));
-              transition: transform .12s linear; }
+  /* La pupila salta de casilla en casilla (-1, 0, 1): el HUD sólo escribe
+     enteros. Sin transición a propósito, que deslizándose pasaría por medio
+     píxel igual que cualquier otro sprite. */
+  .a-pupila { transform: translate(calc(var(--mx, 0) * 1px), calc(var(--my, 0) * 1px)); }
   .a-asiente { animation: asiente .8s steps(1, end) infinite; }
   .a-atento { animation: atento .9s steps(1, end) infinite; }
   .a-busca { animation: busca 1.2s steps(1, end) infinite; }
   .a-piensa { animation: piensa 1.6s steps(1, end) infinite; }
   .a-leer { animation: leer .52s steps(1, end) infinite; }
-  .a-zzz { animation: sube 1.8s linear infinite; }
-  .a-zzz2 { animation: sube 1.8s linear .9s infinite; }
-  .a-nota { animation: sube 1.6s linear infinite; }
   .a-lapiz { animation: lapiz .3s steps(1, end) infinite; }
   .a-renglon { animation: renglon 1.4s steps(1, end) infinite;
                transform-box: fill-box; transform-origin: left center; }

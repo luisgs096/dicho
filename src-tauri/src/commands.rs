@@ -247,32 +247,43 @@ pub fn aplicar_raton_hud(app: &AppHandle, arrastrable: bool) {
     }
 }
 
-/// Empieza a arrastrar el HUD: lo llama el propio HUD al recibir el ratón.
-///
-/// El seguimiento del cursor se va a un hilo aparte porque dura lo que dure el
-/// gesto —segundos— y no puede quedarse ocupando el hilo de comandos.
-/// Dónde está el cursor **respecto al centro de la onda**, de -1 a 1.
+/// Dónde está el cursor **respecto al centro de la onda**, en unidades de
+/// 600 px lógicos: 1 es un palmo a la derecha (o abajo), -1 un palmo a la
+/// izquierda (o arriba).
 ///
 /// Lo pregunta la carita de los ojos que te siguen, unas quince veces por
 /// segundo y **sólo mientras esa carita está a la vista**. Un hilo en Rust
 /// emitiendo eventos todo el rato saldría más caro: la mayor parte del tiempo no
-/// hay nadie mirando.
+/// hay nadie mirando. Con la onda escondida contesta `None`, y el HUD pregunta
+/// más despacio hasta que vuelve a verse.
 ///
 /// El divisor no es el tamaño de la pantalla sino una distancia de referencia
-/// fija (600 px): así los ojos llegan al tope del recorrido a un palmo de la
-/// onda, que es donde estás cuando la miras, en vez de tener que cruzar un
-/// monitor 4K entero para que la pupila se mueva un píxel.
+/// fija: así los ojos llegan al tope del recorrido a un palmo de la onda, que es
+/// donde estás cuando la miras. Y va en píxeles **lógicos**: Windows da el
+/// cursor en físicos, y con 600 a secas el palmo medía 240 px de verdad en una
+/// 4K al 250 %, así que ahí la pupila se iba al tope casi sin mover el ratón.
+///
+/// No se recorta a ±1: la pupila recorta por su cuenta, y el gesto de marearla
+/// —darle vueltas— necesita el ángulo de verdad, también de lejos.
 #[tauri::command]
 pub fn hud_cursor(app: AppHandle) -> Option<(f32, f32)> {
     let hud = app.get_webview_window("hud")?;
+    if !hud.is_visible().unwrap_or(false) {
+        return None;
+    }
     let pos = hud.outer_position().ok()?;
     let tam = hud.outer_size().ok()?;
+    let palmo = 600.0 * hud.scale_factor().unwrap_or(1.0) as f32;
     let (cx, cy) = crate::overlay::cursor_pos()?;
-    let dx = (cx as f32 - (pos.x as f32 + tam.width as f32 / 2.0)) / 600.0;
-    let dy = (cy as f32 - (pos.y as f32 + tam.height as f32 / 2.0)) / 600.0;
-    Some((dx.clamp(-1.0, 1.0), dy.clamp(-1.0, 1.0)))
+    let dx = (cx as f32 - (pos.x as f32 + tam.width as f32 / 2.0)) / palmo;
+    let dy = (cy as f32 - (pos.y as f32 + tam.height as f32 / 2.0)) / palmo;
+    Some((dx, dy))
 }
 
+/// Empieza a arrastrar el HUD: lo llama el propio HUD al recibir el ratón.
+///
+/// El seguimiento del cursor se va a un hilo aparte porque dura lo que dure el
+/// gesto —segundos— y no puede quedarse ocupando el hilo de comandos.
 #[tauri::command]
 pub fn hud_arrastrar(app: AppHandle, state: State<'_, SettingsState>) {
     let Some(hud) = app.get_webview_window("hud") else {

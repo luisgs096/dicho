@@ -86,6 +86,28 @@ const BAJARSE_MS = 1200;
  *  siga zarandeando para ver cómo se le pasa. */
 const LIMPIANDO = VOMITO + 1;
 
+/** Lo que se queda la cara limpia a la vista antes de fundir, con la limpiada
+ *  ya terminada y quieta en su último cuadro: sin esto la sonrisa del final
+ *  salía y se iba en el mismo instante. */
+const REMATE_LIMPIA = 800;
+
+/** Vueltas enteras alrededor de la onda que marean a los ojos que te siguen, y
+ *  en cuánto tiempo hay que darlas. Dos en tres segundos es un gesto que se
+ *  hace a propósito: trabajando, el cursor no rodea la onda ni una vez. */
+const VUELTAS_MAREO = 2;
+const VENTANA_VUELTAS = 3000;
+
+/** En qué casilla va la pupila en un eje: -1, 0 o 1, nunca a medio píxel —la
+ *  regla de las coordenadas enteras vale también para lo que mueve el cursor—.
+ *
+ *  Con histéresis: para salir del centro hay que pasar de 0,2 (120 px) y para
+ *  volver hay que bajar de 0,12. Con un solo umbral, el cursor parado justo en
+ *  la raya haría tiritar la pupila entre dos casillas. */
+function casillaPupila(v: number, actual: number): number {
+  const umbral = actual === 0 ? 0.2 : 0.12;
+  return v > umbral ? 1 : v < -umbral ? -1 : 0;
+}
+
 const CLASSIC_CSS = `
   .classic-shake { animation: cshake .55s ease-in-out; }
   @keyframes cshake { 0%, 100% { transform: translateX(0); }
@@ -463,10 +485,10 @@ export default function Hud() {
   const [encima, setEncima] = useState(false);
   /** Destello de relevo entre una carita del mareo y la siguiente. */
   const [relevo, setRelevo] = useState(false);
-  /** Cuál de las dos limpiadas tocó esta vez. Se sortea al entrar y se guarda en
-   *  una ref, que si no cada repintado sacaría otra y las dos se atropellarían
-   *  a mitad de la animación. */
-  const limpiada = useRef(LIMPIADAS[0].v);
+  /** Cuál de las dos limpiadas tocó esta vez, con lo que dura. Se sortea al
+   *  entrar y se guarda en una ref, que si no cada repintado sacaría otra y las
+   *  dos se atropellarían a mitad de la animación. */
+  const limpiada = useRef(LIMPIADAS[0]);
   const mareoDesde = useRef(0);
   /** El listener del arrastre se registra una vez y se quedaría con el `mareo`
    *  de aquel render; la ref le da siempre el de ahora. */
@@ -607,8 +629,10 @@ export default function Hud() {
       if (ahora - mareoDesde.current < PLANTON_MAREO) return;
       mareoDesde.current = ahora;
       // Tope en el vómito: al cuarto —la limpiada— no se llega meneando, se
-      // llega cuando el vómito termina.
-      setMareo((m) => Math.min(VOMITO, m + 1));
+      // llega cuando el vómito termina. Y la limpiada no se interrumpe: antes
+      // un meneo a media limpiada la devolvía al vómito, y la de la servilleta,
+      // que necesita su tiempo para leerse, no llegaba a verse nunca.
+      setMareo((m) => (m === LIMPIANDO ? m : Math.min(VOMITO, m + 1)));
     });
     return () => {
       un.then((f) => f());
@@ -630,7 +654,12 @@ export default function Hud() {
   useEffect(() => {
     if (mareo === 0) return;
     if (mareo === LIMPIANDO) {
-      const t = setTimeout(() => setFundiendo(true), 900);
+      // Entera y una sola vez (ver la clase una-vez en FACE_CSS), y un rato
+      // quieta en la cara limpia antes de fundir.
+      const t = setTimeout(
+        () => setFundiendo(true),
+        limpiada.current.ms + REMATE_LIMPIA,
+      );
       return () => clearTimeout(t);
     }
     const t = setTimeout(
@@ -641,7 +670,8 @@ export default function Hud() {
         }
         // El sorteo: las dos versiones se quedaron y sale una u otra.
         limpiada.current =
-          LIMPIADAS[Math.floor(Math.random() * LIMPIADAS.length)].v;
+          LIMPIADAS[Math.floor(Math.random() * LIMPIADAS.length)];
+        hudLog(`limpiada: ${limpiada.current.nombre}`);
         setMareo(LIMPIANDO);
       },
       mareo === VOMITO ? 2600 : 4200,
@@ -835,7 +865,10 @@ export default function Hud() {
   // Zarandeada gana a todo: es el único momento en que la carita no cuenta en
   // qué va el dictado, y para entonces no hay dictado ninguno.
   const mareada =
-    mareo === LIMPIANDO ? limpiada.current : mareo > 0 ? MAREO[mareo - 1] : null;
+    mareo === LIMPIANDO ? limpiada.current.v : mareo > 0 ? MAREO[mareo - 1] : null;
+  // Las transiciones que cuentan un final se ven una sola vez y se quedan en su
+  // último cuadro mientras funden.
+  const unaVez = mareo === LIMPIANDO || (bajando && !mareada);
   const cancelada = rec.state === "cancelado" ? CARITA_CANCELADO : null;
   // Arrastrándola: va en la vagoneta. Pierde contra el mareo, que es lo que
   // pasa si además la zarandeas.
@@ -873,41 +906,82 @@ export default function Hud() {
   // mientras esa carita esta a la vista: desde el webview no se puede saber
   // donde esta el raton -el HUD solo recibe eventos cuando esta encima de el- y
   // preguntarlo todo el rato para las otras cuatro caritas seria pagar por nada.
+  // Con la onda escondida Rust contesta null y se pregunta mucho mas despacio.
   //
   // El valor se escribe directo en el DOM, como `--lvl`: pasarlo por el estado
   // de React repintaria la escena quince veces por segundo y se llevaria por
-  // delante las animaciones, que es el gotcha de siempre.
+  // delante las animaciones, que es el gotcha de siempre. Y se escribe solo
+  // cuando la pupila cambia de casilla, que es pocas veces.
+  //
+  // **Se marea solo si le das vueltas.** Antes bastaban tres saltos rapidos
+  // seguidos del cursor, y eso lo hace cualquiera que trabaje deprisa con un
+  // raton sensible o en una 4K: los ojos se ponian en aspa sin que nadie la
+  // hubiera tocado. Dar vueltas alrededor de la onda no depende de lo rapido
+  // que vaya el puntero y no pasa sin querer: ir y venir se anula solo, y un
+  // viaje de una ventana a otra no rodea nada.
   const [mareoCursor, setMareoCursor] = useState(false);
   useEffect(() => {
     if (!fresca.sigue) return;
     const caja = tamaRef.current;
     let vivo = true;
     let t = 0;
-    let ult: [number, number] | null = null;
-    let seguidos = 0;
+    let escondida = false;
+    let pupila: [number, number] = [0, 0];
+    let anguloAnt: number | null = null;
+    let giros: { t: number; d: number }[] = [];
     const tick = () => {
       invoke<[number, number] | null>("hud_cursor")
         .then((r) => {
-          if (!vivo || !r) return;
-          caja?.style.setProperty("--mx", r[0].toFixed(2));
-          caja?.style.setProperty("--my", r[1].toFixed(2));
-          if (ult) {
-            // Tres saltos grandes seguidos y se marea. Uno solo no vale: al
-            // cambiar de ventana el cursor aparece lejos de golpe y eso no es
-            // que lo esten zarandeando.
-            const salto = Math.hypot(r[0] - ult[0], r[1] - ult[1]);
-            seguidos = salto > 0.3 ? seguidos + 1 : 0;
-            if (seguidos >= 3) {
-              seguidos = 0;
-              setMareoCursor(true);
-              window.setTimeout(() => vivo && setMareoCursor(false), 1500);
-            }
+          if (!vivo) return;
+          escondida = !r;
+          if (!r) {
+            anguloAnt = null;
+            giros = [];
+            return;
           }
-          ult = r;
+          const [x, y] = r;
+          const nueva: [number, number] = [
+            casillaPupila(x, pupila[0]),
+            casillaPupila(y, pupila[1]),
+          ];
+          if (nueva[0] !== pupila[0] || nueva[1] !== pupila[1]) {
+            pupila = nueva;
+            caja?.style.setProperty("--mx", String(nueva[0]));
+            caja?.style.setProperty("--my", String(nueva[1]));
+          }
+          // Las vueltas: cuanto ha girado el cursor alrededor del centro de la
+          // onda. Ni pegado al centro, donde el angulo baila con un pixel, ni en
+          // la otra punta del escritorio.
+          const ahora = performance.now();
+          const lejos = Math.hypot(x, y);
+          if (lejos > 0.12 && lejos < 3) {
+            const angulo = Math.atan2(y, x);
+            if (anguloAnt !== null) {
+              let d = angulo - anguloAnt;
+              if (d > Math.PI) d -= 2 * Math.PI;
+              else if (d < -Math.PI) d += 2 * Math.PI;
+              // Un salto de más de un cuarto de vuelta en 70 ms no es girar, es
+              // el cursor apareciendo en otro sitio. Sin este tope, saltos al
+              // azar sumaban vueltas por pura estadística: medido, 7 mareos por
+              // hora saltando cada 70 ms por una 4K; con él, cero. Dando vueltas
+              // de verdad —hasta tres por segundo— nunca se llega al tope.
+              if (Math.abs(d) < 1.6) giros.push({ t: ahora, d });
+            }
+            anguloAnt = angulo;
+          } else {
+            anguloAnt = null;
+          }
+          giros = giros.filter((g) => ahora - g.t < VENTANA_VUELTAS);
+          const girado = giros.reduce((a, g) => a + g.d, 0);
+          if (Math.abs(girado) >= VUELTAS_MAREO * 2 * Math.PI) {
+            giros = [];
+            setMareoCursor(true);
+            window.setTimeout(() => vivo && setMareoCursor(false), 1800);
+          }
         })
         .catch(() => {})
         .finally(() => {
-          if (vivo) t = window.setTimeout(tick, 70);
+          if (vivo) t = window.setTimeout(tick, escondida ? 600 : 70);
         });
     };
     t = window.setTimeout(tick, 70);
@@ -1166,7 +1240,7 @@ export default function Hud() {
         )}
         <div
           ref={tamaRef}
-          className={`tama ${sad ? "sad" : ""} ${leyendo ? "leyendo" : ""} ${v.shake && !isError ? "shake" : ""} ${relevo ? "relevo" : ""} ${fundiendo ? "fundido" : ""}`}
+          className={`tama ${sad ? "sad" : ""} ${leyendo ? "leyendo" : ""} ${v.shake && !isError ? "shake" : ""} ${relevo ? "relevo" : ""} ${fundiendo ? "fundido" : ""} ${unaVez ? "una-vez" : ""}`}
         >
           <div className="screen" style={{ color: sad ? pal.w : pal.face }}>
             {estrenando && <CapasEstreno version={version} />}
