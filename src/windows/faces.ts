@@ -2590,12 +2590,18 @@ export const FACE_CSS = `
      instante que va entre que se pinta el SVG y arranca la animacion. */
   .seq > g { opacity: 0; }
 ${FLIP_CSS}
-  /* Una sola vuelta: las transiciones -bajarse del carrito, limpiarse- se
-     ensenan una vez y se quedan en su ultimo cuadro. En bucle, el fundido de
-     salida pillaba otra vez el primero: la barandilla volvia a bajar, o la boca
-     volvia a estar sucia, justo al irse. Mas especifico que las reglas del
-     flipbook de arriba a proposito, para ganarles sin importante. */
-  .tama.una-vez .flip > g { animation-iteration-count: 1; animation-fill-mode: forwards; }
+  /* Una sola vuelta: las escenas que cuentan un final -vomitar, limpiarse,
+     bajarse del carrito- se ensenan una vez y se quedan en su ultimo cuadro.
+     En bucle, lo que venia detras pillaba otra vez el principio: la barandilla
+     volvia a bajar o la boca volvia a estar sucia justo al irse, y el charco
+     del vomito, que no se va, desaparecia 200 ms antes de la limpiada con la
+     primera arcada otra vez en pantalla. Mas especifico que las reglas del
+     flipbook y que las de cada animacion a proposito, para ganarles sin
+     !important. */
+  .tama.una-vez .flip > g,
+  .tama.una-vez .a-arcada, .tama.una-vez .v-uno, .tama.una-vez .v-dos, .tama.una-vez .v-tres,
+  .tama.una-vez .a-charco1, .tama.una-vez .a-charco2, .tama.una-vez .a-charco3 {
+    animation-iteration-count: 1; animation-fill-mode: forwards; }
   .blink > g { animation-duration: 3.2s; animation-timing-function: steps(1, end); animation-iteration-count: infinite; }
   .blink > g:nth-child(1) { animation-name: blinkA; }
   .blink > g:nth-child(2) { animation-name: blinkB; }

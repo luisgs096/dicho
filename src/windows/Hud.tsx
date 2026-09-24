@@ -58,9 +58,10 @@ const PLANTON_MAREO = 1600;
  *  —mareada, aguantándose, vomita— y al último se llega meneando. */
 const VOMITO = MAREO.length;
 
-/** Lo que tarda en levantarse la barandilla y quedarse la cara sola. Un ciclo
- *  entero del flipbook de `BAJANDO`, ni más ni menos: si se enseña de más, el
- *  bucle vuelve a empezar y la barandilla baja sola otra vez. */
+/** Lo que tarda en levantarse la barandilla y quedarse la cara sola: un ciclo
+ *  entero del flipbook de `BAJANDO`. Va con la clase `una-vez`, así que al
+ *  acabar se queda en su último cuadro —la cara sola— y el fundido se lo come
+ *  sin que la barandilla vuelva a bajar. */
 const BAJARSE_MS = 1200;
 
 /** Y un escalón más, al que **no** se llega meneando: limpiarse la boca. Del
@@ -829,9 +830,11 @@ export default function Hud() {
   // qué va el dictado, y para entonces no hay dictado ninguno.
   const mareada =
     mareo === LIMPIANDO ? limpiada.current.v : mareo > 0 ? MAREO[mareo - 1] : null;
-  // Las transiciones que cuentan un final se ven una sola vez y se quedan en su
-  // último cuadro mientras funden.
-  const unaVez = mareo === LIMPIANDO || (bajando && !mareada);
+  // Las escenas que cuentan un final se ven una sola vez y se quedan en su
+  // último cuadro hasta que llega lo siguiente: el vómito hasta la limpiada, y
+  // la limpiada y la bajada mientras funden.
+  const unaVez =
+    mareo === VOMITO || mareo === LIMPIANDO || (bajando && !mareada);
   const cancelada = rec.state === "cancelado" ? CARITA_CANCELADO : null;
   // Arrastrándola: va en la vagoneta. Pierde contra el mareo, que es lo que
   // pasa si además la zarandeas.
