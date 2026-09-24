@@ -23,6 +23,9 @@ function hudLog(msg: string) {
   invoke("hud_log", { msg }).catch(() => {});
 }
 
+/** El micro del LCD, en un objeto fijo: ver `escenaHtml` más abajo. */
+const MIC_HTML = { __html: MIC_SVG };
+
 // ─── paletas del tamagotchi (mismos colores de Dicho) ───────────────────────
 const LIGHT = {
   a: "#2563eb",
@@ -1000,6 +1003,12 @@ export default function Hud() {
     corrigiendo ??
     estrenada ??
     (mareoCursor && fresca.sigue ? OJOS_MAREADOS : fresca);
+  // React 19 compara `dangerouslySetInnerHTML` por identidad del objeto, no por
+  // el texto: un `{ __html }` nuevo en cada render reescribe el <svg> entero y
+  // la carita vuelve a empezar. Pasar el ratón, pulsar o la cinta de capacidad
+  // repintan el HUD sin cambiar de carita; con el objeto memorizado, esos
+  // renders no tocan la escena.
+  const escenaHtml = useMemo(() => ({ __html: v.scene }), [v.scene]);
   const sad =
     (isError && !mareada && !cancelada && !corrigiendo && !estrenada) || v.sad;
   const porLimite = rec.state === "processing" && rec.motivo === "limite";
@@ -1249,16 +1258,13 @@ export default function Hud() {
             {!leyendo && (
               <span
                 className={`mic-px ${estrenando ? "u-entra" : ""}`}
-                dangerouslySetInnerHTML={{ __html: MIC_SVG }}
+                dangerouslySetInnerHTML={MIC_HTML}
               />
             )}
             <span className="scene">
               {/* La franja visible arranca en y=2: así el píxel sale un 40 % más
                 grande sin tener que recolocar todos los sprites. */}
-              <svg
-                viewBox="0 2 48 16"
-                dangerouslySetInnerHTML={{ __html: v.scene }}
-              />
+              <svg viewBox="0 2 48 16" dangerouslySetInnerHTML={escenaHtml} />
             </span>
             <span
               className={`status ${rec.state === "done" || isError ? "texto" : ""} ${estrenando ? "u-entra" : ""}`}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import {
   ESTADOS,
   FACE_CSS,
@@ -23,6 +23,27 @@ import {
 
 /** Se cuenta sola: añadir una carita a faces.ts actualiza este número. */
 const TOTAL = Object.values(V).reduce((n, l) => n + l.length, 0);
+
+const MIC_HTML = { __html: MIC_SVG };
+
+/** Una cápsula del catálogo. Va con `memo` porque el deslizador de la voz
+ *  repinta el catálogo entero en cada paso, y con la escena entrando por
+ *  `dangerouslySetInnerHTML` eso reescribía los 42 <svg>: todas las caritas
+ *  volvían a empezar mientras movías el deslizador. La variante es siempre el
+ *  mismo objeto, así que con `memo` React se salta la cápsula. */
+const Pastilla = memo(function Pastilla({ v }: { v: Variant }) {
+  return (
+    <div className={`tama ${v.sad ? "sad" : ""}`}>
+      <div className="screen">
+        <span className="mic-px" dangerouslySetInnerHTML={MIC_HTML} />
+        <span className="scene">
+          <svg viewBox="0 2 48 16" dangerouslySetInnerHTML={{ __html: v.scene }} />
+        </span>
+        <span className="status">{v.status}</span>
+      </div>
+    </div>
+  );
+});
 
 /**
  * Catálogo de las caritas del HUD. Pinta exactamente los mismos sprites y el
@@ -52,18 +73,6 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
     ...cssVars(dark),
     "--lvl": nivel.toFixed(2),
   } as React.CSSProperties;
-
-  const pill = (v: Variant) => (
-    <div className={`tama ${v.sad ? "sad" : ""}`}>
-      <div className="screen">
-        <span className="mic-px" dangerouslySetInnerHTML={{ __html: MIC_SVG }} />
-        <span className="scene">
-          <svg viewBox="0 2 48 16" dangerouslySetInnerHTML={{ __html: v.scene }} />
-        </span>
-        <span className="status">{v.status}</span>
-      </div>
-    </div>
-  );
 
   return (
     <div
@@ -147,7 +156,7 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
                           : undefined
                       }
                     >
-                      {pill(v)}
+                      <Pastilla v={v} />
                     </div>
                   </div>
                 ))}
@@ -186,7 +195,7 @@ export default function Animaciones({ onClose }: { onClose: () => void }) {
                         : undefined
                     }
                   >
-                    {pill(v)}
+                    <Pastilla v={v} />
                   </div>
                 </div>
               ))}
