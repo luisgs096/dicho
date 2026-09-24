@@ -870,6 +870,10 @@ export default function Settings() {
   // Y al revés: un atajo de dictar nuevo tampoco puede pisar al del escribano.
   const dictarChocaEscribano =
     draftChanged && seSolapan(draft, currentEscribano);
+  // Ni llevar dentro la tecla de cancelar. toggleKey ya no deja meterla, pero
+  // el borrador puede venir de antes de elegir esa tecla.
+  const dictarLlevaCancelar =
+    !!settings?.cancelar && draft.includes(settings.cancelar);
 
   const toggleKey = (code: string) => {
     if (destinoTecla === "corregir") {
@@ -886,10 +890,21 @@ export default function Settings() {
     if (destinoTecla === "cancelar") {
       // Una tecla del propio atajo no vale: la de cancelar se pulsa CON el
       // atajo apretado, así que elegir una de sus teclas haría que cada dictado
-      // se cancelara solo nada más arrancar.
-      if (currentHotkey.includes(code)) {
+      // se cancelara solo nada más arrancar. También la del borrador sin
+      // guardar: si no, se podía armar Ctrl + F8, elegir F8 aquí y guardar
+      // después el atajo con la tecla de cancelar dentro.
+      if (currentHotkey.includes(code) || draft.includes(code)) {
         setAvisoTecla(
-          "Esa tecla ya es parte del atajo: cada dictado se cancelaría solo.",
+          "Esa tecla ya es parte del atajo de dictar: cada dictado se cancelaría solo.",
+        );
+        return;
+      }
+      // Ni una del escribano: con la onda ofreciéndose, esta tecla es la que
+      // la despide, y hotkey.rs la mira antes que la combinación. Apretar el
+      // atajo del escribano la quitaría de en medio en vez de corregir.
+      if (currentEscribano.includes(code) || escribano.includes(code)) {
+        setAvisoTecla(
+          "Esa tecla es parte del atajo del escribano: con la onda ofreciéndose, apretar su atajo la despediría en vez de corregir.",
         );
         return;
       }
@@ -900,6 +915,16 @@ export default function Settings() {
       return;
     }
     const base = hotkeyDraft ?? currentHotkey;
+    // La tecla de cancelar no puede ir dentro: mientras mantienes el atajo el
+    // teclado repite la última tecla, y esa repetición llega a hotkey.rs con el
+    // dictado ya en marcha, así que se cancelaría solo al poco de empezar.
+    if (!base.includes(code) && code === settings?.cancelar) {
+      setAvisoTecla(
+        "Esa es tu tecla para cancelar: dentro del atajo, cada dictado se cancelaría solo.",
+      );
+      return;
+    }
+    setAvisoTecla(null);
     setHotkeyDraft(
       base.includes(code)
         ? base.filter((k) => k !== code)
@@ -1160,6 +1185,15 @@ export default function Settings() {
 
                   {destinoTecla === "atajo" && (
                     <>
+                      {dictarLlevaCancelar && (
+                        <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                          Lleva dentro tu tecla para cancelar (
+                          {keyLabel(settings?.cancelar ?? "")}): al mantener el
+                          atajo el teclado la repite y cada dictado se
+                          cancelaría solo. Quítala o elige otra tecla para
+                          cancelar.
+                        </p>
+                      )}
                       {dictarChocaEscribano && (
                         <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
                           Choca con el atajo del escribano (
@@ -1175,7 +1209,8 @@ export default function Settings() {
                             !draftChanged ||
                             draft.length === 0 ||
                             !draftHasModifier ||
-                            dictarChocaEscribano
+                            dictarChocaEscribano ||
+                            dictarLlevaCancelar
                           }
                           onClick={() => {
                             update({ hotkey: draft });
