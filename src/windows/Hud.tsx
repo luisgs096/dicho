@@ -923,11 +923,25 @@ export default function Hud() {
   // que vaya el puntero y no pasa sin querer: ir y venir se anula solo, y un
   // viaje de una ventana a otra no rodea nada.
   const [mareoCursor, setMareoCursor] = useState(false);
+  // "A la vista" de verdad: que la carita de reposo sorteada sea la de los ojos
+  // no basta. En clásico no se dibuja, y el escribano, el cancelado, el estreno
+  // y la vagoneta la tapan (todos pasan por stateFor → "reposo" y sortean una
+  // debajo). Mirando sólo `fresca.sigue`, cualquiera de ellos con los ojos
+  // sorteados preguntaba a Rust quince veces por segundo para nada.
+  const ojosAVista =
+    hudStyle === "tamagotchi" &&
+    !!fresca.sigue &&
+    !mareada &&
+    !encarrito &&
+    !cancelada &&
+    !corrigiendo &&
+    !estrenada;
   useEffect(() => {
-    if (!fresca.sigue) return;
+    if (!ojosAVista) return;
     const caja = tamaRef.current;
     let vivo = true;
     let t = 0;
+    let tMareo = 0;
     let escondida = false;
     let pupila: [number, number] = [0, 0];
     let anguloAnt: number | null = null;
@@ -979,7 +993,8 @@ export default function Hud() {
           if (Math.abs(girado) >= VUELTAS_MAREO * 2 * Math.PI) {
             giros = [];
             setMareoCursor(true);
-            window.setTimeout(() => vivo && setMareoCursor(false), 1800);
+            window.clearTimeout(tMareo);
+            tMareo = window.setTimeout(() => vivo && setMareoCursor(false), 1800);
           }
         })
         .catch(() => {})
@@ -991,10 +1006,16 @@ export default function Hud() {
     return () => {
       vivo = false;
       window.clearTimeout(t);
+      // Si la carita se va a media borrachera —empiezas a dictar antes de que
+      // se le pase—, el vivo && de arriba ya no la desmarea nunca, y la próxima
+      // vez que salieran los ojos saldrían en aspa y así se quedaban. Se
+      // desmarea al irse.
+      window.clearTimeout(tMareo);
+      setMareoCursor(false);
       caja?.style.removeProperty("--mx");
       caja?.style.removeProperty("--my");
     };
-  }, [fresca]);
+  }, [fresca, ojosAVista]);
 
   const v =
     mareada ??
