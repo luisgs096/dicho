@@ -2766,8 +2766,11 @@ ${FLIP_CSS}
                       25% { transform: translateY(0); opacity: 1; }
                       85% { opacity: 1; } 100% { opacity: 0; } }
   @keyframes rubor { 0% { opacity: .45; } 50% { opacity: 1; } }
+  /* Hasta -7 y no -8: a -8 el aro de la lupa (x=32) quedaba pegado a la cuenca
+     derecha (x=31) un cuarto del ciclo, y las dos se leian como una sola
+     mancha. */
   @keyframes lupa { 0% { transform: translate(0, 0); } 25% { transform: translate(-4px, 2px); }
-                    50% { transform: translate(-8px, 0); } 75% { transform: translate(-3px, 2px); } }
+                    50% { transform: translate(-7px, 0); } 75% { transform: translate(-3px, 2px); } }
 
   /* Cabeceo del DJ: sólo baja y va hacia la izquierda. Si se moviera a la
      derecha, el auricular (x=33) chocaría con la primera barra (x=34). */
@@ -2968,7 +2971,10 @@ ${FLIP_CSS}
   .a-lupa { animation: lupa 1.6s steps(1, end) infinite; }
   .a-dj { animation: dj .8s steps(1, end) infinite; }
   .a-niega { animation: niega .36s steps(1, end) infinite; }
-  .a-aspa { opacity: 0; animation: aspa 1.44s steps(1, end) infinite; }
+  /* El aspa se estampa una vez y se queda (forwards). En bucle se apagaba y
+     volvia a estamparse a los 1,44 s, dentro de los 2,2 s que se ve el
+     cancelado: dos tachones para un solo no. */
+  .a-aspa { opacity: 0; animation: aspa 1.44s steps(1, end) forwards; }
   /* El carrito sobre el riel: sube y baja un píxel en diagonal, que es lo que
      lee como "va rodando" sin mover la cara de sitio. */
   .a-vagon { animation: vagoneta .48s steps(1, end) infinite; }
