@@ -55,20 +55,6 @@ pub struct Correction {
     pub aplicadas: u32,
 }
 
-/// Qué correcciones del diccionario pedía el dictado, y cuáles llegaron de
-/// verdad al texto final.
-///
-/// Antes esto sólo miraba el crudo y era una **predicción**: decía lo que el
-/// diccionario haría, no lo que pasó. Y mentía bastante — medido sobre
-/// `mike.db`, 10 de 21 reemplazos anunciados no estaban en el texto. El caso
-/// claro es el dictado 654: el historial decía "Cloud → Claude ×2" y lo que el
-/// usuario recibió decía "Cloud Code".
-///
-/// La causa es que la sustitución literal sólo ocurre en modo Reglas
-/// (`rules::polish`); con Estándar o Editor el diccionario viaja como simple
-/// sugerencia dentro del prompt, y el modelo puede ignorarla. Así que ahora se
-/// cuenta también en la salida: `aplicadas == 0` significa que la ignoró, y eso
-/// vale la pena enseñarlo en vez de esconderlo.
 /// Aplica el diccionario del usuario **al texto ya redactado**, literalmente.
 ///
 /// # Por qué existe
@@ -85,44 +71,150 @@ pub struct Correction {
 /// así. Por eso esto corre **después** de pulir y en todos los modos: lo último
 /// que toca el texto es su diccionario, no el modelo.
 ///
-/// # Dos detalles que no son adorno
+/// # Una sola pasada, y el reemplazo ya escrito no se toca
 ///
-/// Los términos se aplican **de más largo a más corto**. Con «Cloud» y «cloud
-/// code» los dos en la lista, aplicar primero el corto dejaría «Claude code»
-/// convertido en un destrozo a medias.
+/// Todos los términos van en **un solo patrón**, del más largo al más corto: en
+/// cada sitio gana el término más largo («cloud code» antes que «cloud»), y lo
+/// que escribe un reemplazo no lo vuelve a leer nadie. Con una pasada por
+/// término, «node → Node.js» seguido de «js → JavaScript» daba
+/// «Node.JavaScript».
 ///
-/// Y si lo que había empezaba en mayúscula y el reemplazo no, se le respeta la
-/// mayúscula: «Clode» al principio de una frase se vuelve «Claude», no «claude».
+/// Y el reemplazo **ya escrito** también está en el patrón, para dejarlo como
+/// está. Sin eso, un reemplazo que contiene a su término se aplicaba otra vez
+/// encima: «Tailwind CSS» salía «Tailwind CSS CSS» cada vez que el modelo ya lo
+/// había escrito bien — y el prompt le pide justo eso — o cuando el escribano
+/// corregía un texto que ya lo traía.
+///
+/// Si lo que había empezaba en mayúscula y el reemplazo va todo en minúsculas,
+/// se le respeta la mayúscula: «Clode» al principio de una frase se vuelve
+/// «Claude», no «claude».
 pub fn aplicar_diccionario(texto: &str, dict: &[(String, Option<String>)]) -> String {
-    let mut pares: Vec<(&str, &str)> = dict
-        .iter()
-        .filter_map(|(t, r)| r.as_deref().map(|r| (t.as_str(), r)))
-        .filter(|(t, r)| !t.trim().is_empty() && !r.trim().is_empty())
-        .collect();
-    pares.sort_by_key(|(t, _)| std::cmp::Reverse(t.chars().count()));
-
-    let mut out = texto.to_string();
-    for (term, bueno) in pares {
-        let Ok(re) = Regex::new(&format!(r"(?i)\b{}\b", regex::escape(term))) else {
-            continue;
-        };
-        out = re
-            .replace_all(&out, |c: &regex::Captures| {
-                respeta_mayuscula(&c[0], bueno)
-            })
-            .into_owned();
-    }
-    out
+    let Some(dic) = Diccionario::nuevo(dict) else {
+        return texto.to_string();
+    };
+    dic.re
+        .replace_all(texto, |c: &regex::Captures| match dic.pieza(&c[0]) {
+            Some(Pieza::Termino(i)) => respeta_mayuscula(&c[0], &dic.pares[i].1),
+            // Ya estaba escrito como lo quiere el usuario, o no se reconoce:
+            // se deja como está.
+            _ => c[0].to_string(),
+        })
+        .into_owned()
 }
 
-/// Si lo encontrado empezaba en mayúscula y el reemplazo no, se la pone.
-fn respeta_mayuscula(encontrado: &str, bueno: &str) -> String {
+/// Qué es cada cosa que el patrón puede encontrar.
+#[derive(Clone, Copy)]
+enum Pieza {
+    /// El término de la entrada `i`: se cambia por su reemplazo.
+    Termino(usize),
+    /// Un reemplazo, ya escrito: se deja en paz.
+    Hecho,
+}
+
+/// El diccionario compilado en un solo patrón.
+struct Diccionario {
+    re: Regex,
+    /// Clave de lo encontrado → qué es.
+    piezas: std::collections::HashMap<String, Pieza>,
+    /// (término, reemplazo), recortados y sin entradas vacías.
+    pares: Vec<(String, String)>,
+}
+
+impl Diccionario {
+    fn nuevo(dict: &[(String, Option<String>)]) -> Option<Self> {
+        let pares: Vec<(String, String)> = dict
+            .iter()
+            .filter_map(|(t, r)| Some((t.trim(), r.as_deref()?.trim())))
+            .filter(|(t, r)| !t.is_empty() && !r.is_empty())
+            .map(|(t, r)| (t.to_string(), r.to_string()))
+            .collect();
+        let mut piezas = std::collections::HashMap::new();
+        let mut formas: Vec<&str> = Vec::new();
+        // Primero los reemplazos y luego los términos: si una palabra es a la
+        // vez reemplazo de una entrada y término de otra, manda el término.
+        for (_, r) in &pares {
+            if piezas.insert(clave(r), Pieza::Hecho).is_none() {
+                formas.push(r);
+            }
+        }
+        for (i, (t, _)) in pares.iter().enumerate() {
+            match piezas.get(&clave(t)) {
+                // El mismo término dos veces con otra caja («Cloud» y «cloud»):
+                // gana el primero, como antes.
+                Some(Pieza::Termino(_)) => {}
+                Some(Pieza::Hecho) => {
+                    piezas.insert(clave(t), Pieza::Termino(i));
+                }
+                None => {
+                    piezas.insert(clave(t), Pieza::Termino(i));
+                    formas.push(t);
+                }
+            }
+        }
+        if formas.is_empty() {
+            return None;
+        }
+        formas.sort_by_key(|f| std::cmp::Reverse(f.chars().count()));
+        let alternativas: Vec<String> = formas.iter().map(|f| patron(f)).collect();
+        // Un solo patrón: si no compila (un diccionario enorme puede pasarse del
+        // tope del motor), no se aplica nada — y eso tiene que quedar escrito.
+        let re = match Regex::new(&format!("(?i)(?:{})", alternativas.join("|"))) {
+            Ok(re) => re,
+            Err(e) => {
+                log::warn!("Diccionario: el patrón no compila ({e}); no se aplica");
+                return None;
+            }
+        };
+        Some(Self { re, piezas, pares })
+    }
+
+    fn pieza(&self, encontrado: &str) -> Option<Pieza> {
+        self.piezas.get(&clave(encontrado)).copied()
+    }
+}
+
+/// Cómo se reconoce un término venga como venga escrito: en minúsculas y con
+/// los espacios de dentro colapsados.
+fn clave(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+}
+
+/// El patrón de un término: literal, palabra entera, y cualquier espacio entre
+/// sus palabras (dos espacios tecleados en la casilla, o un salto de línea del
+/// Editor en medio, no pueden hacer que deje de casar).
+///
+/// El borde de palabra se pone **sólo donde el término empieza o acaba en letra
+/// o número**. `\b` es la frontera entre una letra y lo que no lo es: detrás
+/// de «c++» o delante de «(algo)» exigía una letra pegada al signo, y esos
+/// términos no casaban nunca.
+fn patron(t: &str) -> String {
+    let letra = |c: Option<char>| c.is_some_and(|c| c.is_alphanumeric() || c == '_');
+    let cuerpo = t
+        .split_whitespace()
+        .map(regex::escape)
+        .collect::<Vec<_>>()
+        .join(r"\s+");
+    format!(
+        "{}{cuerpo}{}",
+        if letra(t.chars().next()) { r"\b" } else { "" },
+        if letra(t.chars().last()) { r"\b" } else { "" },
+    )
+}
+
+/// Si lo encontrado empezaba en mayúscula y el reemplazo va **todo** en
+/// minúsculas, se la pone.
+///
+/// Todo, y no sólo la primera letra: si el reemplazo trae alguna mayúscula
+/// —«iPhone», «macOS», «eBay»— es la grafía que eligió el usuario, y subirle
+/// la primera letra la rompía («IPhone») cada vez que el término caía al
+/// principio de una frase.
+pub(crate) fn respeta_mayuscula(encontrado: &str, bueno: &str) -> String {
     let empieza_alto = encontrado
         .chars()
         .next()
         .is_some_and(|c| c.is_uppercase());
-    let bueno_bajo = bueno.chars().next().is_some_and(|c| c.is_lowercase());
-    if !(empieza_alto && bueno_bajo) {
+    let todo_bajo = !bueno.chars().any(|c| c.is_uppercase());
+    if !(empieza_alto && todo_bajo) {
         return bueno.to_string();
     }
     let mut cs = bueno.chars();
@@ -132,27 +224,49 @@ fn respeta_mayuscula(encontrado: &str, bueno: &str) -> String {
     }
 }
 
+/// Qué correcciones del diccionario pedía el dictado, y cuáles están de verdad
+/// en el texto final.
+///
+/// `count` se cuenta sobre el crudo con **la misma pasada** que corrige: un
+/// «cloud code» cuenta para «cloud code» y no también para «cloud». Con una
+/// búsqueda por término, el diccionario real del usuario («Cloud» y «cloud
+/// code») enseñaba dos chips por cada «cloud code» dictado.
+///
+/// `aplicadas` busca el reemplazo como palabra entera y **sin distinguir
+/// mayúsculas**. Distinguirlas tenía sentido cuando el diccionario era una
+/// sugerencia y el término podía sobrevivir con otra caja; desde que se aplica
+/// después de pulir, el término ya no sobrevive nunca, y distinguirlas sólo
+/// daba por no aplicado lo que `respeta_mayuscula` subió al principio de
+/// frase: la tarjeta decía «la ignoró» de algo que sí se corrigió. Y sin borde
+/// de palabra, un «Git» contaba dentro de «GitHub».
+///
+/// Por lo mismo, `aplicadas == 0` ya no significa que el modelo lo ignorara:
+/// significa que el término **ya no estaba** cuando el diccionario pasó — el
+/// modelo lo reescribió, lo quitó o lo tradujo.
 pub fn corrections(raw: &str, polished: &str, ctx: &PolishCtx) -> Vec<Correction> {
+    let Some(dic) = Diccionario::nuevo(&ctx.dictionary) else {
+        return Vec::new();
+    };
+    let mut count = vec![0u32; dic.pares.len()];
+    for m in dic.re.find_iter(raw) {
+        if let Some(Pieza::Termino(i)) = dic.pieza(m.as_str()) {
+            if m.as_str() != dic.pares[i].1 {
+                count[i] += 1;
+            }
+        }
+    }
     let mut out = Vec::new();
-    for (term, replacement) in &ctx.dictionary {
-        let Some(to) = replacement else { continue };
-        let Ok(re) = Regex::new(&format!(r"(?i)\b{}\b", regex::escape(term))) else {
-            continue;
-        };
-        let count = re.find_iter(raw).filter(|m| m.as_str() != to).count() as u32;
-        if count == 0 {
+    for (i, (term, to)) in dic.pares.iter().enumerate() {
+        if count[i] == 0 {
             continue;
         }
-        // Distinguiendo mayúsculas a propósito: media corrección del diccionario
-        // es justamente de capitalización ("cloud code" → "Claude code"), y
-        // buscar sin distinguir las daría todas por buenas.
-        let aplicadas = Regex::new(&regex::escape(to))
+        let aplicadas = Regex::new(&format!("(?i){}", patron(to)))
             .map(|r| r.find_iter(polished).count() as u32)
             .unwrap_or(0);
         out.push(Correction {
             term: term.clone(),
             replacement: to.clone(),
-            count,
+            count: count[i],
             aplicadas,
         });
     }
@@ -237,10 +351,12 @@ mod tests {
 
     #[test]
     fn la_correccion_que_el_modelo_ignoro_se_ve() {
-        // El caso real de mike.db (dictado 654): el diccionario pedía cambiar
-        // "cloud code" por "Claude code", el historial lo daba por hecho, y el
-        // texto que recibió el usuario seguía diciendo "Cloud Code". Pasa porque
-        // con los modos de IA el diccionario es sólo una sugerencia del prompt.
+        // El caso real de mike.db (dictado 654, antes de la 0.12): el
+        // diccionario pedía cambiar "cloud code" por "Claude code", el
+        // historial lo daba por hecho, y el texto que recibió el usuario seguía
+        // diciendo "Cloud Code". Hoy el diccionario corre después de pulir y
+        // ese texto ya no llega así; `corrections` se prueba aquí sola, con un
+        // final en el que el reemplazo no está.
         let ctx = PolishCtx {
             language: "es".into(),
             dictionary: vec![("cloud code".into(), Some("Claude code".into()))],
