@@ -163,7 +163,6 @@ const LENTES = [
 /** Banda diagonal del color del fondo: el destello que cruza los cristales. */
 const BRILLO = ["...oo", "..oo.", ".oo..", "oo..."];
 const PUNTO = ["XX", "XX"];
-const NOTA = ["..XX", "..XX", "..XX", "XXX.", "XXX."];
 const ZZZ = ["XXXX", "..X.", ".X..", "XXXX"];
 const ZZZ_MINI = ["XXX", ".X.", "XXX"];
 const GOTA = [".X.", "XXX", "XXX", ".X."];
@@ -753,8 +752,21 @@ export const CHICLE_CORTO: Variant = {
  */
 const LABIOS = ["XXX", "XoX", "XXX"];
 
-/** Nota chica, para cuando hay tres a la vez y las grandes se amontonan. */
-const NOTA_CHICA = ["..X", "..X", "XX.", "XX."];
+/**
+ * Las notas, **de dos tipos**: la corchea suelta (♪) y dos corcheas unidas por
+ * su barra (♫).
+ *
+ * Antes eran la misma negra en dos tamaños, y a esta escala dos tamaños de lo
+ * mismo no son dos notas: son una nota que a veces sale más chica. Lo que las
+ * distingue es la **silueta** —una plica con banderín contra dos plicas con su
+ * barra—, que es lo único que se lee a 48×16.
+ *
+ * El banderín son dos píxeles en escalera, y aquí la escalera sí vale: no es un
+ * objeto recto dibujado en diagonal, es la curva del banderín. Las cabezas van a
+ * la izquierda de su plica, como en la partitura.
+ */
+const CORCHEA = ["..XX.", "..X.X", "..X..", "XXX..", "XXX.."];
+const CORCHEAS = [".XXXXX", ".X...X", ".X...X", "XX..XX", "XX..XX"];
 
 // La mano que chasqueaba se borro el 19/09/2026, y conviene que quede escrito
 // por que: a cinco pixeles, un puno con **un solo dedo levantado** no se lee
@@ -769,25 +781,57 @@ const NOTA_CHICA = ["..X", "..X", "XX.", "XX."];
 // El ritmo lo llevan ahora el **meneo de la cabeza** y la entrada de las notas.
 
 /**
- * Algo que sube y se va, con su propio ritmo.
+ * # Lo que sube flotando va por carriles
  *
- * La duracion y el retraso van **inline** para que cada nota vuele distinto: si
- * fueran una clase de CSS, todas subirian a la vez y en fila, que es justo lo
- * que hace que una melodia parezca una barra de carga.
+ * Las notas del silbido y los ZZZ del dormido. Antes cada uno subía a su ritmo
+ * desde casi la misma columna, y dos cosas que suben a ritmos distintos por el
+ * mismo sitio **se atraviesan**: la rápida alcanzaba a la lenta, se montaban, y
+ * dos notas encimadas son una mancha.
+ *
+ * Ahora cada una va por **su carril** —su columna, con un píxel de aire con la
+ * de al lado— y en un carril nunca hay dos a la vez: la nota sólo se ve durante
+ * el 60 % de su ciclo, que es su viaje entero, y el resto el carril está vacío.
+ * Así no se tocan nunca, y no por suerte sino por construcción.
+ *
+ * Lo que tenían de bueno —que no suban en fila, que es lo que convierte una
+ * melodía en una barra de carga— se conserva de otra forma: **cada carril lleva
+ * su propio ciclo**, así que las de un lado y las del otro se van cruzando sin
+ * un compás fijo.
+ *
+ * Y suben **a saltos de un píxel** (el keyframe asciende del CSS, con steps).
+ * El linear de antes las dejaba a medio píxel casi todo el viaje, justo lo que
+ * la regla de la casa prohíbe: el pixel-art deslizándose tiembla.
  */
-const flota = (html: string, dur: string, retraso: string) =>
-  `<g style="animation-name:vuela;animation-duration:${dur};animation-delay:${retraso};` +
-  `animation-timing-function:linear;animation-iteration-count:infinite">${html}</g>`;
+const CARRIL_A = 33;
+/** 33 + 6 de la nota más ancha + 1 del vaivén = 40 ocupado como mucho; el
+ *  segundo carril empieza en 41 y acaba en 47, el borde del lienzo. */
+const CARRIL_B = 41;
+
+/**
+ * Una cosa subiendo por su carril, en bucle.
+ *
+ * La fase de arranque va en negativo a propósito: con un retraso positivo la
+ * nota se quedaría quieta y a la vista en su casilla de salida hasta que le
+ * tocara, y así ya va por donde le toque desde el primer instante.
+ *
+ * @param y0 la fila de arriba del sprite al salir. Sube nueve filas (lo fija el
+ *   keyframe), así que acaba en `y0 - 9`: con 11 llega justo al borde de arriba.
+ * @param ciclo cada cuánto vuelve a salir, en ms. El viaje es el 60 %.
+ */
+const carril = (html: string, x: number, y0: number, ciclo: number) =>
+  `<g transform="translate(${x} ${y0})"><g style="animation-name:asciende;` +
+  `animation-duration:${ciclo}ms;animation-delay:-${azar(ciclo)}ms;` +
+  `animation-timing-function:steps(1,end);animation-iteration-count:infinite">` +
+  `${html}</g></g>`;
 
 const COLORES_NOTA = ["p", "m", "s", "w", "a"];
 
-/** Una nota suelta: color, tamano, columna y ritmo, todo al azar. */
-const nota = (i: number) =>
-  flota(
-    spr(tint(azar(2) ? NOTA : NOTA_CHICA, uno(COLORES_NOTA)), 32 + azar(4), 9),
-    `${(1.5 + i * 0.3).toFixed(2)}s`,
-    `${(i * 0.43).toFixed(2)}s`,
-  );
+/** Dos colores de nota distintos: si las dos salen iguales se leen como una. */
+const dosColores = (): [string, string] => {
+  const a = uno(COLORES_NOTA);
+  const b = uno(COLORES_NOTA.filter((c) => c !== a));
+  return [a, b];
+};
 
 /**
  * La cara de silbar: **ojos cerrados y la cabeza meneandose al ritmo**.
@@ -826,10 +870,18 @@ const meneo = (abre: boolean) =>
     "0.84s",
   );
 
-/** Una frase: entre dos y cuatro notas volando a ritmos distintos. */
+/**
+ * Una frase: las dos notas, **cada una por su carril** y cada carril a su
+ * ritmo. Qué nota va por qué lado y de qué color se sortea en cada frase.
+ */
 const frase = (): Paso => {
-  let notas = "";
-  for (let i = 0, n = entre(2, 4); i < n; i++) notas += nota(i);
+  const [a, b] = azar(2) ? [CORCHEA, CORCHEAS] : [CORCHEAS, CORCHEA];
+  const [ca, cb] = dosColores();
+  // Una de cada cuatro frases va con una sola nota: dos voces sin parar todo el
+  // minuto también acaban sonando a bucle.
+  const notas =
+    carril(spr(tint(a, ca)), CARRIL_A, 11, entre(1300, 1900)) +
+    (azar(4) ? carril(spr(tint(b, cb)), CARRIL_B, 11, entre(1300, 1900)) : "");
   return { ms: entre(2400, 4200), v: meneo(azar(3) === 0) + notas };
 };
 
@@ -855,20 +907,26 @@ const notaLarga = (): Paso[] => {
     { ms: 620, v: eyes(OJO_MEDIO, 7) + spr(BOCA_O, 20, 11) },
     {
       ms: 760,
+      // La nota larga no sube: **se sostiene**, vibrando un píxel. Subiendo por
+      // su carril, en un paso tan corto podía tocarle el tramo en que el carril
+      // está vacío, y la nota larga se quedaba sin nota.
       v:
         eyes(OJO_LINEA, 7) +
         spr(BOCA_O, 20, 11) +
-        flota(spr(tint(NOTA, "a"), 33, 9), "1.9s", "0s"),
+        flip([spr(tint(CORCHEA, "a"), CARRIL_A, 7), spr(tint(CORCHEA, "a"), CARRIL_A, 6)], ".38s"),
     },
   ];
   if (logra) {
+    const [ca, cb] = dosColores();
     pasos.push({
       ms: 980,
+      // Le salió: las dos notas a la vez y deprisa. El ciclo cabe en el paso,
+      // así que las dos llegan a verse pase lo que pase con la fase.
       v:
         eyes(OJO_ESTRELLA, 4) +
         spr(SONRISOTA, 19, 11) +
-        flota(spr(tint(NOTA, "p"), 32, 9), "1.3s", "0s") +
-        flota(spr(tint(NOTA_CHICA, "m"), 36, 9), "1.6s", ".2s"),
+        carril(spr(tint(CORCHEAS, ca)), CARRIL_A, 11, 900) +
+        carril(spr(tint(CORCHEA, cb)), CARRIL_B, 11, 960),
     });
     pasos.push({ ms: 640, v: eyes(OJO_ARCO, 6) + spr(SONRISA, 18, 12) });
   } else {
@@ -902,15 +960,23 @@ export const SILBANDO: Variant = {
   fresco: construirSilbando,
 };
 
-/** Silbando, corta: cuatro tiempos con una nota que sube entera. */
+/**
+ * Silbando, corta: cuatro tiempos con las dos notas subiendo, cada una por su
+ * carril y con un tiempo de desfase —la segunda sale cuando la primera va por
+ * la mitad—.
+ */
 export const SILBANDO_CORTO: Variant = {
   status: "",
   scene: `${flip(
     [
-      caraSilba(-1, false),
-      caraSilba(0, false) + spr(tint(NOTA, "p"), 33, 11),
-      caraSilba(1, false) + spr(tint(NOTA, "p"), 34, 8),
-      caraSilba(0, true) + spr(tint(NOTA, "p"), 33, 5),
+      caraSilba(-1, false) + spr(tint(CORCHEAS, "m"), CARRIL_B, 5),
+      caraSilba(0, false) + spr(tint(CORCHEA, "p"), CARRIL_A, 11),
+      caraSilba(1, false) +
+        spr(tint(CORCHEA, "p"), CARRIL_A, 8) +
+        spr(tint(CORCHEAS, "m"), CARRIL_B, 11),
+      caraSilba(0, true) +
+        spr(tint(CORCHEA, "p"), CARRIL_A, 5) +
+        spr(tint(CORCHEAS, "m"), CARRIL_B, 8),
     ],
     "1.6s",
   )}`,
@@ -952,12 +1018,17 @@ const durmiendo = () =>
     "3.2s",
   );
 
-/** Un ZZZ que se va flotando, cada uno a su aire. */
+/**
+ * Un ZZZ que se va flotando, cada uno por su carril y a su aire —lento, que
+ * está dormido—. Mismo motor que las notas del silbido, y por lo mismo: dos ZZZ
+ * subiendo a ritmos distintos por la misma columna se atravesaban.
+ */
 const ronquido = (i: number) =>
-  flota(
-    spr(tint(i % 2 ? ZZZ_MINI : ZZZ, "s"), 33 + azar(3), 8),
-    `${(2.4 + i * 0.5).toFixed(1)}s`,
-    `${(i * 0.9).toFixed(1)}s`,
+  carril(
+    spr(tint(i % 2 ? ZZZ_MINI : ZZZ, "s")),
+    i % 2 ? CARRIL_B : CARRIL_A,
+    11,
+    entre(2200, 3000),
   );
 
 /** Un rato durmiendo, con los ZZZ que le toquen. */
@@ -1000,7 +1071,7 @@ const ronquidoGordo = (): Paso[] => [
     v:
       eyes(OJO_ARCO, 6) +
       spr(BOSTEZO, 19, 10) +
-      flota(spr(tint(ZZZ_GRANDE, "s"), 33, 7), "1.4s", "0s"),
+      carril(spr(tint(ZZZ_GRANDE, "s")), CARRIL_A, 11, 800),
   },
   { ms: 300, v: eyes(OJO_ANCHO, 5) + spr(BOCA_O, 20, 11) },
   { ms: 840, v: eyes(OJO_ANCHO, 5) + spr(BOCA_CHICA, 21, 12) },
@@ -2484,19 +2555,25 @@ ${FLIP_CSS}
                     50% { transform: translateX(1px); } 75% { transform: translateX(0); } }
   @keyframes busca { 0% { transform: translate(0, 0); } 25% { transform: translate(-1px, 1px); }
                      50% { transform: translate(1px, 0); } 75% { transform: translate(1px, 1px); } }
-  @keyframes sube { 0% { transform: translate(0, 3px); opacity: 0; }
-                    20%, 80% { opacity: 1; }
-                    100% { transform: translate(2px, -6px); opacity: 0; } }
-  /* Como el de arriba pero con mas recorrido: sale de la boca y se va por
-     encima del lienzo. El otro se queda en nueve pixeles, que para un ZZZ
-     pegado a la cara valia, pero una nota tiene que irse de verdad. La
-     duracion y el retraso NO van aqui: viajan inline en cada nota, que es lo
-     que permite que tres notas suban a ritmos distintos sin tres clases.
-     (Y ni un acento grave en estos comentarios: FACE_CSS es un template
-     literal de JavaScript y un acento grave lo cierra ahi mismo. Van cinco.) */
-  @keyframes vuela { 0% { transform: translate(0, 4px); opacity: 0; }
-                     15%, 75% { opacity: 1; }
-                     100% { transform: translate(4px, -12px); opacity: 0; } }
+  /* Lo que sube por su carril (notas, ZZZ): diez casillas en el 60 % del
+     ciclo, a saltos de un pixel, con un vaiven de un pixel a media subida, y
+     el 40 % restante el carril vacio. Que el carril se vacie antes de volver a
+     salir es lo que garantiza que dos notas no se monten nunca. La duracion NO
+     va aqui: viaja inline y literal en cada carril, como en todas las caritas.
+     (Ni un acento grave en estos comentarios: FACE_CSS es un template literal.) */
+  @keyframes asciende {
+    0% { transform: translate(0, 0); opacity: 1; }
+    6% { transform: translate(0, -1px); }
+    12% { transform: translate(0, -2px); }
+    18% { transform: translate(1px, -3px); }
+    24% { transform: translate(1px, -4px); }
+    30% { transform: translate(1px, -5px); }
+    36% { transform: translate(0, -6px); }
+    42% { transform: translate(0, -7px); }
+    48% { transform: translate(0, -8px); }
+    54% { transform: translate(0, -9px); opacity: 1; }
+    60%, 100% { transform: translate(0, -9px); opacity: 0; }
+  }
   @keyframes lapiz { 0% { transform: translate(0, 0); } 50% { transform: translate(-1px, 1px); } }
   @keyframes renglon { 0% { transform: scaleX(0); } 20% { transform: scaleX(.25); }
                        40% { transform: scaleX(.5); } 60% { transform: scaleX(.75); }
