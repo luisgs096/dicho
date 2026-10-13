@@ -864,7 +864,11 @@ conocimiento. Y se commitea con el resto.
   les mandas para mejorar sus productos.
   **Lo que cambiaría la decisión**: que con la voz de luisg resuelva el spanglish
   mejor que Parakeet **sin traducirlo**. Podría, porque es un modelo de lenguaje,
-  pero nadie lo ha medido. Fuentes: el informe técnico de Gemma 4 (arXiv
+  pero nadie lo ha medido. Se le propuso medirlo y dijo que no (13/10/2026). Si se
+  retoma, la receta: audios de menos de 30 s en WAV de 16 kHz mono (en este equipo
+  no hay ffmpeg), `llama-mtmd-cli` de llama.cpp con el GGUF de
+  `unsloth/gemma-4-E2B-it-GGUF` y su `mmproj`, contra `examples/transcribe_wav.rs`
+  y `examples/test_groq.rs` con los mismos audios. Fuentes: el informe técnico de Gemma 4 (arXiv
   2607.02770), la ficha de `nvidia/parakeet-tdt-0.6b-v3` y los bancos de
   twango.dev y trywalkie.com.
 
@@ -876,7 +880,7 @@ conocimiento. Y se commitea con el resto.
 |---|---|
 | Versión publicada | **v0.16.1** (24/09/2026), con las cuatro comprobaciones en verde **rehechas el 13/10**: `latest.json` se baja de `releases/latest/download/`, va sin BOM y parsea, su `signature` es idéntica al `.sig` local y el SHA256 del `.exe` publicado es igual al de `target/release/bundle/nsis` |
 | Versión en uso | **0.16.1**, instalada y corriendo en la máquina de luisg. Desde el 24/09, `dicho.log` lleva **303 dictados** con 0 `panic`, 0 `DESBORDE`, 0 «no cargado» y 2 pulidos descartados (cayeron a las reglas, como debe ser) |
-| Repo | `main` en `5d7fb53` (Version 0.16.1), al día con `origin`. Este cierre va en la rama **`luis/cierre-2026-10-13`** (un commit, sólo `CLAUDE.md`), con su PR **esperando el OK de luisg**. En GitHub sigue la rama `claude/trusting-einstein-jn4k5d`, ya mezclada por el PR #4: sobra, pero borrarla espera su visto bueno |
+| Repo | `main`, al día con `origin` y con **0 commits sin mezclar**. Este cierre entró por el PR #5 el 13/10, con el OK de luisg. **`main` es la única rama**: la vieja `claude/trusting-einstein-jn4k5d`, ya mezclada por el PR #4, se borró de GitHub el mismo día, también con su OK |
 | Pruebas | `cargo test --lib` → **98 pasan, 0 fallan, 2 ignoradas**: `prompt_del_editor`, que vuelca el prompt a disco, y `banco_coste_por_dictado`, un banco de tiempos. Las dos corren con `-- --ignored` |
 | Tipos y build | `npx tsc --noEmit` y `npm run build`, limpios |
 | Árbol de trabajo | limpio |
@@ -897,8 +901,8 @@ Lo que es de verdad: **Gemma 4 E2B**, del 31/03/2026 ("E2B" es la talla chica;
 Gemma 2 es de 2024 y sólo entiende texto). Conclusión: **no va de fábrica**. Los
 números y el porqué quedaron en "Convenciones y gotchas", en la entrada de Gemma 4.
 Lo único en lo que podría ganarle a Parakeet es el **spanglish**, que nadie ha
-medido, y se le propuso a luisg medirlo con su voz. **Quedó sin respuesta**: pidió
-el cierre antes de decir sí o no.
+medido. Se le propuso a luisg medirlo con su voz y **dijo que no** (13/10): Gemma
+queda descartado, y el trabajo vuelve a los registros del habla.
 
 ### Lo que funciona y está probado
 
@@ -923,46 +927,36 @@ el cierre antes de decir sí o no.
 
 ### Siguiente paso inmediato
 
-**Medir Gemma 4 E2B contra Parakeet y Groq con la voz de luisg**, si dice que sí —
-espera sus audios. Sin tocar Dicho y todo en la carpeta temporal de la sesión:
+**Sacar la línea base de los registros del habla.** Lo pidió luisg y es lo primero
+de su lista: que Dicho entienda y produzca español profesional, organizado,
+informal y slang mexicano, y los combine según el input, **sin interruptor**.
 
-1. luisg graba 5-6 audios de **menos de 30 s**: spanglish, algo formal y algo de
-   slang. Dicho no guarda el audio de los dictados, así que no hay de dónde sacarlos.
-2. Pasarlos a WAV de 16 kHz mono. **En este equipo no hay ffmpeg**: bajar uno
-   estático a la carpeta temporal.
-3. Gemma: `llama-mtmd-cli.exe` de la release de Windows de llama.cpp, con
-   `gemma-4-E2B-it-Q4_K_M.gguf` y su `mmproj` (de `unsloth/gemma-4-E2B-it-GGUF`,
-   ~3,5 GB): `llama-mtmd-cli -m … --mmproj … --audio clip.wav -p "Transcribe this audio exactly."`.
-4. Parakeet: `cargo run --release --example transcribe_wav -- clip.wav`. Groq:
-   `cargo run --example test_groq -- clip.wav`.
-5. Una tabla con los tres textos lado a lado y el tiempo de cada uno. Mirar sobre
-   todo si Gemma **traduce** el inglés: también está entrenado para traducir.
+Antes de tocar una palabra del prompt:
 
-Al acabar se borra la carpeta. Ojo con la RAM: Gemma ocupa 3-4 GB mientras corre.
+1. Elegir en `mike.db` 10-15 dictados que cubran los cuatro registros.
+2. Volcar el prompt que de verdad está compilado con
+   `cargo test --lib volcado -- --ignored --nocapture`.
+3. Pasar esos dictados por `python herramientas/banco-de-prompts.py <ids>` con el
+   prompt de hoy.
 
-Si luisg dice que no, sigue lo que ya estaba primero: **los registros del habla**
-(punto 2 de abajo).
+Sin esa línea base no hay cómo saber si un cambio mejora algo. Aquí los prompts no
+se afinan a ojo: el modo Editor "parecía cambiar poco" y devolvía el dictado
+**idéntico** en dos de tres casos.
 
 ### Lo que viene, por orden de valor
 
-1. **La medición de Gemma** (arriba). Una hora, y decide si vale la pena un tercer
-   motor.
-2. **Los registros del habla**: que Dicho entienda y produzca español profesional,
-   organizado, informal y slang mexicano, y los combine según el input, sin
-   interruptor. Es trabajo de prompt y se **mide** con
-   `herramientas/banco-de-prompts.py` contra los dictados reales de `mike.db`, no a
-   ojo: el modo Editor "parecía cambiar poco" y devolvía el dictado idéntico en dos
-   de tres casos.
-3. **Personalizar el Editor con el historial del usuario**: meter tres o cuatro de
+1. **Los registros del habla** (arriba): con la línea base, probar variantes del
+   prompt en el mismo banco.
+2. **Personalizar el Editor con el historial del usuario**: meter tres o cuatro de
    sus textos ya redactados en el prompt como referencia de voz. Mismo banco.
-4. **Purga del historial**: `mike.db` crece sin tope. Necesita que luisg decida la
+3. **Purga del historial**: `mike.db` crece sin tope. Necesita que luisg decida la
    política.
-5. **BYOK genérico "compatible con OpenAI"** (URL base + key + modelo): hoy Groq es
+4. **BYOK genérico "compatible con OpenAI"** (URL base + key + modelo): hoy Groq es
    la única opción y su plan gratis puede cambiar.
-6. **Vocabulario propio en el prompt del STT**: hoy el diccionario sólo corrige
+5. **Vocabulario propio en el prompt del STT**: hoy el diccionario sólo corrige
    *después* de oír mal. Medir antes y después, que ese prompt es lo que frena la
    traducción.
-7. **Sincronización con Google de punta a punta** (bloqueada por el cliente OAuth) y
+6. **Sincronización con Google de punta a punta** (bloqueada por el cliente OAuth) y
    **la quinta carita de reposo** (falta una idea que no se pise con las otras
    cuatro ni con el escribano).
 
@@ -972,10 +966,6 @@ Si luisg dice que no, sigue lo que ya estaba primero: **los registros del habla*
   la única copia y está en este disco: sin ella, ni luisg ni sus testers vuelven a
   recibir una actualización. **Copiarla, no moverla** — `publicar.ps1` la lee de esa
   ruta exacta. Pendiente desde el 27/08/2026.
-- **Decir si se hace la medición de Gemma** y, si sí, grabar los audios (la
-  Grabadora de voz de Windows vale).
-- **Aprobar el PR de este cierre**, y decidir si se borra de GitHub la rama vieja
-  `claude/trusting-einstein-jn4k5d`.
 - **Mirar la onda clavada un minuto sin dictar.** Es la única forma de ver las
   historias de reposo y los ojos que siguen al cursor dentro de la app. Si va a
   tirones, decirlo: la palanca directa es bajar las historias de 60 a 45 s.
@@ -994,7 +984,7 @@ cd src-tauri && cargo test --lib   # 98 pasan, 2 ignoradas
 npx tsc --noEmit                   # sin salida
 npm run build                      # limpio
 git status --short                 # vacío
-git branch --show-current          # ¿se mezcló ya la rama del cierre?
+git branch -a                      # main y origin/main, nada más
 git rev-list --count origin/main..HEAD   # 0
 ```
 
@@ -1086,8 +1076,9 @@ repetirla cada vez que se publique). Todo limpio:
 
 **13/10** — Sin código. `/status` destapó que el checkpoint seguía en el 21/09, y
 se rehízo desde git. Se investigó Gemma 4 E2B como motor de voz: no va de fábrica
-(ver gotchas), y queda propuesta una medición de spanglish con la voz de luisg. La
-0.16.1, verificada otra vez: 303 dictados sin un crash. 98 tests.
+(ver gotchas). Se propuso medir el spanglish con la voz de luisg y dijo que no. La
+0.16.1, verificada otra vez: 303 dictados sin un crash. 98 tests. `main` vuelve a
+ser la única rama.
 
 **24/09** — *(Reconstruido desde git el 13/10: esta sesión no reescribió el
 checkpoint.)* Una tanda grande de arreglos y dos versiones, la **0.16.0** y la
