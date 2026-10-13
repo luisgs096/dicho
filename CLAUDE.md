@@ -845,161 +845,153 @@ conocimiento. Y se commitea con el resto.
   expone `MainWindowHandle`: para elegir en qué monitor cae el foco, crear un
   `System.Windows.Forms.Form` en la posición deseada y robarle el foco con el truco
   del ALT (`keybd_event(0x12)` antes de `SetForegroundWindow`, si no Windows lo ignora).
+- **Gemma 4 E2B no va de motor de fábrica** (investigado el 13/10/2026 en fuentes
+  publicadas, sin medir en esta máquina). Es el único modelo de voz abierto de
+  Google: del 31/03/2026, Apache 2.0, gratis de bajar y de repartir. Cuando alguien
+  diga "Gemma2" casi seguro es éste — "E2B" es la talla; Gemma 2 sólo entiende texto.
+  Contra Parakeet pierde en todo lo publicado:
+  - En español leído (FLEURS), 4,2 errores por cada 100 palabras contra 3,45.
+  - En inglés de habla real, el doble de errores.
+  - Pesa 2,6-3,6 GB contra ~670 MB.
+  - Acepta **30 s por petición como máximo**, y el troceo de Dicho va de 20 a 55.
+  - Con ruido se degrada antes que Whisper, entra en bucles de repetición, y con
+    trozos de menos de un segundo falla mucho.
 
-## Checkpoint — 21 de septiembre de 2026
+  Meterlo tampoco es barato: `ort` no sirve, porque ONNX Runtime GenAI no soporta
+  su arquitectura, así que habría que llevar `llama-server` de llama.cpp como
+  proceso aparte. Y la nube de Google no es la salida: el Gemma 4 gratis de su API
+  no acepta audio, y los Gemini que sí lo aceptan, en el plan gratis, usan lo que
+  les mandas para mejorar sus productos.
+  **Lo que cambiaría la decisión**: que con la voz de luisg resuelva el spanglish
+  mejor que Parakeet **sin traducirlo**. Podría, porque es un modelo de lenguaje,
+  pero nadie lo ha medido. Se le propuso medirlo y dijo que no (13/10/2026). Si se
+  retoma, la receta: audios de menos de 30 s en WAV de 16 kHz mono (en este equipo
+  no hay ffmpeg), `llama-mtmd-cli` de llama.cpp con el GGUF de
+  `unsloth/gemma-4-E2B-it-GGUF` y su `mmproj`, contra `examples/transcribe_wav.rs`
+  y `examples/test_groq.rs` con los mismos audios. Fuentes: el informe técnico de Gemma 4 (arXiv
+  2607.02770), la ficha de `nvidia/parakeet-tdt-0.6b-v3` y los bancos de
+  twango.dev y trywalkie.com.
+
+## Checkpoint — 13 de octubre de 2026
 
 ### Estado
 
 | | |
 |---|---|
-| Versión publicada | **v0.15.0**, con las cuatro comprobaciones en verde (se sirve desde `releases/latest/download/`, sin BOM, `signature` idéntica al `.sig` local, SHA256 del `.exe` publicado igual al firmado). Antes, el mismo día, la **0.14.0**, también verificada |
-| Versión en uso | luisg tenía la **0.13.0** al empezar la sesión. La 0.15.0 le llega al abrir Ajustes — **falta confirmar que la instaló** |
-| Repo | `main` al día y empujado, y **es la única rama que queda**: las cinco mezcladas se borraron el 21/09 con el visto bueno de luisg (dos de ellas también en GitHub) |
-| Pruebas | `cargo test --lib` → **52 pasan, 0 fallan, 1 ignorada** (la ignorada vuelca el prompt del Editor a disco para probarlo a mano: `-- --ignored`) |
+| Versión publicada | **v0.16.1** (24/09/2026), con las cuatro comprobaciones en verde **rehechas el 13/10**: `latest.json` se baja de `releases/latest/download/`, va sin BOM y parsea, su `signature` es idéntica al `.sig` local y el SHA256 del `.exe` publicado es igual al de `target/release/bundle/nsis` |
+| Versión en uso | **0.16.1**, instalada y corriendo en la máquina de luisg. Desde el 24/09, `dicho.log` lleva **303 dictados** con 0 `panic`, 0 `DESBORDE`, 0 «no cargado» y 2 pulidos descartados (cayeron a las reglas, como debe ser) |
+| Repo | `main`, al día con `origin` y con **0 commits sin mezclar**. Este cierre entró por el PR #5 el 13/10, con el OK de luisg. **`main` es la única rama**: la vieja `claude/trusting-einstein-jn4k5d`, ya mezclada por el PR #4, se borró de GitHub el mismo día, también con su OK |
+| Pruebas | `cargo test --lib` → **98 pasan, 0 fallan, 2 ignoradas**: `prompt_del_editor`, que vuelca el prompt a disco, y `banco_coste_por_dictado`, un banco de tiempos. Las dos corren con `-- --ignored` |
 | Tipos y build | `npx tsc --noEmit` y `npm run build`, limpios |
 | Árbol de trabajo | limpio |
-| Pendiente crítico | respaldar `dicho.key` — **sólo puede hacerlo luisg**, y sigue sin hacerse desde el 27/08 |
+| Pendiente crítico | respaldar `dicho.key` — **sólo puede hacerlo luisg**, y sigue sin hacerse desde el 27/08/2026 |
+
+Dicho está en uso diario y estable: diecinueve días de 0.16.1 sin un crash en el
+log. Ojo con el checkpoint anterior: era del 21/09, y la sesión del 24/09 —la que
+publicó la 0.16.0 y la 0.16.1— **no lo reescribió**. Lo de esa fecha se reconstruyó
+el 13/10 desde git (ver el historial al final).
 
 ### Qué pasó en la última sesión
 
-Sesión larga y de una sola cosa: **el reposo**. Se rehízo entero, dos veces, y
-acabó siendo un motor nuevo.
+13/10/2026, corta y sin código. `/status` destapó el checkpoint viejo, y luisg pidió
+investigar **"Gemma2"**, un modelo de voz de Google que creía nuevo y gratis, para
+ver si entraba de fábrica en Dicho.
 
-**1 · De gestos de cinco segundos a historias de un minuto.** Las caritas de
-reposo eran bucles cortos y luisg las quería largas y que no se notara el bucle.
-El primer intento —cuatro caritas de ocho tiempos— no valía, y la razón está en
-el motor: `flip()` reparte el tiempo en partes iguales y tiene tope de doce
-cuadros, así que no puedes mascar cuatro veces de un lado y dos del otro. De ahí
-salió **`secuencia()`**: duraciones libres por cuadro, sin tope, con los
-fotogramas generados al vuelo dentro de la propia escena.
-
-Lo que hizo que funcionara fue **la investigación de los tamagotchi de verdad**,
-que luisg pidió expresamente: su idioma no es una película larga, es **un bucle
-corto de dos cuadros repetido un número variable de veces**, interrumpido por
-sucesos que escalan. Los originales alternan dos cuadros "tres o cuatro veces" y
-nunca las mismas. De ahí las tres reglas que rigen las cuatro historias: el bucle
-base dura distinto cada vez, los sucesos escalan, y el final no siempre es el
-mismo.
-
-**2 · Las cinco caritas de stand-by, cerradas.** Masca chicle, silba, duerme, te
-sigue con la mirada, y respira (la quinta es la de siempre, de relleno).
-
-- **El chicle** costó tres versiones. La primera tenía la boca y el carrillo como
-  dos bloques iguales y no se entendía; la segunda ya era medio círculo y raya
-  pero la bomba pasaba por pantalla en medio segundo. La tercera es la buena:
-  escalera de cinco tamaños que **se ve crecer**, aguanta arriba 1,3-1,9 s, y
-  revienta limpio casi siempre — **una de cada siete le explota en la cara**.
-- **El silbido** perdió la mano que chasqueaba los dedos (ver gotchas: a cinco
-  píxeles era una peineta) y ganó los ojos cerrados y el meneo de cabeza.
-- **El dormido** perdió la burbuja de moco, que competía con los ZZZ por el mismo
-  rincón, y ahora respira con la boca.
-- **Los ojos que te siguen** fue la única que necesitó Rust.
-- **El dibujante se borró el mismo día que nació**: se pisaba con el escribano.
-
-**3 · Dos versiones publicadas**, la 0.14.0 y la 0.15.0, las dos verificadas con
-las cuatro comprobaciones.
+Lo que es de verdad: **Gemma 4 E2B**, del 31/03/2026 ("E2B" es la talla chica;
+Gemma 2 es de 2024 y sólo entiende texto). Conclusión: **no va de fábrica**. Los
+números y el porqué quedaron en "Convenciones y gotchas", en la entrada de Gemma 4.
+Lo único en lo que podría ganarle a Parakeet es el **spanglish**, que nadie ha
+medido. Se le propuso a luisg medirlo con su voz y **dijo que no** (13/10): Gemma
+queda descartado, y el trabajo vuelve a los registros del habla.
 
 ### Lo que funciona y está probado
 
-Todo lo de las historias está medido sobre **400 tiradas de cada una**, no a ojo:
+- **La 0.16.1 publicada es la que se firmó**: las cuatro comprobaciones, rehechas el
+  13/10.
+- **Aguanta el uso real**: 303 dictados y 7 arranques del HUD desde el 24/09 en
+  `dicho.log`, sin `panic` y sin un solo «Modelo local no cargado» (el primer
+  dictado tras una pausa, arreglado en `3851bde`).
+- **98 tests de Rust**, tsc y build limpios, el 13/10.
 
-| | Duración | El suceso raro | Tiradas distintas |
-|---|---|---|---|
-| Chicle | 55-70 s | le explota 1 de cada 6,9 bombas | 400/400 |
-| Silbando | 55-62 s | la nota larga 1 de cada 6,2 frases | 400/400 |
-| Dormido | 55-69 s | se despierta 1 de cada 6,7 sucesos | 400/400 |
+**No verificado**, y se dice porque no se pudo probar:
 
-Y en las tres: **cero pasos repetidos seguidos** y **cero píxeles fuera del
-lienzo**. Comprobado además en el navegador que **avanzan de verdad** y que en
-cada instante hay **exactamente un paso visible** — el chicle va por el paso 13 a
-los 10 s, por el 55 a los 40 s y por el 74 a los 54 s.
-
-- **Los ojos que siguen al cursor** se probaron en el manual, que alimenta las
-  mismas dos variables de CSS desde el ratón de la página. En la app la posición
-  viene de Rust; el mecanismo que lee la carita es idéntico.
-- **Las dos versiones publicadas**, cada una con las cuatro comprobaciones de
-  firma, BOM y SHA256 contra lo que descarga la app.
-- **52 tests de Rust**, tsc y build limpios.
-
-**No verificado todavía**, y se dice porque no se pudo probar:
-
-- **Ninguna de las caritas nuevas se ha visto dentro de la app.** Se han visto en
-  el manual, que usa el mismo `faces.ts`, pero el HUD es otra ventana: falta que
-  luisg instale la 0.15.0 y deje la onda clavada un minuto.
-- **El seguimiento del cursor nunca se ha ejecutado con Rust de por medio.** El
-  comando compila y el cableado está, pero `hud_cursor` no se ha llamado una sola
-  vez en vivo.
-- **La corrección al vuelo** (LABS) sigue sin probarse desde el 17/09.
+- **Las historias de reposo y los ojos que siguen al cursor, dentro de la app.**
+  Desde el 21/09 sólo se han visto en el manual. El log enseña caritas de reposo
+  saliendo, pero no si se ven bien.
+- **Que la onda no salga en blanco** desde que se esconde también el WebView2
+  (`0f2b1f8`). El HUD recibe sus eventos (`HUD-JS: evento … → carita`): eso dice
+  que la página corre, no que pinte.
+- **La corrección al vuelo** (LABS), sin probar desde el 17/09.
+- **Todo lo de Gemma 4** es lectura de fuentes publicadas; nada se ha medido en esta
+  máquina. Los 5-10 s por trozo de 30 s en la laptop de luisg son una estimación.
 
 ### Siguiente paso inmediato
 
-**Que Dicho domine los registros del habla.** Lo pidió luisg y es lo primero de
-su lista: que entienda y sepa producir español profesional, organizado, informal
-y slang —mexicano— y que combine lo que haga falta según el input, **sin
-interruptor**. Es trabajo de prompt, y aquí eso **no se hace a ojo**: se hace con
-`herramientas/banco-de-prompts.py` contra sus ~750 dictados reales, que ya son un
-corpus de cómo habla él. El precedente manda: el modo Editor "parecía cambiar
-poco" y resultó que devolvía el dictado **idéntico** en dos de tres casos.
+**Sacar la línea base de los registros del habla.** Lo pidió luisg y es lo primero
+de su lista: que Dicho entienda y produzca español profesional, organizado,
+informal y slang mexicano, y los combine según el input, **sin interruptor**.
 
-Justo detrás va **personalizar el Editor con su propio historial**, que es la
-otra mitad del mismo problema y usa el mismo banco.
+Antes de tocar una palabra del prompt:
+
+1. Elegir en `mike.db` 10-15 dictados que cubran los cuatro registros.
+2. Volcar el prompt que de verdad está compilado con
+   `cargo test --lib volcado -- --ignored --nocapture`.
+3. Pasar esos dictados por `python herramientas/banco-de-prompts.py <ids>` con el
+   prompt de hoy.
+
+Sin esa línea base no hay cómo saber si un cambio mejora algo. Aquí los prompts no
+se afinan a ojo: el modo Editor "parecía cambiar poco" y devolvía el dictado
+**idéntico** en dos de tres casos.
 
 ### Lo que viene, por orden de valor
 
-1. **Los registros del habla** (ver el siguiente paso inmediato).
-2. **Personalizar el Editor con el historial del propio usuario.** No hace falta
-   Google: los ~750 dictados están en `mike.db`, en este disco. La forma barata es
-   meter tres o cuatro de sus textos ya redactados en el prompt como referencia
-   de voz.
-3. **Purga del historial.** `mike.db` crece sin tope y cada fila pesa más desde la
-   0.11. Necesita que luisg decida la política.
-4. **BYOK: una casilla genérica "compatible con OpenAI"** (URL base + key +
-   modelo). Hoy Groq es la única opción y su plan gratis puede cambiar.
-5. **Sincronización con Google de punta a punta.** El código está entero y con
-   tests; bloqueado por el cliente OAuth que sólo puede crear luisg.
-6. **Vocabulario propio en el prompt del STT.** El diccionario llega al pulido
-   pero **no** al `prompt` de Whisper, así que hoy sólo corrige la palabra
-   *después* de oírla mal. Cuidado: ese mismo prompt es lo que frena la
-   traducción, así que hay que medir antes y después.
-7. **La quinta carita de reposo.** Hoy el hueco lo tapa la de siempre —respira y
-   parpadea— porque el dibujante se borró. Falta una idea que no se pise con
-   ninguna de las otras cuatro ni con el escribano.
+1. **Los registros del habla** (arriba): con la línea base, probar variantes del
+   prompt en el mismo banco.
+2. **Personalizar el Editor con el historial del usuario**: meter tres o cuatro de
+   sus textos ya redactados en el prompt como referencia de voz. Mismo banco.
+3. **Purga del historial**: `mike.db` crece sin tope. Necesita que luisg decida la
+   política.
+4. **BYOK genérico "compatible con OpenAI"** (URL base + key + modelo): hoy Groq es
+   la única opción y su plan gratis puede cambiar.
+5. **Vocabulario propio en el prompt del STT**: hoy el diccionario sólo corrige
+   *después* de oír mal. Medir antes y después, que ese prompt es lo que frena la
+   traducción.
+6. **Sincronización con Google de punta a punta** (bloqueada por el cliente OAuth) y
+   **la quinta carita de reposo** (falta una idea que no se pise con las otras
+   cuatro ni con el escribano).
 
 ### Pendientes que sólo puede hacer el usuario
 
-- **Respaldar la clave privada del updater** (`%USERPROFILE%\.tauri\dicho.key`).
-  El único pendiente crítico y sólo existe una copia, en este disco. Sin ella, ni
-  luisg ni ninguno de sus testers vuelve a recibir una actualización jamás:
-  habría que reinstalar a mano en cada equipo. **Copiarla, no moverla** —
-  `publicar.ps1` la lee de esa ruta exacta. Acordado el 27/08 y **sigue sin
-  hacerse**.
-- **Instalar la 0.15.0 y mirar la onda un minuto**, clavada y sin dictar. Es la
-  única forma de ver las cuatro historias de stand-by dentro de la app, y de
-  comprobar que el seguimiento del cursor funciona de verdad. Si la onda va a
+- **Respaldar la clave privada del updater** (`%USERPROFILE%\.tauri\dicho.key`). Es
+  la única copia y está en este disco: sin ella, ni luisg ni sus testers vuelven a
+  recibir una actualización. **Copiarla, no moverla** — `publicar.ps1` la lee de esa
+  ruta exacta. Pendiente desde el 27/08/2026.
+- **Mirar la onda clavada un minuto sin dictar.** Es la única forma de ver las
+  historias de reposo y los ojos que siguen al cursor dentro de la app. Si va a
   tirones, decirlo: la palanca directa es bajar las historias de 60 a 45 s.
-- **Probar la corrección al vuelo.** Inicio → LABS → encender «Corregir mientras
-  escribo», escribir en un bloc de notas `tambien informacion aqui rapido ` (con
-  espacio tras cada palabra) y ver si salen con tilde. Y comprobar que **en una
-  terminal no hace nada**, que viene vetada de fábrica.
+- **Probar la corrección al vuelo.** Inicio → LABS → «Corregir mientras escribo»,
+  escribir en un bloc de notas `tambien informacion aqui rapido ` (con espacio tras
+  cada palabra) y ver si salen con tilde. En una terminal no debe hacer nada.
 - **Decidir la política de purga del historial.**
-- **Crear el cliente OAuth de Google** (~5 min, gratis). Es lo único que bloquea
-  la sincronización entre equipos.
+- **Crear el cliente OAuth de Google** (~5 min, gratis): es lo único que bloquea la
+  sincronización entre equipos.
 - **Avisar si cambia de plan en Groq**: con el gratuito hay 20 peticiones/minuto.
 
 ### Comprobar en dos minutos
 
 ```sh
-cd src-tauri && cargo test --lib   # 52 pasan, 1 ignorada
+cd src-tauri && cargo test --lib   # 98 pasan, 2 ignoradas
 npx tsc --noEmit                   # sin salida
 npm run build                      # limpio
 git status --short                 # vacío
+git branch -a                      # main y origin/main, nada más
 git rev-list --count origin/main..HEAD   # 0
 ```
 
 ```powershell
 # Que lo publicado sea lo instalado: la diferencia entre "salió" y "le llegó".
 $exe = "$env:LOCALAPPDATA\Dicho\mike.exe"; (Get-Item $exe).VersionInfo.FileVersion
-gh release view --repo luisgs096/dicho --json tagName --jq .tagName
+gh release list --repo luisgs096/dicho --limit 1
 @(Get-Process mike -ErrorAction SilentlyContinue).Count
 
 # Salud del ultimo uso. `Pulido [...]` dice que modo corrio y cuanto cambio el texto:
@@ -1008,8 +1000,11 @@ Get-Content "$env:APPDATA\dev.mike.app\dicho.log" -Tail 20
 Select-String -Path "$env:APPDATA\dev.mike.app\dicho.log" -Pattern "DESBORDE|panic|DESCARTADO|NO se pudo" | Select-Object -Last 5
 ```
 
-Y una que es de esta tanda: que las historias largas **no se queden congeladas**.
-Con la onda clavada y sin dictar, en la consola del HUD:
+Ojo: `gh release view` a secas contesta «release not found» en este repo (13/10);
+`gh release list` sí funciona y marca la última como `Latest`.
+
+Y una de las historias de reposo: que **no se queden congeladas**. Con la onda
+clavada y sin dictar, en la consola del HUD:
 
 ```js
 document.querySelector(".seq").getAnimations({subtree:true})[0].currentTime
@@ -1018,8 +1013,8 @@ document.querySelector(".seq").getAnimations({subtree:true})[0].currentTime
 Dos veces seguidas: si no avanza, alguien volvió a meter la duración en una
 variable CSS.
 
-**Ojo al probar**: luisg puede estar dictando. Cualquier script que robe el foco
-lo interrumpe, y simular el atajo hace que Dicho **pegue texto de verdad** en la
+**Ojo al probar**: luisg puede estar dictando. Cualquier script que robe el foco lo
+interrumpe, y simular el atajo hace que Dicho **pegue texto de verdad** en la
 ventana enfocada. Mirar antes la hora de la última línea de `dicho.log`.
 
 ## Publicar y actualizar
@@ -1078,6 +1073,25 @@ repetirla cada vez que se publique). Todo limpio:
   dinero de nadie sin poner su propia key.
 
 ## Historial de sesiones
+
+**13/10** — Sin código. `/status` destapó que el checkpoint seguía en el 21/09, y
+se rehízo desde git. Se investigó Gemma 4 E2B como motor de voz: no va de fábrica
+(ver gotchas). Se propuso medir el spanglish con la voz de luisg y dijo que no. La
+0.16.1, verificada otra vez: 303 dictados sin un crash. 98 tests. `main` vuelve a
+ser la única rama.
+
+**24/09** — *(Reconstruido desde git el 13/10: esta sesión no reescribió el
+checkpoint.)* Una tanda grande de arreglos y dos versiones, la **0.16.0** y la
+**0.16.1**; una parte llegó mezclada por el PR #4. Lo más gordo:
+- el motor local ya no pierde el primer dictado tras una pausa;
+- Ajustes y la revisión se destruyen al cerrarse;
+- la onda escondida deja de animar, porque ahora se lo dice también al WebView2;
+- el diccionario se aplica en una sola pasada, con 43 pruebas de punta a punta;
+- la sincronización deja lápidas, para que lo borrado no resucite;
+- y una revisión entera de las caritas (`spr()` con un `<path>` por color).
+
+En la 0.16 el escribano pasa a corregir erratas, habla en un globo junto a la onda,
+pierde su atajo y pide la key de Groq. De 52 a 98 tests.
 
 **20-21/09** — El reposo, entero y dos veces. Las caritas de stand-by pasaron de
 ser gestos de cinco segundos a **historias de un minuto que no se repiten**, y
